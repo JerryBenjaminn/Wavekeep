@@ -58,6 +58,11 @@ namespace Wavekeep.Waves
         private bool _runStarted;
         private bool _runEnded;
 
+        /// <summary>Live, read-only view of the currently active enemies (Task 04: ability target
+        /// acquisition reads this). Do not cache across frames — entries are added/removed as enemies
+        /// spawn and resolve.</summary>
+        public IReadOnlyList<EnemyRuntime> ActiveEnemies => _activeEnemies;
+
         private void Start()
         {
             if (_bootstrap == null || _bootstrap.Session == null)

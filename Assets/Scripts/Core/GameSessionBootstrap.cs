@@ -1,4 +1,5 @@
 using UnityEngine;
+using Wavekeep.Abilities;
 using Wavekeep.Economy;
 using Wavekeep.Input;
 using Wavekeep.Pooling;
@@ -49,8 +50,10 @@ namespace Wavekeep.Core
             // a kill before any Start-subscribed UI reads their state.
             var currencyManager = new CurrencyManager(eventBus);
             var xpManager = new XPManager(eventBus, _xpBaseAmount, _xpIncrementPerLevel);
+            var upgradeInventory = new UpgradeInventory();
 
-            Session = new GameSession(eventBus, enemyPool, interactionInput, currencyManager, xpManager);
+            Session = new GameSession(
+                eventBus, enemyPool, interactionInput, currencyManager, xpManager, upgradeInventory);
         }
 
         private void OnDestroy()

@@ -1,3 +1,4 @@
+using Wavekeep.Abilities;
 using Wavekeep.Economy;
 using Wavekeep.Input;
 using Wavekeep.Pooling;
@@ -28,6 +29,9 @@ namespace Wavekeep.Core
         /// <summary>Run-scoped XP/level tracking (CLAUDE.md §3.2).</summary>
         public XPManager XPManager { get; }
 
+        /// <summary>Per-run held upgrades; hero abilities resolve tag interactions against this (CLAUDE.md §3.8).</summary>
+        public UpgradeInventory UpgradeInventory { get; }
+
         // Placeholder service slots — populated by later tasks:
         // TODO (Task 05): HeroRuntime HeroRuntime { get; }
         //
@@ -40,13 +44,15 @@ namespace Wavekeep.Core
             EnemyPoolManager enemyPool,
             IInteractionInput interactionInput,
             CurrencyManager currencyManager,
-            XPManager xpManager)
+            XPManager xpManager,
+            UpgradeInventory upgradeInventory)
         {
             Events = eventBus;
             EnemyPool = enemyPool;
             InteractionInput = interactionInput;
             CurrencyManager = currencyManager;
             XPManager = xpManager;
+            UpgradeInventory = upgradeInventory;
         }
 
         /// <summary>Release all session-scoped state. Call when the run/scene ends.</summary>
