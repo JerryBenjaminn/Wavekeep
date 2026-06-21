@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7889edd6cdc626b44a063fd904055b5e, type: 3}
+  m_Name: TestTier
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.DifficultyTierSO
+  _tierName: Test
+  _waves:
+  - {fileID: 11400000, guid: 62de0aa464a28f2438ff6cf40e3f1ce1, type: 2}
+  - {fileID: 11400000, guid: 6dc5765b206615449b52b68c2a5d913e, type: 2}
+  - {fileID: 11400000, guid: 498cc7b6544ce9e4cb72364a7f8d05ec, type: 2}
+  _globalStatMultiplier: 1.2
