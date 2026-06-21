@@ -1,16 +1,20 @@
+using Wavekeep.Data;
+
 namespace Wavekeep.Core.Events
 {
-    // Placeholder event payloads for the signals listed in CLAUDE.md §3.3.
-    // Fields are intentionally minimal for Task 01 — later tasks flesh these out.
+    // Event payloads for the signals listed in CLAUDE.md §3.3.
     // These are grouped in one file as they are tiny related marker types; behaviour
     // lives elsewhere, so this does not violate the "one class per file" convention
     // for actual systems.
 
-    /// <summary>Published when an enemy dies (health reaches zero).
-    /// TODO (Task 03): carry EnemyRuntime reference + KillContext (CLAUDE.md §3.3) so
-    /// CurrencyManager/XPManager can read the enemy's reward yields.</summary>
+    /// <summary>Published when an enemy dies (health reaches zero). Carries the dead enemy's
+    /// <see cref="EnemyDefinitionSO"/> so reward consumers (CurrencyManager/XPManager) can read
+    /// its currency/xp yields. The SO is read-only — consumers must never write to it (CLAUDE.md §3.5).
+    /// A richer KillContext (killer, position, …) can be added here later if needed.</summary>
     public readonly struct EnemyKilledEvent
     {
+        public readonly EnemyDefinitionSO Definition;
+        public EnemyKilledEvent(EnemyDefinitionSO definition) => Definition = definition;
     }
 
     // (Removed) EnemyReachedDefendedPointEvent — superseded by attack-the-wall behavior.

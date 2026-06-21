@@ -133,7 +133,8 @@ namespace Wavekeep.Runtime
         private void Die()
         {
             if (_isResolved) return;
-            _events?.Publish(new EnemyKilledEvent());
+            // Carry the definition so reward consumers (Task 03) can read currency/xp yields.
+            _events?.Publish(new EnemyKilledEvent(Definition));
             Resolve();
         }
 

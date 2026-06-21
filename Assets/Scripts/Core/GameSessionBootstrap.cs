@@ -1,4 +1,5 @@
 using UnityEngine;
+using Wavekeep.Economy;
 using Wavekeep.Input;
 using Wavekeep.Pooling;
 
@@ -25,6 +26,12 @@ namespace Wavekeep.Core
         [Tooltip("Force a specific input mode for editor testing. Auto picks touch on mobile, mouse otherwise.")]
         [SerializeField] private InteractionInputMode _inputModeOverride = InteractionInputMode.Auto;
 
+        [Header("XP Curve (threshold = base + level * increment)")]
+        [Tooltip("Base XP component of the per-level threshold. Tunable placeholder.")]
+        [SerializeField, Min(1)] private int _xpBaseAmount = 10;
+        [Tooltip("Per-level XP increment added to the threshold each level. Tunable placeholder.")]
+        [SerializeField, Min(0)] private int _xpIncrementPerLevel = 5;
+
         /// <summary>The assembled session for this scene. Available after Awake.</summary>
         public GameSession Session { get; private set; }
 
@@ -38,7 +45,12 @@ namespace Wavekeep.Core
             var camera = _interactionCamera != null ? _interactionCamera : Camera.main;
             var interactionInput = InteractionInputProvider.Create(_inputModeOverride, camera, _groundLayer);
 
-            Session = new GameSession(eventBus, enemyPool, interactionInput);
+            // Managers subscribe to the bus in their constructors (during Awake), so they process
+            // a kill before any Start-subscribed UI reads their state.
+            var currencyManager = new CurrencyManager(eventBus);
+            var xpManager = new XPManager(eventBus, _xpBaseAmount, _xpIncrementPerLevel);
+
+            Session = new GameSession(eventBus, enemyPool, interactionInput, currencyManager, xpManager);
         }
 
         private void OnDestroy()
