@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -18,6 +19,11 @@ namespace Wavekeep.UI
     /// On selection it hides the panel, instantiates the chosen hero's prefab at the spawn point,
     /// initialises its <see cref="HeroRuntime"/>, and starts the Task 02 wave run (which is configured
     /// not to auto-start, so the run waits for the player's choice).
+    ///
+    /// Task 14: the Hub now owns hero selection. If a <see cref="RunLaunchContext"/> carries a hero
+    /// (the normal launch path), this panel is skipped and that hero auto-starts — so the player never
+    /// picks twice. The in-scene panel survives only as a DEV fallback for opening the gameplay scene
+    /// standalone (no Hub), keeping Task 05 testable in isolation.
     /// </summary>
     [AddComponentMenu("Wavekeep/UI/Hero Select Controller")]
     public sealed class HeroSelectController : MonoBehaviour
@@ -40,7 +46,26 @@ namespace Wavekeep.UI
 
         private void Start()
         {
+            // Task 14: Hub-launched run — auto-start the hero chosen in the Hub, skipping the panel.
+            var launch = Object.FindFirstObjectByType<RunLaunchContext>();
+            if (launch != null && launch.SelectedHero != null)
+            {
+                if (_selectPanel != null) _selectPanel.SetActive(false);
+                StartCoroutine(AutoStartNextFrame(launch.SelectedHero));
+                return;
+            }
+
+            // Standalone (no Hub): show the dev-fallback hero-select panel.
             BuildButtons();
+        }
+
+        // Defer one frame so every component's Start() (notably WaveSpawner's) has run before we
+        // instantiate the hero and call StartRun — avoids Start-ordering NREs that the original
+        // button-click flow never hit (the click always came after all Starts).
+        private IEnumerator AutoStartNextFrame(HeroDefinitionSO hero)
+        {
+            yield return null;
+            OnHeroChosen(hero);
         }
 
         private void BuildButtons()

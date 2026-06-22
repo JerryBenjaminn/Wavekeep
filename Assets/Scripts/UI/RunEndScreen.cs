@@ -14,13 +14,12 @@ namespace Wavekeep.UI
     /// not a second pause system — and shows a placeholder Victory/Defeat Canvas screen with minimal
     /// stats and a "Play Again" button.
     ///
-    /// Restart approach (documented decision): "Play Again" reloads the active scene. That is the most
-    /// leak-proof reset available and the one CLAUDE.md §3.5 is built around — <c>GameSessionBootstrap</c>
-    /// reassembles a brand-new <see cref="GameSession"/> (fresh Currency/XP/Upgrade/Consumable/Pause),
-    /// <c>WallRuntime.Awake</c> restores full HP, the <c>WaveSpawner</c> resets to wave 1, and hero
-    /// select reappears — so no per-run state can survive into the next run. See the Task 08 report for
-    /// the per-system audit. Chosen over hand-resetting each system precisely because piecemeal resets
-    /// are the documented "most common bug" here.
+    /// Restart approach (Task 14 update): the end-screen button now returns to the HUB scene rather than
+    /// reloading the gameplay scene. Loading a different scene still discards the gameplay
+    /// <see cref="GameSession"/> entirely — so per-run Currency/XP/Upgrade/Consumable/Pause/Wall/Wave
+    /// state is fully reset when the next run starts (its bootstrap builds a fresh session), exactly the
+    /// leak-free guarantee Task 08 relied on — while persistent gear survives via disk. The Hub is now
+    /// the between-run home (manage gear, then launch again).
     /// </summary>
     [AddComponentMenu("Wavekeep/UI/Run End Screen")]
     public sealed class RunEndScreen : MonoBehaviour
@@ -34,7 +33,11 @@ namespace Wavekeep.UI
         [SerializeField] private GameObject _panel;
         [SerializeField] private TMP_Text _titleText;
         [SerializeField] private TMP_Text _statsText;
+        [Tooltip("Button that returns to the Hub (Task 14). Was 'Play Again' in Task 08.")]
         [SerializeField] private Button _playAgainButton;
+
+        [Tooltip("Scene loaded when the player leaves the run (Task 14).")]
+        [SerializeField] private string _hubSceneName = "Hub";
 
         private EventBus _events;
         private PauseState _pause;
@@ -52,7 +55,7 @@ namespace Wavekeep.UI
             _events = _bootstrap.Session.Events;
             _pause = _bootstrap.Session.PauseState;
 
-            if (_playAgainButton != null) _playAgainButton.onClick.AddListener(OnPlayAgain);
+            if (_playAgainButton != null) _playAgainButton.onClick.AddListener(OnReturnToHub);
 
             _events.Subscribe<RunEndedEvent>(OnRunEnded);
             SetPanelVisible(false);
@@ -88,12 +91,12 @@ namespace Wavekeep.UI
             return $"Wave reached: {wave}\nCurrency: {currency}\nLevel: {level}";
         }
 
-        private void OnPlayAgain()
+        private void OnReturnToHub()
         {
-            // Full scene reload = guaranteed-fresh run (see class summary). No manual per-system reset,
-            // so nothing can leak. PauseState is part of the discarded session, so no resume is needed.
-            var scene = SceneManager.GetActiveScene();
-            SceneManager.LoadScene(scene.buildIndex);
+            // Task 14: leave the run for the Hub. Loading another scene discards the gameplay session,
+            // so per-run state can't leak; persistent gear is already saved to disk. The next run is
+            // launched fresh from the Hub.
+            SceneManager.LoadScene(_hubSceneName);
         }
 
         private void SetPanelVisible(bool visible)
