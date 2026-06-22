@@ -31,6 +31,12 @@ namespace Wavekeep.Data
         [Header("Tag Interactions (§3.8 — reacts to held upgrades' tags)")]
         [SerializeField] private List<TagInteractionRule> _tagInteractionRules = new List<TagInteractionRule>();
 
+        [Header("Status Effects (Task 11)")]
+        [Tooltip("If true, this ability's hits apply the status effects of any held status-upgrades. " +
+                 "Flag the deliberate 'payload' ability (typically the ultimate), NOT a rapid auto-basic, " +
+                 "so status effects aren't spammed every frame.")]
+        [SerializeField] private bool _appliesStatusEffects;
+
         public string AbilityName => _abilityName;
         public Sprite Icon => _icon;
         public float BaseDamage => _baseDamage;
@@ -39,6 +45,9 @@ namespace Wavekeep.Data
         public AbilityTargetingType TargetingType => _targetingType;
         public IReadOnlyList<AbilityUpgradeLevel> UpgradeLevels => _upgradeLevels;
         public IReadOnlyList<TagInteractionRule> TagInteractionRules => _tagInteractionRules;
+
+        /// <summary>True if this ability delivers held status-upgrades' effects on hit (Task 11).</summary>
+        public bool AppliesStatusEffects => _appliesStatusEffects;
 
         /// <summary>Highest level this ability defines (at least 1, even with no explicit entries).</summary>
         public int MaxLevel => Mathf.Max(1, _upgradeLevels.Count);

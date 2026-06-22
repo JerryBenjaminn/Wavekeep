@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Wavekeep.Data
@@ -32,6 +33,9 @@ namespace Wavekeep.Data
         [SerializeField] private AbilityDefinitionSO _basicAbility;
         [SerializeField] private AbilityDefinitionSO _ultimateAbility;
 
+        [Header("Exclusive Upgrade Pool (§3.8 — only this hero can draw these, alongside the generic pool)")]
+        [SerializeField] private List<UpgradeDefinitionSO> _exclusiveUpgrades = new List<UpgradeDefinitionSO>();
+
         public string HeroName => _heroName;
         public Sprite Icon => _icon;
         public GameObject Prefab => _prefab;
@@ -39,5 +43,8 @@ namespace Wavekeep.Data
         public float BaseHealth => _baseHealth;
         public AbilityDefinitionSO BasicAbility => _basicAbility;
         public AbilityDefinitionSO UltimateAbility => _ultimateAbility;
+
+        /// <summary>Upgrades only this hero can be offered by the level-up card picker (Task 11).</summary>
+        public IReadOnlyList<UpgradeDefinitionSO> ExclusiveUpgrades => _exclusiveUpgrades;
     }
 }

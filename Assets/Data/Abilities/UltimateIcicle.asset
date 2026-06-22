@@ -23,3 +23,4 @@ MonoBehaviour:
   - _matchTag: 1
     _modifierType: 0
     _modifierValue: 1.5
+  _appliesStatusEffects: 1

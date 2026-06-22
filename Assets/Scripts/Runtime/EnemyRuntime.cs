@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using Wavekeep.Core;
 using Wavekeep.Core.Events;
@@ -31,6 +32,19 @@ namespace Wavekeep.Runtime
         private float _attackTimer;
         private bool _isAttacking;
         private bool _isResolved;
+
+        // Task 11: generic status-effect state — ONE list + ONE tick loop handles the whole fixed
+        // StatusEffectType set, rather than per-effect booleans/timers (CLAUDE.md §3.8).
+        private struct ActiveStatusEffect
+        {
+            public StatusEffectType Type;
+            public float RemainingDuration;
+            public float Magnitude;
+            public float BurnTimer; // only used by Burn
+        }
+
+        private const float BurnTickInterval = 0.5f; // DoT granularity; per-tick damage comes from the SO
+        private readonly List<ActiveStatusEffect> _statusEffects = new List<ActiveStatusEffect>();
 
         public EnemyDefinitionSO Definition { get; private set; }
         public GameObject GameObject { get; private set; }
@@ -70,6 +84,7 @@ namespace Wavekeep.Runtime
             _isAttacking = false;
             _onResolved = onResolved;
             _isResolved = false;
+            _statusEffects.Clear(); // reset per-run status state on pooled reuse (Task 11)
 
             MaxHealth = definition.MaxHealth * statMultiplier;
             CurrentHealth = MaxHealth;
@@ -77,9 +92,14 @@ namespace Wavekeep.Runtime
             MoveSpeed = definition.MoveSpeed;
         }
 
-        /// <summary>Advance movement or wall-attack by <paramref name="deltaTime"/> seconds.</summary>
+        /// <summary>Advance status effects, then movement or wall-attack by <paramref name="deltaTime"/> seconds.</summary>
         public void Tick(float deltaTime)
         {
+            if (_isResolved) return;
+
+            // Task 11: status effects tick first. Burn deals damage through the normal TakeDamage path,
+            // which can resolve this enemy mid-tick — bail immediately if so (it's now pool-released).
+            TickStatusEffects(deltaTime);
             if (_isResolved || _wall == null) return;
 
             if (_isAttacking)
@@ -94,12 +114,101 @@ namespace Wavekeep.Runtime
             var position = Transform.position;
             float targetZ = _wall.transform.position.z;
             var target = new Vector3(position.x, position.y, targetZ);
-            Transform.position = Vector3.MoveTowards(position, target, MoveSpeed * deltaTime);
+            // Task 11: speed reflects active Freeze/Slow (frozen → 0, so it stops then resumes when it lapses).
+            Transform.position = Vector3.MoveTowards(position, target, EffectiveMoveSpeed * deltaTime);
 
             if (Mathf.Abs(Transform.position.z - targetZ) <= _arrivalThreshold)
             {
                 _isAttacking = true;
                 _attackTimer = 0f;
+            }
+        }
+
+        /// <summary>Base <see cref="MoveSpeed"/> scaled by all active Freeze/Slow effects (Task 11).
+        /// Combined MULTIPLICATIVELY: Freeze contributes ×0 (dominating any Slow while active); each
+        /// Slow contributes ×(1 − magnitude). Burn does not affect speed. Wall-attack cadence is not
+        /// affected (this task scopes Freeze/Slow to movement only).</summary>
+        public float EffectiveMoveSpeed
+        {
+            get
+            {
+                float multiplier = 1f;
+                for (int i = 0; i < _statusEffects.Count; i++)
+                {
+                    switch (_statusEffects[i].Type)
+                    {
+                        case StatusEffectType.Freeze:
+                            multiplier *= 0f;
+                            break;
+                        case StatusEffectType.Slow:
+                            multiplier *= Mathf.Clamp01(1f - _statusEffects[i].Magnitude);
+                            break;
+                    }
+                }
+                return MoveSpeed * multiplier;
+            }
+        }
+
+        /// <summary>
+        /// Apply a status effect (Task 11), called by <c>AbilityRuntime</c> on a status-delivering hit.
+        /// Generic over the fixed <see cref="StatusEffectType"/> set — no per-effect booleans. Stacking
+        /// rule: re-applying the SAME type REFRESHES it (overwrites remaining duration + magnitude),
+        /// it does not add a second instance; DIFFERENT types coexist (see <see cref="EffectiveMoveSpeed"/>).
+        /// </summary>
+        public void ApplyStatusEffect(StatusEffectType type, float magnitude, float duration)
+        {
+            if (_isResolved || duration <= 0f) return;
+
+            for (int i = 0; i < _statusEffects.Count; i++)
+            {
+                if (_statusEffects[i].Type != type) continue;
+
+                var existing = _statusEffects[i];
+                existing.RemainingDuration = duration; // refresh, don't stack
+                existing.Magnitude = magnitude;
+                _statusEffects[i] = existing;
+                return;
+            }
+
+            _statusEffects.Add(new ActiveStatusEffect
+            {
+                Type = type,
+                RemainingDuration = duration,
+                Magnitude = magnitude,
+                BurnTimer = 0f
+            });
+
+            Debug.Log($"[EnemyRuntime] Status '{type}' applied (mag={magnitude:0.#}, dur={duration:0.#}s) to '{Definition.EnemyName}'.");
+        }
+
+        // Advance durations, apply Burn ticks through the existing TakeDamage path (reusing the normal
+        // death/pool-release flow — NOT a parallel DoT system), and drop expired effects.
+        private void TickStatusEffects(float deltaTime)
+        {
+            for (int i = _statusEffects.Count - 1; i >= 0; i--)
+            {
+                var effect = _statusEffects[i];
+
+                if (effect.Type == StatusEffectType.Burn)
+                {
+                    effect.BurnTimer += deltaTime;
+                    while (effect.BurnTimer >= BurnTickInterval)
+                    {
+                        effect.BurnTimer -= BurnTickInterval;
+                        TakeDamage(effect.Magnitude);
+                        if (_isResolved) return; // burn was lethal; enemy already resolved/released
+                    }
+                }
+
+                effect.RemainingDuration -= deltaTime;
+                if (effect.RemainingDuration <= 0f)
+                {
+                    _statusEffects.RemoveAt(i);
+                }
+                else
+                {
+                    _statusEffects[i] = effect;
+                }
             }
         }
 

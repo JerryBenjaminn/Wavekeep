@@ -19,3 +19,6 @@ MonoBehaviour:
   _baseHealth: 120
   _basicAbility: {fileID: 11400000, guid: c06234b7fa219e740a43200b5dd38cbd, type: 2}
   _ultimateAbility: {fileID: 11400000, guid: b0dad0b96f631b448a6263e7a839381b, type: 2}
+  _exclusiveUpgrades:
+  - {fileID: 11400000, guid: 1f9d5cad293c6d040aeeaf29b47473bd, type: 2}
+  - {fileID: 11400000, guid: e5806a9ec21b29b499fd83b6a0fc5f23, type: 2}

@@ -104,15 +104,17 @@ The game targets **both mobile and PC** from the start. This affects architectur
 - **Interaction implication:** `IInteractionInput` (§3.6) must resolve screen-space touch/click into a **world-space position via `Physics.Raycast`** (e.g. against a ground plane or placement-layer collider), not a raw 2D screen coordinate. `TryGetInteractionPoint` should return a world position (or expose both screen and resolved world position — decide and document in Task 01).
 - **Pooled enemies (§3.5) are 3D prefabs** with `Rigidbody`/`Collider` as appropriate — pooling must account for resetting 3D transform/physics state on reuse (position, rotation, velocity), not just reactivating the GameObject.
 
-### 3.8 Hero Ability Model: Basic/Ultimate + Shared Upgrade Pool
+### 3.8 Hero Ability Model: Basic/Ultimate + Shared Upgrade Pool + Hero-Exclusive Pool
 
 - **Per-hero unique abilities:** every `HeroDefinitionSO` defines exactly one `BasicAbilityDefinitionSO` and one `UltimateAbilityDefinitionSO` — both unique to that hero, not shared.
-- **Shared upgrade pool:** level-up card choices are drawn from a single shared pool of `UpgradeDefinitionSO` assets, identical across all heroes (e.g. generic AoE burst, slow field, DoT effect, stat boosts). This is the Vampire-Survivors-style card pick.
+- **Two upgrade pools, drawn together:** level-up card choices are drawn from **both** a shared generic pool (identical across all heroes — generic AoE burst, slow field, stat boosts) **and** a hero-exclusive pool (`HeroDefinitionSO` references its own list of `UpgradeDefinitionSO` that only that hero can draw). The card picker (Task 07's `LevelUpCardPicker`) pulls candidates from the union of both pools when drawing cards for the active hero.
 - **Hero/upgrade interaction via tags:** `UpgradeDefinitionSO` carries one or more `UpgradeTag`s (e.g. `AoE`, `Slow`, `DoT`, `Elemental_Fire`). A hero's `BasicAbilityDefinitionSO`/`UltimateAbilityDefinitionSO` can optionally define a list of `TagInteractionRule` entries (`matchTag` + effect modifier) describing how that hero's ability responds when the player has picked upgrades carrying that tag.
   - Chosen over explicit per-upgrade ID references because tags scale automatically as new upgrades are added — a hero's "+20% effect on all AoE-tagged upgrades" rule keeps working against future AoE upgrades without per-hero edits.
   - `UpgradeTag` should be its own lightweight type (enum to start; revisit as a tag-SO only if tags need their own data later) so it's trivial to add new tags without touching unrelated code.
   - All effect magnitudes (upgrade base values, interaction modifiers) must be exposed as SO fields, not hardcoded, so values are testable/tunable without code changes.
   - Runtime resolution: `AbilityRuntime` checks the player's currently-held `UpgradeDefinitionSO` selections' tags against its own `TagInteractionRule` list when computing final ability output (damage, effect duration, etc.).
+- **Status effects (behavior-changing upgrades):** beyond numeric modifiers, upgrades (generic or hero-exclusive) can apply a `StatusEffectType` (e.g. `Freeze`, `Slow`, `Burn`) to hit enemies — this is a small, fixed enum of effect types implemented once in `EnemyRuntime`/`AbilityRuntime`, not an open-ended scripting system. `UpgradeDefinitionSO`/`TagInteractionRule` can specify a `StatusEffectType` + magnitude/duration to apply on hit, alongside or instead of a numeric stat modifier. Example: "Frost Warden's ultimate applies Freeze" is a hero-exclusive upgrade (or a baseline behavior on that hero's ultimate `AbilityDefinitionSO`, with an upgrade only modifying freeze duration/strength — exact split decided per-case in design).
+  - `EnemyRuntime` needs a small status-effect state machine (which effects are active, their remaining duration, and how they modify movement speed/damage taken/etc. while active) — kept generic across effect types rather than one-off booleans per effect.
 
 ---
 
@@ -142,7 +144,15 @@ The game targets **both mobile and PC** from the start. This affects architectur
 - Full art/VFX polish — placeholder art is fine until loop is validated
 - Wall repair/upgrade mechanics (wall currently has fixed HP per level; repair/upgrade-via-currency can be considered post-MVP)
 
-> **Note (superseded decision):** "No meta-progression beyond single-run" was the original MVP scope. This is now overridden — a persistent Gear/Artifact loot system is planned (loot earned in a run persists between runs and equips onto heroes for permanent power growth: battle → earn loot → equip → start a new, stronger run → reach further). Design and implementation are tracked as their own task(s) once planned in detail. In-run currency/XP/upgrade-inventory/consumable-inventory remain per-run only — only equipped gear/artifacts persist.
+> **Note (superseded decision):** "No meta-progression beyond single-run" was the original MVP scope. This is now overridden — a persistent Gear/Artifact loot system is planned: battle → earn loot → equip → start a new, stronger run → reach further.
+>
+> **Locked sub-decisions:**
+> - **Equip slots:** `Helmet`, `Body`, `Hands`, `Legs`, `Feet` (gear) + one `Artifact` slot — six slots total per hero.
+> - **Rarity tiers:** `Common`, `Uncommon`, `Rare`, `Epic`, `Legendary`, `Unique`, ascending power. Regular enemies drop only the lower tiers (exact cutoff TBD when loot tables are designed); higher tiers (Legendary/Unique) are boss-exclusive for now.
+> - **Persistence:** gear/artifact ownership and hero equip-loadouts persist between runs (saved to disk). In-run currency/XP/upgrade-inventory/consumable-inventory remain per-run only.
+> - **Management UI:** a separate hub/main-menu scene handles equip management (and likely becomes the home for other cross-run management as the project grows), rather than folding equip UI into the existing hero-select screen.
+> - **Future tooling (not yet scheduled):** custom Editor tools for authoring new enemies (stats, loot tables, abilities) and new abilities (targeting type, damage, DoT/stun/slow effects) without hand-writing SO assets one field at a time. Planned once the underlying data shapes (loot tables, status effects) are stable enough to build a tool around.
+> Design and implementation are split across multiple tasks (gear/equip core, loot tables, hub scene) — see `/docs/tasks/`.
 
 ---
 

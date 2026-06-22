@@ -100,6 +100,7 @@ namespace Wavekeep.Runtime
 
             if (nearest == null) return false;
             nearest.TakeDamage(damage);
+            ApplyHeldStatusEffects(nearest, context.Upgrades); // Task 11
 
             // Task 08: fire the visual from the SAME resolved target used for damage (not a separate
             // targeting pass), so the indicator can never disagree with where damage actually landed.
@@ -135,9 +136,27 @@ namespace Wavekeep.Runtime
             for (int i = 0; i < _aoeBuffer.Count; i++)
             {
                 _aoeBuffer[i].TakeDamage(damage);
+                ApplyHeldStatusEffects(_aoeBuffer[i], context.Upgrades); // Task 11
             }
             _aoeBuffer.Clear();
             return true;
+        }
+
+        // Task 11: if THIS ability is flagged to deliver status effects, apply every held status-upgrade's
+        // effect to the hit target. Fully data-driven — which ability delivers (AbilityDefinitionSO flag)
+        // and what it applies (UpgradeDefinitionSO data) — never hardcoded per hero. No-op on a target the
+        // damage just killed (ApplyStatusEffect guards a resolved enemy).
+        private void ApplyHeldStatusEffects(EnemyRuntime target, UpgradeInventory upgrades)
+        {
+            if (!Definition.AppliesStatusEffects || upgrades == null || target == null) return;
+
+            var held = upgrades.Upgrades;
+            for (int i = 0; i < held.Count; i++)
+            {
+                var upgrade = held[i];
+                if (upgrade == null || !upgrade.AppliesStatusEffect) continue;
+                target.ApplyStatusEffect(upgrade.StatusEffectType, upgrade.StatusMagnitude, upgrade.StatusDuration);
+            }
         }
 
         // base → per-level multipliers → tag-interaction modifiers → consumable modifiers.

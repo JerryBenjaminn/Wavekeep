@@ -3,6 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using Wavekeep.Core;
+using Wavekeep.Core.Events;
 using Wavekeep.Data;
 using Wavekeep.Runtime;
 using Wavekeep.Waves;
@@ -109,6 +110,11 @@ namespace Wavekeep.UI
             var heroRuntime = instance.GetComponent<HeroRuntime>();
             if (heroRuntime == null) heroRuntime = instance.AddComponent<HeroRuntime>();
             heroRuntime.Initialize(hero, _bootstrap.Session, _waveSpawner);
+
+            // Task 11: announce the active hero so the level-up picker can include this hero's exclusive
+            // upgrade pool (and no other hero's). Published before the run starts, so it's cached well
+            // before the first level-up.
+            _bootstrap.Session.Events.Publish(new HeroSelectedEvent(hero));
 
             Debug.Log($"[HeroSelectController] Selected hero '{hero.HeroName}'. Starting run.");
             if (_waveSpawner != null) _waveSpawner.StartRun();

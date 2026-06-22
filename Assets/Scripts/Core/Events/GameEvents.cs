@@ -50,6 +50,15 @@ namespace Wavekeep.Core.Events
         }
     }
 
+    /// <summary>Published when the player picks a hero and the run begins (Task 11). Carries the chosen
+    /// <see cref="HeroDefinitionSO"/> so systems like the level-up card picker can read that hero's
+    /// exclusive upgrade pool. The SO is read-only.</summary>
+    public readonly struct HeroSelectedEvent
+    {
+        public readonly HeroDefinitionSO Hero;
+        public HeroSelectedEvent(HeroDefinitionSO hero) => Hero = hero;
+    }
+
     /// <summary>Published when the active hero gains an XP level.</summary>
     public readonly struct XPLevelUpEvent
     {

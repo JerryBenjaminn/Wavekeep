@@ -55,11 +55,16 @@ namespace Wavekeep.UI
         private UpgradeInventory _inventory;
         private PauseState _pause;
 
+        // Task 11: the active hero's exclusive pool, learned via HeroSelectedEvent. Only THIS hero's
+        // exclusives are ever cached here, so no other hero's exclusives can appear in the draw.
+        private IReadOnlyList<UpgradeDefinitionSO> _activeHeroExclusives;
+
         private readonly List<CardSlot> _slots = new List<CardSlot>();
 
         // Scratch buffers reused per draw so card selection doesn't allocate each level-up.
         private readonly List<int> _drawIndices = new List<int>();
         private readonly List<UpgradeDefinitionSO> _currentDraw = new List<UpgradeDefinitionSO>();
+        private readonly List<UpgradeDefinitionSO> _combinedPool = new List<UpgradeDefinitionSO>();
 
         private int _pendingPicks;   // queued level-ups still awaiting a card choice
         private bool _isShowing;     // a card screen is currently displayed
@@ -81,13 +86,22 @@ namespace Wavekeep.UI
             BuildSlots();
 
             _events.Subscribe<XPLevelUpEvent>(OnLevelUp);
+            _events.Subscribe<HeroSelectedEvent>(OnHeroSelected);
 
             SetPanelVisible(false);
         }
 
         private void OnDestroy()
         {
-            if (_events != null) _events.Unsubscribe<XPLevelUpEvent>(OnLevelUp);
+            if (_events == null) return;
+            _events.Unsubscribe<XPLevelUpEvent>(OnLevelUp);
+            _events.Unsubscribe<HeroSelectedEvent>(OnHeroSelected);
+        }
+
+        // Task 11: cache the chosen hero's exclusive pool so the draw can include it.
+        private void OnHeroSelected(HeroSelectedEvent evt)
+        {
+            _activeHeroExclusives = evt.Hero != null ? evt.Hero.ExclusiveUpgrades : null;
         }
 
         private void BuildSlots()
@@ -252,23 +266,34 @@ namespace Wavekeep.UI
         }
 
         // Draw up to _cardsPerLevelUp DISTINCT upgrades via a partial Fisher–Yates shuffle of indices.
-        // Simple random draw (no owned-exclusion) is fine for MVP: there is no per-upgrade stack cap.
+        // Task 11: the candidate set is the UNION of the generic pool and the active hero's exclusive
+        // pool. Simple random draw (no owned-exclusion) is fine for MVP: there is no per-upgrade stack cap.
         private void DrawUpgrades(List<UpgradeDefinitionSO> result)
         {
             result.Clear();
 
-            _drawIndices.Clear();
+            _combinedPool.Clear();
             for (int i = 0; i < _upgradePool.Count; i++)
             {
-                if (_upgradePool[i] != null) _drawIndices.Add(i);
+                if (_upgradePool[i] != null) _combinedPool.Add(_upgradePool[i]);
             }
+            if (_activeHeroExclusives != null)
+            {
+                for (int i = 0; i < _activeHeroExclusives.Count; i++)
+                {
+                    if (_activeHeroExclusives[i] != null) _combinedPool.Add(_activeHeroExclusives[i]);
+                }
+            }
+
+            _drawIndices.Clear();
+            for (int i = 0; i < _combinedPool.Count; i++) _drawIndices.Add(i);
 
             int want = Mathf.Min(Mathf.Clamp(_cardsPerLevelUp, 2, 3), _drawIndices.Count);
             for (int k = 0; k < want; k++)
             {
                 int swap = Random.Range(k, _drawIndices.Count);
                 (_drawIndices[k], _drawIndices[swap]) = (_drawIndices[swap], _drawIndices[k]);
-                result.Add(_upgradePool[_drawIndices[k]]);
+                result.Add(_combinedPool[_drawIndices[k]]);
             }
         }
 
@@ -287,7 +312,7 @@ namespace Wavekeep.UI
                 tags = sb.ToString();
             }
 
-            return $"<size=80%>Tags: {tags}</size>\n\n{DescribeEffect(upgrade)}";
+            return $"<size=80%>Tags: {tags}</size>\n\n{DescribeEffect(upgrade)}{StatusSuffix(upgrade)}";
         }
 
         private static string DescribeEffect(UpgradeDefinitionSO upgrade)
@@ -299,6 +324,13 @@ namespace Wavekeep.UI
                 case UpgradeEffectType.AoeRadiusBonus: return $"+{upgrade.EffectValue:0.#} AoE radius";
                 default: return upgrade.EffectType.ToString();
             }
+        }
+
+        // Task 11: surface a status-on-hit upgrade's effect on the card.
+        private static string StatusSuffix(UpgradeDefinitionSO upgrade)
+        {
+            if (!upgrade.AppliesStatusEffect) return "";
+            return $"\nApplies {upgrade.StatusEffectType} ({upgrade.StatusDuration:0.#}s)";
         }
 
         private void SetPanelVisible(bool visible)

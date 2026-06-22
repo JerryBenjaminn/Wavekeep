@@ -22,11 +22,25 @@ namespace Wavekeep.Data
         [SerializeField] private UpgradeEffectType _effectType = UpgradeEffectType.FlatDamageBonus;
         [SerializeField] private float _effectValue;
 
+        [Header("Status Effect on Hit (Task 11 — applied by abilities flagged AppliesStatusEffects)")]
+        [Tooltip("If true, holding this upgrade makes status-delivering ability hits apply the effect below.")]
+        [SerializeField] private bool _appliesStatusEffect;
+        [SerializeField] private StatusEffectType _statusEffectType = StatusEffectType.Freeze;
+        [Tooltip("Freeze: unused. Slow: fraction reduced [0..1]. Burn: damage per tick. (See StatusEffectType.)")]
+        [SerializeField, Min(0f)] private float _statusMagnitude;
+        [Tooltip("Seconds the status lasts on a hit enemy.")]
+        [SerializeField, Min(0f)] private float _statusDuration;
+
         public string UpgradeName => _upgradeName;
         public Sprite Icon => _icon;
         public IReadOnlyList<UpgradeTag> Tags => _tags;
         public UpgradeEffectType EffectType => _effectType;
         public float EffectValue => _effectValue;
+
+        public bool AppliesStatusEffect => _appliesStatusEffect;
+        public StatusEffectType StatusEffectType => _statusEffectType;
+        public float StatusMagnitude => _statusMagnitude;
+        public float StatusDuration => _statusDuration;
 
         public bool HasTag(UpgradeTag tag) => _tags.Contains(tag);
     }
