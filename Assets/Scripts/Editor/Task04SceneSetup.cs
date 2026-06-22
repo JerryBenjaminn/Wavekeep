@@ -61,7 +61,9 @@ namespace Wavekeep.EditorTools
             so.FindProperty("_abilityName").stringValue = "Nova";
             so.FindProperty("_baseDamage").floatValue = 25f;
             so.FindProperty("_baseCooldown").floatValue = 4f;
-            so.FindProperty("_range").floatValue = 12f;
+            // Task 08 Part A fix: AoE radius enlarged to reach wall-edge enemies (was 12, too small for
+            // the ~12.8u distance from the set-back caster to the wall corners).
+            so.FindProperty("_range").floatValue = 16f;
             so.FindProperty("_targetingType").enumValueIndex = (int)AbilityTargetingType.AreaOfEffect;
 
             var rules = so.FindProperty("_tagInteractionRules");

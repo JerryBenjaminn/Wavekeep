@@ -100,6 +100,10 @@ namespace Wavekeep.Runtime
 
             if (nearest == null) return false;
             nearest.TakeDamage(damage);
+
+            // Task 08: fire the visual from the SAME resolved target used for damage (not a separate
+            // targeting pass), so the indicator can never disagree with where damage actually landed.
+            context.Feedback?.OnSingleTargetHit(context.CasterPosition, nearest.Transform.position);
             return true;
         }
 
@@ -122,6 +126,11 @@ namespace Wavekeep.Runtime
             }
 
             if (_aoeBuffer.Count == 0) return false;
+
+            // Task 08: show the radius indicator with the ACTUAL radius used for the overlap test, at
+            // the caster centre — only when the AoE actually connects (mirrors single-target firing on
+            // a hit), so an auto-firing AoE basic with no targets in range doesn't spam the ring.
+            context.Feedback?.OnAreaOfEffect(context.CasterPosition, radius);
 
             for (int i = 0; i < _aoeBuffer.Count; i++)
             {

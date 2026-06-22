@@ -59,6 +59,11 @@ namespace Wavekeep.Waves
         private bool _runStarted;
         private bool _runEnded;
         private bool _awaitingContinue;
+        private int _currentWaveNumber;
+
+        /// <summary>1-based number of the wave currently in progress (or last reached). 0 before the run
+        /// starts. Surfaced for the Task 08 end screen's minimal stats.</summary>
+        public int CurrentWaveNumber => _currentWaveNumber;
 
         /// <summary>Live, read-only view of the currently active enemies (Task 04: ability target
         /// acquisition reads this). Do not cache across frames — entries are added/removed as enemies
@@ -154,6 +159,7 @@ namespace Wavekeep.Waves
                 var wave = waves[waveIndex];
                 if (wave == null) continue;
 
+                _currentWaveNumber = waveIndex + 1;
                 _events.Publish(new WaveStartedEvent(waveIndex));
                 Debug.Log($"[WaveSpawner] Wave {waveIndex} started ('{_difficultyTier.TierName}').");
 

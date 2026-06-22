@@ -37,6 +37,7 @@ namespace Wavekeep.Runtime
         private UpgradeInventory _upgrades;
         private ConsumableInventory _consumables;
         private PauseState _pause;
+        private IAbilityFeedback _feedback;
         private bool _initialized;
 
         /// <summary>
@@ -51,6 +52,14 @@ namespace Wavekeep.Runtime
             _upgrades = session.UpgradeInventory;
             _consumables = session.ConsumableInventory;
             _pause = session.PauseState;
+
+            // Task 08: self-contained visual feedback — no scene/prefab wiring. Added on the hero so its
+            // beam/ring originate at the caster. AddComponent runs its Awake synchronously (hero is active).
+            if (!TryGetComponent(out AbilityIndicatorPresenter presenter))
+            {
+                presenter = gameObject.AddComponent<AbilityIndicatorPresenter>();
+            }
+            _feedback = presenter;
 
             Basic = definition.BasicAbility != null ? new AbilityRuntime(definition.BasicAbility) : null;
             Ultimate = definition.UltimateAbility != null ? new AbilityRuntime(definition.UltimateAbility) : null;
@@ -72,7 +81,7 @@ namespace Wavekeep.Runtime
             _consumables?.Tick(Time.deltaTime);
 
             var context = new AbilityExecutionContext(
-                transform.position, _waveSpawner.ActiveEnemies, _upgrades, _consumables);
+                transform.position, _waveSpawner.ActiveEnemies, _upgrades, _consumables, _feedback);
 
             if (Basic != null)
             {

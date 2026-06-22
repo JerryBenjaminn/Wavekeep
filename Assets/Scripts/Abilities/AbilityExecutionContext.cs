@@ -12,8 +12,9 @@ namespace Wavekeep.Abilities
     /// <see cref="Enemies"/> is the spawner's live active-enemy list (read-only); abilities resolve
     /// targets from it. <see cref="Upgrades"/> is the per-run inventory used to resolve tag
     /// interactions. <see cref="Consumables"/> (Task 06) is the parallel inventory of purchased shop
-    /// effects, read as just another modifier source. The context is rebuilt cheaply each frame by the
-    /// hero controller.
+    /// effects, read as just another modifier source. <see cref="Feedback"/> (Task 08) is an optional
+    /// visual sink the runtime notifies at the resolution point. The context is rebuilt cheaply each
+    /// frame by the hero controller.
     /// </summary>
     public readonly struct AbilityExecutionContext
     {
@@ -21,17 +22,20 @@ namespace Wavekeep.Abilities
         public readonly IReadOnlyList<EnemyRuntime> Enemies;
         public readonly UpgradeInventory Upgrades;
         public readonly ConsumableInventory Consumables;
+        public readonly IAbilityFeedback Feedback;
 
         public AbilityExecutionContext(
             Vector3 casterPosition,
             IReadOnlyList<EnemyRuntime> enemies,
             UpgradeInventory upgrades,
-            ConsumableInventory consumables)
+            ConsumableInventory consumables,
+            IAbilityFeedback feedback = null)
         {
             CasterPosition = casterPosition;
             Enemies = enemies;
             Upgrades = upgrades;
             Consumables = consumables;
+            Feedback = feedback;
         }
     }
 }
