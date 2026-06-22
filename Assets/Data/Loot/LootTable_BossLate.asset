@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ca262ce2c57035540b0079d34687360f, type: 3}
+  m_Name: LootTable_BossLate
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.LootTableSO
+  _dropChance: 1
+  _entries:
+  - _item: {fileID: 11400000, guid: fbeb9ef5bdd861145b757d37a18047f6, type: 2}
+    _weight: 3
+  - _item: {fileID: 11400000, guid: 5111f70fa92345b41b9b6228e43cb8de, type: 2}
+    _weight: 3
+  - _item: {fileID: 11400000, guid: 13b0c4f2b55aeba43b50c2702d57b60e, type: 2}
+    _weight: 2
+  - _item: {fileID: 11400000, guid: 1f32326f47de7464aa83a9562f1faa50, type: 2}
+    _weight: 1

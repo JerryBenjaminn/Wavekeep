@@ -213,7 +213,7 @@ namespace Wavekeep.Waves
             // so it lands in _activeEnemies and the existing "all enemies resolved" wait covers it.
             if (bossWave)
             {
-                yield return StartCoroutine(SpawnBosses(multiplier));
+                yield return StartCoroutine(SpawnBosses(multiplier, wave));
             }
 
             foreach (var entry in wave.SpawnEntries)
@@ -230,7 +230,8 @@ namespace Wavekeep.Waves
                     // the wave keep streaming enemies in behind the frozen ones.
                     while (_pause != null && _pause.IsPaused) yield return null;
 
-                    SpawnEnemy(entry.EnemyType, multiplier);
+                    // Task 13: regular enemies roll their own EnemyDefinitionSO loot table (or none).
+                    SpawnEnemy(entry.EnemyType, multiplier, entry.EnemyType.LootTable);
                     if (entry.SpawnInterval > 0f)
                     {
                         yield return new WaitForSeconds(entry.SpawnInterval);
@@ -239,7 +240,7 @@ namespace Wavekeep.Waves
             }
         }
 
-        private IEnumerator SpawnBosses(float multiplier)
+        private IEnumerator SpawnBosses(float multiplier, WaveConfigSO wave)
         {
             var bossDef = _difficultyTier.BossDefinition;
             if (bossDef == null || bossDef.Prefab == null)
@@ -248,16 +249,21 @@ namespace Wavekeep.Waves
                 yield break;
             }
 
+            // Task 13: boss loot tier is determined by the WAVE (this WaveConfigSO's boss table), not by
+            // the shared boss definition — so later boss waves can drop higher tiers with no new boss type.
+            var bossLootTable = wave.BossLootTable;
+
             int bossCount = Mathf.Max(1, _difficultyTier.BossCount);
             for (int b = 0; b < bossCount; b++)
             {
                 while (_pause != null && _pause.IsPaused) yield return null;
-                SpawnEnemy(bossDef, multiplier);
-                Debug.Log($"[WaveSpawner] BOSS spawned: '{bossDef.EnemyName}' at mult={multiplier:0.00}.");
+                SpawnEnemy(bossDef, multiplier, bossLootTable);
+                Debug.Log($"[WaveSpawner] BOSS spawned: '{bossDef.EnemyName}' at mult={multiplier:0.00} " +
+                          $"(loot: {(bossLootTable != null ? bossLootTable.name : "none")}).");
             }
         }
 
-        private void SpawnEnemy(EnemyDefinitionSO definition, float multiplier)
+        private void SpawnEnemy(EnemyDefinitionSO definition, float multiplier, LootTableSO lootTable)
         {
             var marker = _spawnMarkers[_spawnMarkerCursor];
             _spawnMarkerCursor = (_spawnMarkerCursor + 1) % _spawnMarkers.Length;
@@ -266,7 +272,8 @@ namespace Wavekeep.Waves
             instance.transform.position = marker.position;
 
             var enemy = new EnemyRuntime();
-            enemy.Initialize(definition, instance, multiplier, _wall, _events, _arrivalThreshold, _attackInterval, OnEnemyResolved);
+            enemy.Initialize(definition, instance, multiplier, _wall, _events, _arrivalThreshold, _attackInterval,
+                OnEnemyResolved, lootTable);
             _activeEnemies.Add(enemy);
 
             Debug.Log($"[WaveSpawner] Spawned '{definition.EnemyName}' mult={multiplier:0.00} maxHP={enemy.MaxHealth:0.0}");

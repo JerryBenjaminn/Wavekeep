@@ -26,6 +26,11 @@ namespace Wavekeep.Data
         [SerializeField] private int _currencyReward = 1;
         [SerializeField] private int _xpReward = 1;
 
+        [Header("Gear Drops (Task 13)")]
+        [Tooltip("Optional loot table rolled on death (regular enemies). Null = drops nothing. " +
+                 "Bosses ignore this — their table comes from the wave's boss entry (WaveConfigSO).")]
+        [SerializeField] private LootTableSO _lootTable;
+
         public string EnemyName => _enemyName;
         public GameObject Prefab => _prefab;
         public float MaxHealth => _maxHealth;
@@ -33,5 +38,6 @@ namespace Wavekeep.Data
         public float ContactDamage => _contactDamage;
         public int CurrencyReward => _currencyReward;
         public int XpReward => _xpReward;
+        public LootTableSO LootTable => _lootTable;
     }
 }

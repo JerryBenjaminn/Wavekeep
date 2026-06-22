@@ -9,12 +9,28 @@ namespace Wavekeep.Core.Events
 
     /// <summary>Published when an enemy dies (health reaches zero). Carries the dead enemy's
     /// <see cref="EnemyDefinitionSO"/> so reward consumers (CurrencyManager/XPManager) can read
-    /// its currency/xp yields. The SO is read-only — consumers must never write to it (CLAUDE.md §3.5).
-    /// A richer KillContext (killer, position, …) can be added here later if needed.</summary>
+    /// its currency/xp yields, plus the <see cref="LootTable"/> resolved for THIS kill (Task 13) —
+    /// the enemy's own table for regulars, or the wave's boss table for bosses (null = no drops).
+    /// The SOs are read-only — consumers must never write to them (CLAUDE.md §3.5).</summary>
     public readonly struct EnemyKilledEvent
     {
         public readonly EnemyDefinitionSO Definition;
-        public EnemyKilledEvent(EnemyDefinitionSO definition) => Definition = definition;
+        public readonly LootTableSO LootTable;
+
+        public EnemyKilledEvent(EnemyDefinitionSO definition, LootTableSO lootTable)
+        {
+            Definition = definition;
+            LootTable = lootTable;
+        }
+    }
+
+    /// <summary>Published when a kill rolls an actual gear/artifact drop (Task 13). Carries the dropped
+    /// <see cref="LootItemSO"/> for the minimal in-run pickup notification (the item is already in the
+    /// GearInventory by the time this fires).</summary>
+    public readonly struct GearDroppedEvent
+    {
+        public readonly LootItemSO Item;
+        public GearDroppedEvent(LootItemSO item) => Item = item;
     }
 
     // (Removed) EnemyReachedDefendedPointEvent — superseded by attack-the-wall behavior.

@@ -26,6 +26,14 @@ MonoBehaviour:
   - {fileID: 11400000, guid: ad72f1b9eae507443a1448644d5d2c43, type: 2}
   - {fileID: 11400000, guid: 18c16559394f0194181fa575a9d7ea95, type: 2}
   - {fileID: 11400000, guid: f453fa83945869642a8a9036f5edfadb, type: 2}
+  - {fileID: 11400000, guid: 4060c5afaa780fb449e6e52a743be17f, type: 2}
+  - {fileID: 11400000, guid: 309736d319de1c2408cddef45c40105d, type: 2}
+  - {fileID: 11400000, guid: d4b6a92d7d07ac242a7da330a95cb7dd, type: 2}
+  - {fileID: 11400000, guid: e25e1ece75559784d8629a964d14e993, type: 2}
+  - {fileID: 11400000, guid: 84f39f72742b8814a84dda3dfd45aae5, type: 2}
+  - {fileID: 11400000, guid: 26ef2d08dcc7d404ebaa12e59089165c, type: 2}
+  - {fileID: 11400000, guid: 3bf9490ef5bd4a2409aaa32186657e82, type: 2}
+  - {fileID: 11400000, guid: f04a8237be720ef4d80a43f8ff6d302c, type: 2}
   _globalStatMultiplier: 1.2
   _milestoneWaveInterval: 5
   _milestoneStep: 0.5

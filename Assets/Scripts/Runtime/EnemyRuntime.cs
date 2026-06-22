@@ -33,6 +33,11 @@ namespace Wavekeep.Runtime
         private bool _isAttacking;
         private bool _isResolved;
 
+        // Task 13: the loot table resolved for THIS spawn (regular = its definition's; boss = the wave's
+        // boss table). Carried only so Die() can hand it to the kill event — EnemyRuntime never rolls/
+        // grants loot itself (that's LootService), keeping the death path additive.
+        private LootTableSO _lootTable;
+
         // Task 11: generic status-effect state — ONE list + ONE tick loop handles the whole fixed
         // StatusEffectType set, rather than per-effect booleans/timers (CLAUDE.md §3.8).
         private struct ActiveStatusEffect
@@ -71,7 +76,8 @@ namespace Wavekeep.Runtime
             EventBus events,
             float arrivalThreshold,
             float attackInterval,
-            Action<EnemyRuntime> onResolved)
+            Action<EnemyRuntime> onResolved,
+            LootTableSO lootTable = null)
         {
             Definition = definition;
             GameObject = pooledInstance;
@@ -84,6 +90,7 @@ namespace Wavekeep.Runtime
             _isAttacking = false;
             _onResolved = onResolved;
             _isResolved = false;
+            _lootTable = lootTable; // Task 13: resolved per spawn (regular def table / wave boss table)
             _statusEffects.Clear(); // reset per-run status state on pooled reuse (Task 11)
 
             MaxHealth = definition.MaxHealth * statMultiplier;
@@ -242,8 +249,10 @@ namespace Wavekeep.Runtime
         private void Die()
         {
             if (_isResolved) return;
-            // Carry the definition so reward consumers (Task 03) can read currency/xp yields.
-            _events?.Publish(new EnemyKilledEvent(Definition));
+            // Carry the definition (Task 03 currency/xp) AND the resolved loot table (Task 13 drops).
+            // Loot rolling/granting happens in LootService listening to this same event — this death
+            // path is unchanged otherwise (no new currency/xp/pool-release logic).
+            _events?.Publish(new EnemyKilledEvent(Definition, _lootTable));
             Resolve();
         }
 

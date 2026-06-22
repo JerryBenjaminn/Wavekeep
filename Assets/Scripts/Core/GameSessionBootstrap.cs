@@ -73,9 +73,13 @@ namespace Wavekeep.Core
             var savePath = Path.Combine(Application.persistentDataPath, GearManager.DefaultSaveFileName);
             var gearManager = new GearManager(_gearCatalog, savePath);
 
+            // Task 13: subscribes to EnemyKilledEvent (after Currency/XP) to roll drops into the gear
+            // manager — an additional consumer of the kill event, not a change to the death path.
+            var lootService = new LootService(eventBus, gearManager);
+
             Session = new GameSession(
                 eventBus, enemyPool, interactionInput, currencyManager, xpManager,
-                upgradeInventory, consumableInventory, pauseState, rerollManager, gearManager);
+                upgradeInventory, consumableInventory, pauseState, rerollManager, gearManager, lootService);
         }
 
         private void OnDestroy()

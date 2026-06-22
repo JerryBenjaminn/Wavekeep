@@ -46,6 +46,9 @@ namespace Wavekeep.Core
         /// survives scene reloads/runs unlike the per-run services above (CLAUDE.md §6).</summary>
         public GearManager GearManager { get; }
 
+        /// <summary>Rolls gear drops on enemy death into the GearManager (Task 13).</summary>
+        public LootService LootService { get; }
+
         // Placeholder service slots — populated by later tasks:
         // TODO (Task 05): HeroRuntime HeroRuntime { get; }
         //
@@ -63,7 +66,8 @@ namespace Wavekeep.Core
             ConsumableInventory consumableInventory,
             PauseState pauseState,
             RerollManager rerollManager,
-            GearManager gearManager)
+            GearManager gearManager,
+            LootService lootService)
         {
             Events = eventBus;
             EnemyPool = enemyPool;
@@ -75,6 +79,7 @@ namespace Wavekeep.Core
             PauseState = pauseState;
             RerollManager = rerollManager;
             GearManager = gearManager;
+            LootService = lootService;
         }
 
         /// <summary>Release all session-scoped state. Call when the run/scene ends.</summary>
@@ -83,6 +88,7 @@ namespace Wavekeep.Core
             // Explicitly unsubscribe the managers before clearing the bus (CLAUDE.md §3.5 lifecycle).
             CurrencyManager?.Dispose();
             XPManager?.Dispose();
+            LootService?.Dispose();
             Events.UnsubscribeAll();
             EnemyPool.Clear();
         }
