@@ -1,9 +1,11 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Wavekeep.Abilities;
 using Wavekeep.Core;
 using Wavekeep.Data;
 using Wavekeep.Economy;
+using Wavekeep.Gear;
 using Wavekeep.Waves;
 
 namespace Wavekeep.Runtime
@@ -38,6 +40,7 @@ namespace Wavekeep.Runtime
         private ConsumableInventory _consumables;
         private PauseState _pause;
         private IAbilityFeedback _feedback;
+        private IReadOnlyList<StatModifier> _equippedModifiers;
         private bool _initialized;
 
         /// <summary>
@@ -52,6 +55,11 @@ namespace Wavekeep.Runtime
             _upgrades = session.UpgradeInventory;
             _consumables = session.ConsumableInventory;
             _pause = session.PauseState;
+
+            // Task 12: this hero's equipped gear/artifact modifiers (a live view of the loadout's
+            // aggregated list) feed AbilityRuntime's existing modifier pipeline. Equip happens between
+            // runs, so it's stable during a run; reading the live reference keeps it correct regardless.
+            _equippedModifiers = session.GearManager.GetLoadout(definition).AggregatedModifiers;
 
             // Task 08: self-contained visual feedback — no scene/prefab wiring. Added on the hero so its
             // beam/ring originate at the caster. AddComponent runs its Awake synchronously (hero is active).
@@ -81,7 +89,8 @@ namespace Wavekeep.Runtime
             _consumables?.Tick(Time.deltaTime);
 
             var context = new AbilityExecutionContext(
-                transform.position, _waveSpawner.ActiveEnemies, _upgrades, _consumables, _feedback);
+                transform.position, _waveSpawner.ActiveEnemies, _upgrades, _consumables,
+                _equippedModifiers, _feedback);
 
             if (Basic != null)
             {

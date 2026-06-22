@@ -1,6 +1,9 @@
+using System.IO;
 using UnityEngine;
 using Wavekeep.Abilities;
+using Wavekeep.Data;
 using Wavekeep.Economy;
+using Wavekeep.Gear;
 using Wavekeep.Input;
 using Wavekeep.Pooling;
 
@@ -37,6 +40,10 @@ namespace Wavekeep.Core
         [Tooltip("Reroll points the player starts each fresh run with (Task 09). Persists across shop visits.")]
         [SerializeField, Min(0)] private int _startingRerollPoints = 3;
 
+        [Header("Gear (Task 12)")]
+        [Tooltip("Master catalog of all gear/artifact items, used to resolve saved item ids on load.")]
+        [SerializeField] private GearCatalogSO _gearCatalog;
+
         /// <summary>The assembled session for this scene. Available after Awake.</summary>
         public GameSession Session { get; private set; }
 
@@ -61,9 +68,14 @@ namespace Wavekeep.Core
             // new run (Task 08 "Play Again" reloads the scene); they persist within a run otherwise.
             var rerollManager = new RerollManager(eventBus, _startingRerollPoints);
 
+            // Task 12: gear is DISK-backed. The manager loads from disk on construction, so a scene
+            // reload reconstructs identical persistent state while the per-run services above reset.
+            var savePath = Path.Combine(Application.persistentDataPath, GearManager.DefaultSaveFileName);
+            var gearManager = new GearManager(_gearCatalog, savePath);
+
             Session = new GameSession(
                 eventBus, enemyPool, interactionInput, currencyManager, xpManager,
-                upgradeInventory, consumableInventory, pauseState, rerollManager);
+                upgradeInventory, consumableInventory, pauseState, rerollManager, gearManager);
         }
 
         private void OnDestroy()

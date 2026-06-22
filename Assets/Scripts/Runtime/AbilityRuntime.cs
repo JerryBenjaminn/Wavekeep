@@ -47,10 +47,12 @@ namespace Wavekeep.Runtime
         }
 
         /// <summary>Read-only preview of the damage this ability would deal right now (base × level ×
-        /// tag interactions × consumable modifiers). Handy for debug logs/tooltips; does not mutate state.</summary>
-        public float GetEffectiveDamage(UpgradeInventory upgrades, ConsumableInventory consumables)
+        /// tag interactions × consumable × equipped-gear modifiers). Handy for debug logs/tooltips;
+        /// does not mutate state.</summary>
+        public float GetEffectiveDamage(UpgradeInventory upgrades, ConsumableInventory consumables,
+            IReadOnlyList<StatModifier> equippedModifiers)
         {
-            ComputeStats(upgrades, consumables, out float damage, out _, out _);
+            ComputeStats(upgrades, consumables, equippedModifiers, out float damage, out _, out _);
             return damage;
         }
 
@@ -58,7 +60,8 @@ namespace Wavekeep.Runtime
         {
             if (!IsReady || context.Enemies == null) return;
 
-            ComputeStats(context.Upgrades, context.Consumables, out float damage, out float cooldown, out float range);
+            ComputeStats(context.Upgrades, context.Consumables, context.EquippedModifiers,
+                out float damage, out float cooldown, out float range);
 
             bool hitSomething;
             switch (Definition.TargetingType)
@@ -159,9 +162,11 @@ namespace Wavekeep.Runtime
             }
         }
 
-        // base → per-level multipliers → tag-interaction modifiers → consumable modifiers.
-        // Nothing written back to the SO; consumables are just another modifier source layered in.
+        // Modifier stack (documented order): base → per-level multipliers → tag-interaction modifiers
+        // → consumable modifiers → equipped gear/artifact modifiers. Nothing written back to the SO;
+        // each source is just another layer feeding the SAME AbilityModifierType switch.
         private void ComputeStats(UpgradeInventory upgrades, ConsumableInventory consumables,
+            IReadOnlyList<StatModifier> equippedModifiers,
             out float damage, out float cooldown, out float range)
         {
             var level = CurrentLevelEntry();
@@ -176,14 +181,7 @@ namespace Wavekeep.Runtime
                 {
                     var rule = rules[i];
                     if (rule == null || !upgrades.HasTag(rule.MatchTag)) continue;
-
-                    switch (rule.ModifierType)
-                    {
-                        case AbilityModifierType.DamageMultiplier: damage *= rule.ModifierValue; break;
-                        case AbilityModifierType.DamageFlatBonus: damage += rule.ModifierValue; break;
-                        case AbilityModifierType.CooldownMultiplier: cooldown *= rule.ModifierValue; break;
-                        case AbilityModifierType.RangeMultiplier: range *= rule.ModifierValue; break;
-                    }
+                    ApplyModifier(rule.ModifierType, rule.ModifierValue, ref damage, ref cooldown, ref range);
                 }
             }
 
@@ -195,9 +193,34 @@ namespace Wavekeep.Runtime
                 cooldown *= consumables.CooldownMultiplier();
             }
 
+            // Equipped gear/artifact bonuses (Task 12): the active hero loadout's aggregated modifiers,
+            // applied last through the SAME switch — extends the pipeline, never a parallel calculation.
+            if (equippedModifiers != null)
+            {
+                for (int i = 0; i < equippedModifiers.Count; i++)
+                {
+                    ApplyModifier(equippedModifiers[i].ModifierType, equippedModifiers[i].Value,
+                        ref damage, ref cooldown, ref range);
+                }
+            }
+
             damage = Mathf.Max(0f, damage);
             cooldown = Mathf.Max(0.01f, cooldown);
             range = Mathf.Max(0f, range);
+        }
+
+        // The single, shared modifier-application switch used by tag interactions AND equipped gear, so
+        // every modifier source resolves identically (CLAUDE.md §3.8 generic modifier types).
+        private static void ApplyModifier(AbilityModifierType type, float value,
+            ref float damage, ref float cooldown, ref float range)
+        {
+            switch (type)
+            {
+                case AbilityModifierType.DamageMultiplier: damage *= value; break;
+                case AbilityModifierType.DamageFlatBonus: damage += value; break;
+                case AbilityModifierType.CooldownMultiplier: cooldown *= value; break;
+                case AbilityModifierType.RangeMultiplier: range *= value; break;
+            }
         }
 
         private AbilityUpgradeLevel CurrentLevelEntry()

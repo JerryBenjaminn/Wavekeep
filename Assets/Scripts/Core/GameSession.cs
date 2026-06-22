@@ -1,5 +1,6 @@
 using Wavekeep.Abilities;
 using Wavekeep.Economy;
+using Wavekeep.Gear;
 using Wavekeep.Input;
 using Wavekeep.Pooling;
 
@@ -41,6 +42,10 @@ namespace Wavekeep.Core
         /// <summary>Run-scoped reroll-point pool for the shop (Task 09). Distinct from Currency.</summary>
         public RerollManager RerollManager { get; }
 
+        /// <summary>PERSISTENT gear inventory + per-hero equip loadouts (Task 12). Disk-backed, so it
+        /// survives scene reloads/runs unlike the per-run services above (CLAUDE.md §6).</summary>
+        public GearManager GearManager { get; }
+
         // Placeholder service slots — populated by later tasks:
         // TODO (Task 05): HeroRuntime HeroRuntime { get; }
         //
@@ -57,7 +62,8 @@ namespace Wavekeep.Core
             UpgradeInventory upgradeInventory,
             ConsumableInventory consumableInventory,
             PauseState pauseState,
-            RerollManager rerollManager)
+            RerollManager rerollManager,
+            GearManager gearManager)
         {
             Events = eventBus;
             EnemyPool = enemyPool;
@@ -68,6 +74,7 @@ namespace Wavekeep.Core
             ConsumableInventory = consumableInventory;
             PauseState = pauseState;
             RerollManager = rerollManager;
+            GearManager = gearManager;
         }
 
         /// <summary>Release all session-scoped state. Call when the run/scene ends.</summary>
