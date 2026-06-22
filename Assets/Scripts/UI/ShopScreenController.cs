@@ -271,9 +271,11 @@ namespace Wavekeep.UI
 
                 row.BuyButton.interactable = _shop.CanPurchase(row.Item);
 
-                // Distinguish "already owned" (non-stackable) from merely "can't afford".
+                // Label priority: bought-this-offer (Task 17) → already-owned non-stackable → Buy. The
+                // disabled state itself reuses the SAME interactable=false path as insufficient-funds.
+                bool purchasedThisOffer = _shop.WasPurchasedThisOffer(row.Item);
                 bool ownedNonStackable = !row.Item.Stackable && inventory.Owns(row.Item);
-                row.BuyLabel.text = ownedNonStackable ? "Owned" : "Buy";
+                row.BuyLabel.text = purchasedThisOffer ? "Purchased" : (ownedNonStackable ? "Owned" : "Buy");
             }
         }
 

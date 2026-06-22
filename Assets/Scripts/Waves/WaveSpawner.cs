@@ -44,6 +44,10 @@ namespace Wavekeep.Waves
 
         [Header("Lifecycle")]
         [SerializeField] private bool _autoStartOnPlay = true;
+        [Tooltip("Task 17: the between-wave shop intermission only opens every N wave-completions " +
+                 "(5 = after waves 5, 10, 15...). Other waves flow straight into the next with no pause. " +
+                 "0 disables the shop intermission entirely. Configurable — not a hardcoded inline check.")]
+        [SerializeField, Min(0)] private int _shopIntervalWaves = 5;
 
         [Header("Debug")]
         [Tooltip("When enabled, the kill key damages the most-recently-spawned active enemy to verify the death path.")]
@@ -151,6 +155,12 @@ namespace Wavekeep.Waves
             _awaitingContinue = false;
         }
 
+        /// <summary>Task 17: true when a 1-based <paramref name="waveNumber"/> should open the between-wave
+        /// shop intermission (every <see cref="_shopIntervalWaves"/> waves). Interval &lt;= 0 disables it.
+        /// Pure read-only check — the configurable interval, not a hardcoded inline modulo.</summary>
+        private bool IsShopIntermissionWave(int waveNumber) =>
+            _shopIntervalWaves > 0 && waveNumber % _shopIntervalWaves == 0;
+
         private IEnumerator RunRoutine()
         {
             var waves = _difficultyTier.Waves;
@@ -182,7 +192,12 @@ namespace Wavekeep.Waves
                 // wave follows (never after the final wave — that goes straight to victory). This is a
                 // general pause/resume gate; the spawner stays ignorant of the shop. The shop UI opens
                 // on IntermissionStartedEvent and releases the gate via ContinueAfterIntermission().
-                if (waveIndex < waves.Count - 1)
+                //
+                // Task 17: only open the intermission every _shopIntervalWaves completions (waves 5, 10,
+                // ...). Other waves flow straight into the next with no pause. This block sits AFTER the
+                // "all enemies resolved" wait + WaveCompletedEvent above, so on a boss wave (every 10th,
+                // a multiple of 5) the shop can only appear once the boss is actually dead — no race.
+                if (waveIndex < waves.Count - 1 && IsShopIntermissionWave(_currentWaveNumber))
                 {
                     _awaitingContinue = true;
                     _events.Publish(new IntermissionStartedEvent(waveIndex, waveIndex + 1));

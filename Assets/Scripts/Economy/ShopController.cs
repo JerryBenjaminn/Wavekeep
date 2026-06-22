@@ -39,6 +39,12 @@ namespace Wavekeep.Economy
         private readonly List<ConsumableDefinitionSO> _offer = new List<ConsumableDefinitionSO>();
         private readonly List<int> _drawIndices = new List<int>(); // scratch for the distinct draw
 
+        // Task 17: which items of the CURRENT offer have already been bought this offer. Keyed by the SO
+        // reference — an offer holds distinct items (GenerateOffer draws a distinct subset), so this is
+        // exactly per-item-in-offer tracking, NOT a single global purchase counter. Cleared by
+        // GenerateOffer, so both a reroll and a fresh shop visit naturally start with nothing purchased.
+        private readonly HashSet<ConsumableDefinitionSO> _purchasedThisOffer = new HashSet<ConsumableDefinitionSO>();
+
         public ShopController(
             CurrencyManager currency,
             ConsumableInventory inventory,
@@ -69,6 +75,9 @@ namespace Wavekeep.Economy
         public void GenerateOffer()
         {
             _offer.Clear();
+            // A freshly rolled offer has nothing purchased yet (Task 17) — this single reset covers both
+            // the per-visit open AND a reroll (which calls through here), so no redundant reset is needed.
+            _purchasedThisOffer.Clear();
             if (_pool == null) return;
 
             // Collect valid pool indices, then partial Fisher–Yates to pick a distinct random subset.
@@ -101,9 +110,15 @@ namespace Wavekeep.Economy
         public bool CanPurchase(ConsumableDefinitionSO item)
         {
             if (item == null) return false;
+            if (_purchasedThisOffer.Contains(item)) return false; // Task 17: at most once per offer
             if (!item.Stackable && _inventory.Owns(item)) return false;
             return _currency.CurrentCurrency >= item.Price;
         }
+
+        /// <summary>True if this offered item was already bought this offer (UI shows it as Purchased).
+        /// Cleared on the next reroll or shop visit via <see cref="GenerateOffer"/> (Task 17).</summary>
+        public bool WasPurchasedThisOffer(ConsumableDefinitionSO item) =>
+            item != null && _purchasedThisOffer.Contains(item);
 
         /// <summary>
         /// Validate the stackable rule, then attempt to spend via <see cref="CurrencyManager.TrySpend"/>.
@@ -115,12 +130,17 @@ namespace Wavekeep.Economy
         {
             if (item == null) return false;
 
+            // Task 17: each offered item is buyable at most once per offer (blocks draining currency into
+            // one stacked effect). Reset when a new offer is rolled (reroll or next visit).
+            if (_purchasedThisOffer.Contains(item)) return false;
+
             // Non-stackable items can only be owned once per run.
             if (!item.Stackable && _inventory.Owns(item)) return false;
 
             // TrySpend is the single source of truth for the spend; it validates funds first.
             if (!_currency.TrySpend(item.Price)) return false;
 
+            _purchasedThisOffer.Add(item);
             _inventory.RegisterPurchase(item);
             ApplyEffect(item);
             Debug.Log($"[ShopController] Purchased '{item.DisplayName}' for {item.Price}. Currency now {_currency.CurrentCurrency}.");
