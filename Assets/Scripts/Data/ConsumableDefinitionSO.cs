@@ -22,6 +22,8 @@ namespace Wavekeep.Data
         [SerializeField, Min(0)] private int _price;
         [Tooltip("If false, the player may own only one of this item per run (e.g. a unique elixir).")]
         [SerializeField] private bool _stackable = true;
+        [Tooltip("Power tier (Task 09): T1 weakest → T3 strongest. Shown as a [T#] label in the shop.")]
+        [SerializeField] private ConsumableTier _tier = ConsumableTier.Tier1;
 
         [Header("Effect")]
         [SerializeField] private ConsumableEffectType _effectType;
@@ -35,6 +37,7 @@ namespace Wavekeep.Data
         public string Description => _description;
         public int Price => _price;
         public bool Stackable => _stackable;
+        public ConsumableTier Tier => _tier;
         public ConsumableEffectType EffectType => _effectType;
         public float EffectValue => _effectValue;
         public float Duration => _duration;

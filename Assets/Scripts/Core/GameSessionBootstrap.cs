@@ -33,6 +33,10 @@ namespace Wavekeep.Core
         [Tooltip("Per-level XP increment added to the threshold each level. Tunable placeholder.")]
         [SerializeField, Min(0)] private int _xpIncrementPerLevel = 5;
 
+        [Header("Shop")]
+        [Tooltip("Reroll points the player starts each fresh run with (Task 09). Persists across shop visits.")]
+        [SerializeField, Min(0)] private int _startingRerollPoints = 3;
+
         /// <summary>The assembled session for this scene. Available after Awake.</summary>
         public GameSession Session { get; private set; }
 
@@ -53,10 +57,13 @@ namespace Wavekeep.Core
             var upgradeInventory = new UpgradeInventory();
             var consumableInventory = new ConsumableInventory();
             var pauseState = new PauseState();
+            // Fresh manager every scene load → reroll points reset to the starting value only on a brand
+            // new run (Task 08 "Play Again" reloads the scene); they persist within a run otherwise.
+            var rerollManager = new RerollManager(eventBus, _startingRerollPoints);
 
             Session = new GameSession(
                 eventBus, enemyPool, interactionInput, currencyManager, xpManager,
-                upgradeInventory, consumableInventory, pauseState);
+                upgradeInventory, consumableInventory, pauseState, rerollManager);
         }
 
         private void OnDestroy()

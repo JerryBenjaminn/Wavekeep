@@ -64,6 +64,15 @@ namespace Wavekeep.Core.Events
         public CurrencyChangedEvent(int newTotal) => NewTotal = newTotal;
     }
 
+    /// <summary>Published when the run's reroll-point pool changes (Task 09): consumed by a reroll
+    /// (−1) or replenished by a Reroll Potion (+tier). Separate from currency — the shop UI subscribes
+    /// to refresh the reroll count/button independently of <see cref="CurrencyChangedEvent"/>.</summary>
+    public readonly struct RerollPointsChangedEvent
+    {
+        public readonly int NewTotal;
+        public RerollPointsChangedEvent(int newTotal) => NewTotal = newTotal;
+    }
+
     /// <summary>Published when a run ends. Carries a minimal <see cref="RunResult"/>
     /// (see <c>RunResult.cs</c>). Task 02 fires this with <see cref="RunOutcome.WavesCleared"/>
     /// after the final wave resolves; defeat/game-over paths come in a later task.</summary>

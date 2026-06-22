@@ -10,11 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9e8fe1f4bc1e4df4eb320e4816b96300, type: 3}
-  m_Name: Wave_02
+  m_Name: Wave_10
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.WaveConfigSO
-  _waveNumber: 2
+  _waveNumber: 10
   _spawnEntries:
   - _enemyType: {fileID: 11400000, guid: b4c54f8f848fc154eb0105193c70beac, type: 2}
-    _count: 6
+    _count: 14
     _spawnInterval: 0.5
-  _statMultiplier: 1.05
+  _statMultiplier: 1.45

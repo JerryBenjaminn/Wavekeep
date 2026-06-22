@@ -38,6 +38,9 @@ namespace Wavekeep.Core
         /// <summary>Run-scoped pause flag; gameplay loops freeze while it is set (Task 07 level-up picker).</summary>
         public PauseState PauseState { get; }
 
+        /// <summary>Run-scoped reroll-point pool for the shop (Task 09). Distinct from Currency.</summary>
+        public RerollManager RerollManager { get; }
+
         // Placeholder service slots — populated by later tasks:
         // TODO (Task 05): HeroRuntime HeroRuntime { get; }
         //
@@ -53,7 +56,8 @@ namespace Wavekeep.Core
             XPManager xpManager,
             UpgradeInventory upgradeInventory,
             ConsumableInventory consumableInventory,
-            PauseState pauseState)
+            PauseState pauseState,
+            RerollManager rerollManager)
         {
             Events = eventBus;
             EnemyPool = enemyPool;
@@ -63,6 +67,7 @@ namespace Wavekeep.Core
             UpgradeInventory = upgradeInventory;
             ConsumableInventory = consumableInventory;
             PauseState = pauseState;
+            RerollManager = rerollManager;
         }
 
         /// <summary>Release all session-scoped state. Call when the run/scene ends.</summary>

@@ -17,4 +17,18 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 62de0aa464a28f2438ff6cf40e3f1ce1, type: 2}
   - {fileID: 11400000, guid: 6dc5765b206615449b52b68c2a5d913e, type: 2}
   - {fileID: 11400000, guid: 498cc7b6544ce9e4cb72364a7f8d05ec, type: 2}
+  - {fileID: 11400000, guid: 34abc5eff80e5e141b41523eaa64ee10, type: 2}
+  - {fileID: 11400000, guid: 46a7b2cc6273be44ab10e65edda37c5e, type: 2}
+  - {fileID: 11400000, guid: 585084f2852a4894a90cb17f59c742da, type: 2}
+  - {fileID: 11400000, guid: e59f7cc7e20238a4eb143a1c6d22a6ad, type: 2}
+  - {fileID: 11400000, guid: 22d7ad550bb2b1244b2fa6a8881ec3f0, type: 2}
+  - {fileID: 11400000, guid: 1c9e9efe75cb87d46a681d635659335a, type: 2}
+  - {fileID: 11400000, guid: ad72f1b9eae507443a1448644d5d2c43, type: 2}
+  - {fileID: 11400000, guid: 18c16559394f0194181fa575a9d7ea95, type: 2}
+  - {fileID: 11400000, guid: f453fa83945869642a8a9036f5edfadb, type: 2}
   _globalStatMultiplier: 1.2
+  _milestoneWaveInterval: 5
+  _milestoneStep: 0.5
+  _bossWaveInterval: 10
+  _bossDefinition: {fileID: 11400000, guid: cd1eda20c8182b04ba280d95e14feef0, type: 2}
+  _bossCount: 1

@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c46c14cfc3be3314db4453960f4c8466, type: 3}
+  m_Name: BossGrunt
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.EnemyDefinitionSO
+  _enemyName: Boss Grunt
+  _prefab: {fileID: 3714166565995746822, guid: 56a01df3cb0c4bc4da1e335fa2a99250, type: 3}
+  _maxHealth: 400
+  _moveSpeed: 1.5
+  _contactDamage: 30
+  _currencyReward: 50
+  _xpReward: 50

@@ -17,6 +17,10 @@ namespace Wavekeep.Data
         CooldownReduction,
 
         /// <summary>Instantly restores wall HP via <c>WallRuntime.Heal</c> (clamped to max). Instant, not ongoing.</summary>
-        HealWall
+        HealWall,
+
+        /// <summary>Grants reroll points (Task 09) by amount = effect value, routed to <c>RerollManager.Add</c>.
+        /// Applied through the normal <c>ShopController.TryPurchase</c> path like any other consumable.</summary>
+        GainRerollPoints
     }
 }

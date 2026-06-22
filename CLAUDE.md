@@ -138,10 +138,11 @@ The game targets **both mobile and PC** from the start. This affects architectur
 ## 6. Out of Scope (for now)
 
 - Multiplayer/co-op
-- Meta-progression beyond single-run (no persistent account-level upgrades yet — revisit after MVP loop is fun)
 - Monetization/IAP integration
 - Full art/VFX polish — placeholder art is fine until loop is validated
 - Wall repair/upgrade mechanics (wall currently has fixed HP per level; repair/upgrade-via-currency can be considered post-MVP)
+
+> **Note (superseded decision):** "No meta-progression beyond single-run" was the original MVP scope. This is now overridden — a persistent Gear/Artifact loot system is planned (loot earned in a run persists between runs and equips onto heroes for permanent power growth: battle → earn loot → equip → start a new, stronger run → reach further). Design and implementation are tracked as their own task(s) once planned in detail. In-run currency/XP/upgrade-inventory/consumable-inventory remain per-run only — only equipped gear/artifacts persist.
 
 ---
 

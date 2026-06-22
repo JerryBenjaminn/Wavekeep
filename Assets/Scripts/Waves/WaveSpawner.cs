@@ -163,7 +163,7 @@ namespace Wavekeep.Waves
                 _events.Publish(new WaveStartedEvent(waveIndex));
                 Debug.Log($"[WaveSpawner] Wave {waveIndex} started ('{_difficultyTier.TierName}').");
 
-                yield return StartCoroutine(SpawnWaveRoutine(wave));
+                yield return StartCoroutine(SpawnWaveRoutine(wave, _currentWaveNumber));
 
                 // Wave completes only once every spawned enemy has resolved (i.e. been killed —
                 // reaching the wall no longer resolves an enemy). If the wall falls first,
@@ -194,9 +194,27 @@ namespace Wavekeep.Waves
             EndRun(RunOutcome.WavesCleared);
         }
 
-        private IEnumerator SpawnWaveRoutine(WaveConfigSO wave)
+        private IEnumerator SpawnWaveRoutine(WaveConfigSO wave, int waveNumber)
         {
-            float multiplier = _difficultyTier.GlobalStatMultiplier * wave.StatMultiplier;
+            // Task 10 stacking order (multiplicative): per-wave × tier × milestone. Milestone is the
+            // generalized every-Nth-wave step computed by the tier from its own params (no per-wave
+            // hardcoding). All three feed the SAME EnemyRuntime stat scaling as Task 02 — the SO is
+            // never mutated; the multiplier is applied to the runtime copy at spawn.
+            float milestone = _difficultyTier.GetMilestoneMultiplier(waveNumber);
+            float multiplier = _difficultyTier.GlobalStatMultiplier * wave.StatMultiplier * milestone;
+            bool bossWave = _difficultyTier.IsBossWave(waveNumber);
+
+            Debug.Log($"[WaveSpawner] Wave {waveNumber} scaling: perWave={wave.StatMultiplier:0.00} × " +
+                      $"tier={_difficultyTier.GlobalStatMultiplier:0.00} × milestone={milestone:0.00} " +
+                      $"→ final={multiplier:0.00}{(bossWave ? "  [BOSS WAVE]" : "")}");
+
+            // Boss spawns ALONGSIDE (not instead of) the normal composition, at the same scaled
+            // multiplier, through the SAME pool/SpawnEnemy path — it's just a tougher EnemyDefinitionSO,
+            // so it lands in _activeEnemies and the existing "all enemies resolved" wait covers it.
+            if (bossWave)
+            {
+                yield return StartCoroutine(SpawnBosses(multiplier));
+            }
 
             foreach (var entry in wave.SpawnEntries)
             {
@@ -218,6 +236,24 @@ namespace Wavekeep.Waves
                         yield return new WaitForSeconds(entry.SpawnInterval);
                     }
                 }
+            }
+        }
+
+        private IEnumerator SpawnBosses(float multiplier)
+        {
+            var bossDef = _difficultyTier.BossDefinition;
+            if (bossDef == null || bossDef.Prefab == null)
+            {
+                Debug.LogWarning("[WaveSpawner] Boss wave but boss definition/prefab missing; skipping boss.", this);
+                yield break;
+            }
+
+            int bossCount = Mathf.Max(1, _difficultyTier.BossCount);
+            for (int b = 0; b < bossCount; b++)
+            {
+                while (_pause != null && _pause.IsPaused) yield return null;
+                SpawnEnemy(bossDef, multiplier);
+                Debug.Log($"[WaveSpawner] BOSS spawned: '{bossDef.EnemyName}' at mult={multiplier:0.00}.");
             }
         }
 

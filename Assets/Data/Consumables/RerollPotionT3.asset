@@ -10,14 +10,14 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 19128c230c054b447bcd6cc4d803f744, type: 3}
-  m_Name: GreaterWhetstone
+  m_Name: RerollPotionT3
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.ConsumableDefinitionSO
-  _displayName: Greater Whetstone
+  _displayName: Reroll Potion III
   _icon: {fileID: 0}
-  _description: Permanent +30 ability damage. One per run.
-  _price: 40
-  _stackable: 0
+  _description: +3 reroll points.
+  _price: 35
+  _stackable: 1
   _tier: 2
-  _effectType: 0
-  _effectValue: 30
+  _effectType: 3
+  _effectValue: 3
   _duration: 0

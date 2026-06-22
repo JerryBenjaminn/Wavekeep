@@ -17,6 +17,7 @@ MonoBehaviour:
   _description: "Permanent ability cooldown \xD70.7."
   _price: 20
   _stackable: 1
+  _tier: 1
   _effectType: 1
   _effectValue: 0.7
   _duration: 0
