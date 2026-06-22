@@ -52,10 +52,11 @@ namespace Wavekeep.Core
             var xpManager = new XPManager(eventBus, _xpBaseAmount, _xpIncrementPerLevel);
             var upgradeInventory = new UpgradeInventory();
             var consumableInventory = new ConsumableInventory();
+            var pauseState = new PauseState();
 
             Session = new GameSession(
                 eventBus, enemyPool, interactionInput, currencyManager, xpManager,
-                upgradeInventory, consumableInventory);
+                upgradeInventory, consumableInventory, pauseState);
         }
 
         private void OnDestroy()

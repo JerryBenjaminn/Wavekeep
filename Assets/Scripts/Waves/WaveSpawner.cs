@@ -52,6 +52,7 @@ namespace Wavekeep.Waves
 
         private EventBus _events;
         private EnemyPoolManager _pool;
+        private PauseState _pause;
 
         private readonly List<EnemyRuntime> _activeEnemies = new List<EnemyRuntime>();
         private int _spawnMarkerCursor;
@@ -82,6 +83,7 @@ namespace Wavekeep.Waves
 
             _events = _bootstrap.Session.Events;
             _pool = _bootstrap.Session.EnemyPool;
+            _pause = _bootstrap.Session.PauseState;
             _wall.OnWallDestroyed += HandleWallDestroyed;
 
             if (_autoStartOnPlay)
@@ -98,6 +100,10 @@ namespace Wavekeep.Waves
         private void Update()
         {
             if (_runEnded) return;
+
+            // Task 07: freeze the whole active-enemy simulation (movement + wall attacks + debug kill)
+            // while the level-up card picker is up. Spawning is frozen separately in SpawnWaveRoutine.
+            if (_pause != null && _pause.IsPaused) return;
 
             // Single centralised tick for all active enemies (CLAUDE.md §3.4). Iterate backwards:
             // an enemy dying mid-tick removes itself from the list via the callback. An enemy's
@@ -158,6 +164,11 @@ namespace Wavekeep.Waves
                 // HandleWallDestroyed stops this coroutine and ends the run in defeat.
                 yield return new WaitUntil(() => _activeEnemies.Count == 0);
 
+                // Task 07: if clearing the last enemy also triggered a level-up, let the player resolve
+                // the card pick before the wave-complete / shop-intermission sequence runs, so the
+                // level-up card and the shop screen never stack on top of each other.
+                yield return new WaitWhile(() => _pause != null && _pause.IsPaused);
+
                 _events.Publish(new WaveCompletedEvent(waveIndex));
                 Debug.Log($"[WaveSpawner] Wave {waveIndex} completed.");
 
@@ -191,6 +202,10 @@ namespace Wavekeep.Waves
 
                 for (int i = 0; i < entry.Count; i++)
                 {
+                    // Task 07: hold spawning while paused (level-up picker) so a card pick doesn't let
+                    // the wave keep streaming enemies in behind the frozen ones.
+                    while (_pause != null && _pause.IsPaused) yield return null;
+
                     SpawnEnemy(entry.EnemyType, multiplier);
                     if (entry.SpawnInterval > 0f)
                     {

@@ -35,6 +35,9 @@ namespace Wavekeep.Core
         /// <summary>Per-run purchased consumable effects; AbilityRuntime reads its modifiers (Task 06 §2).</summary>
         public ConsumableInventory ConsumableInventory { get; }
 
+        /// <summary>Run-scoped pause flag; gameplay loops freeze while it is set (Task 07 level-up picker).</summary>
+        public PauseState PauseState { get; }
+
         // Placeholder service slots — populated by later tasks:
         // TODO (Task 05): HeroRuntime HeroRuntime { get; }
         //
@@ -49,7 +52,8 @@ namespace Wavekeep.Core
             CurrencyManager currencyManager,
             XPManager xpManager,
             UpgradeInventory upgradeInventory,
-            ConsumableInventory consumableInventory)
+            ConsumableInventory consumableInventory,
+            PauseState pauseState)
         {
             Events = eventBus;
             EnemyPool = enemyPool;
@@ -58,6 +62,7 @@ namespace Wavekeep.Core
             XPManager = xpManager;
             UpgradeInventory = upgradeInventory;
             ConsumableInventory = consumableInventory;
+            PauseState = pauseState;
         }
 
         /// <summary>Release all session-scoped state. Call when the run/scene ends.</summary>

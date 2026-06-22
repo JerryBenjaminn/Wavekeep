@@ -36,6 +36,7 @@ namespace Wavekeep.Runtime
         private WaveSpawner _waveSpawner;
         private UpgradeInventory _upgrades;
         private ConsumableInventory _consumables;
+        private PauseState _pause;
         private bool _initialized;
 
         /// <summary>
@@ -49,6 +50,7 @@ namespace Wavekeep.Runtime
             _waveSpawner = waveSpawner;
             _upgrades = session.UpgradeInventory;
             _consumables = session.ConsumableInventory;
+            _pause = session.PauseState;
 
             Basic = definition.BasicAbility != null ? new AbilityRuntime(definition.BasicAbility) : null;
             Ultimate = definition.UltimateAbility != null ? new AbilityRuntime(definition.UltimateAbility) : null;
@@ -60,6 +62,10 @@ namespace Wavekeep.Runtime
         private void Update()
         {
             if (!_initialized) return;
+
+            // Task 07: freeze ability ticking, auto-fire, ultimate input, and consumable timers while
+            // the level-up card picker is up — so the run is genuinely paused for the player's choice.
+            if (_pause != null && _pause.IsPaused) return;
 
             // Advance any timed consumable effects (permanent ones are untouched). The hero is the
             // per-frame consumer of these modifiers, so it owns their tick (Task 06).
