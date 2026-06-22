@@ -45,5 +45,18 @@ namespace Wavekeep.Runtime
                 OnWallDestroyed?.Invoke();
             }
         }
+
+        /// <summary>
+        /// Restore <paramref name="amount"/> HP, clamped to <see cref="MaxHP"/> (Task 06: the HealWall
+        /// consumable's single entry point into wall health — no parallel HP path). No-op once the wall
+        /// is destroyed: a fallen wall has already ended the run.
+        /// </summary>
+        public void Heal(float amount)
+        {
+            if (IsDestroyed || amount <= 0f) return;
+
+            CurrentHP = Mathf.Min(MaxHP, CurrentHP + amount);
+            Debug.Log($"[WallRuntime] Healed {amount:0.#} → {CurrentHP:0.#}/{MaxHP:0.#} HP.");
+        }
     }
 }

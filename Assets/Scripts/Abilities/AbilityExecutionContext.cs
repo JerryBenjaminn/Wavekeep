@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Wavekeep.Economy;
 using Wavekeep.Runtime;
 
 namespace Wavekeep.Abilities
@@ -10,22 +11,27 @@ namespace Wavekeep.Abilities
     ///
     /// <see cref="Enemies"/> is the spawner's live active-enemy list (read-only); abilities resolve
     /// targets from it. <see cref="Upgrades"/> is the per-run inventory used to resolve tag
-    /// interactions. The context is rebuilt cheaply each frame by the hero controller.
+    /// interactions. <see cref="Consumables"/> (Task 06) is the parallel inventory of purchased shop
+    /// effects, read as just another modifier source. The context is rebuilt cheaply each frame by the
+    /// hero controller.
     /// </summary>
     public readonly struct AbilityExecutionContext
     {
         public readonly Vector3 CasterPosition;
         public readonly IReadOnlyList<EnemyRuntime> Enemies;
         public readonly UpgradeInventory Upgrades;
+        public readonly ConsumableInventory Consumables;
 
         public AbilityExecutionContext(
             Vector3 casterPosition,
             IReadOnlyList<EnemyRuntime> enemies,
-            UpgradeInventory upgrades)
+            UpgradeInventory upgrades,
+            ConsumableInventory consumables)
         {
             CasterPosition = casterPosition;
             Enemies = enemies;
             Upgrades = upgrades;
+            Consumables = consumables;
         }
     }
 }

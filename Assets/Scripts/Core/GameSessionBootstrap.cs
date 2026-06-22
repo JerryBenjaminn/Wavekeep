@@ -51,9 +51,11 @@ namespace Wavekeep.Core
             var currencyManager = new CurrencyManager(eventBus);
             var xpManager = new XPManager(eventBus, _xpBaseAmount, _xpIncrementPerLevel);
             var upgradeInventory = new UpgradeInventory();
+            var consumableInventory = new ConsumableInventory();
 
             Session = new GameSession(
-                eventBus, enemyPool, interactionInput, currencyManager, xpManager, upgradeInventory);
+                eventBus, enemyPool, interactionInput, currencyManager, xpManager,
+                upgradeInventory, consumableInventory);
         }
 
         private void OnDestroy()

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Wavekeep.Abilities;
 using Wavekeep.Data;
+using Wavekeep.Economy;
 
 namespace Wavekeep.Runtime
 {
@@ -46,10 +47,10 @@ namespace Wavekeep.Runtime
         }
 
         /// <summary>Read-only preview of the damage this ability would deal right now (base × level ×
-        /// tag interactions). Handy for debug logs/tooltips; does not mutate any state.</summary>
-        public float GetEffectiveDamage(UpgradeInventory upgrades)
+        /// tag interactions × consumable modifiers). Handy for debug logs/tooltips; does not mutate state.</summary>
+        public float GetEffectiveDamage(UpgradeInventory upgrades, ConsumableInventory consumables)
         {
-            ComputeStats(upgrades, out float damage, out _, out _);
+            ComputeStats(upgrades, consumables, out float damage, out _, out _);
             return damage;
         }
 
@@ -57,7 +58,7 @@ namespace Wavekeep.Runtime
         {
             if (!IsReady || context.Enemies == null) return;
 
-            ComputeStats(context.Upgrades, out float damage, out float cooldown, out float range);
+            ComputeStats(context.Upgrades, context.Consumables, out float damage, out float cooldown, out float range);
 
             bool hitSomething;
             switch (Definition.TargetingType)
@@ -130,8 +131,10 @@ namespace Wavekeep.Runtime
             return true;
         }
 
-        // base → per-level multipliers → tag-interaction modifiers. Nothing written back to the SO.
-        private void ComputeStats(UpgradeInventory upgrades, out float damage, out float cooldown, out float range)
+        // base → per-level multipliers → tag-interaction modifiers → consumable modifiers.
+        // Nothing written back to the SO; consumables are just another modifier source layered in.
+        private void ComputeStats(UpgradeInventory upgrades, ConsumableInventory consumables,
+            out float damage, out float cooldown, out float range)
         {
             var level = CurrentLevelEntry();
             damage = Definition.BaseDamage * level.DamageMultiplier;
@@ -154,6 +157,14 @@ namespace Wavekeep.Runtime
                         case AbilityModifierType.RangeMultiplier: range *= rule.ModifierValue; break;
                     }
                 }
+            }
+
+            // Consumable shop bonuses (Task 06): the same pipeline, just another modifier source —
+            // not a parallel damage path. Flat damage adds; cooldown reduction multiplies.
+            if (consumables != null)
+            {
+                damage += consumables.TotalFlatDamageBonus();
+                cooldown *= consumables.CooldownMultiplier();
             }
 
             damage = Mathf.Max(0f, damage);

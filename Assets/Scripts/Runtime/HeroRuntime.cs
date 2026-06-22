@@ -3,6 +3,7 @@ using UnityEngine.InputSystem;
 using Wavekeep.Abilities;
 using Wavekeep.Core;
 using Wavekeep.Data;
+using Wavekeep.Economy;
 using Wavekeep.Waves;
 
 namespace Wavekeep.Runtime
@@ -34,6 +35,7 @@ namespace Wavekeep.Runtime
 
         private WaveSpawner _waveSpawner;
         private UpgradeInventory _upgrades;
+        private ConsumableInventory _consumables;
         private bool _initialized;
 
         /// <summary>
@@ -46,6 +48,7 @@ namespace Wavekeep.Runtime
             Definition = definition;
             _waveSpawner = waveSpawner;
             _upgrades = session.UpgradeInventory;
+            _consumables = session.ConsumableInventory;
 
             Basic = definition.BasicAbility != null ? new AbilityRuntime(definition.BasicAbility) : null;
             Ultimate = definition.UltimateAbility != null ? new AbilityRuntime(definition.UltimateAbility) : null;
@@ -58,7 +61,12 @@ namespace Wavekeep.Runtime
         {
             if (!_initialized) return;
 
-            var context = new AbilityExecutionContext(transform.position, _waveSpawner.ActiveEnemies, _upgrades);
+            // Advance any timed consumable effects (permanent ones are untouched). The hero is the
+            // per-frame consumer of these modifiers, so it owns their tick (Task 06).
+            _consumables?.Tick(Time.deltaTime);
+
+            var context = new AbilityExecutionContext(
+                transform.position, _waveSpawner.ActiveEnemies, _upgrades, _consumables);
 
             if (Basic != null)
             {

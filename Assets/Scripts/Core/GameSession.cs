@@ -32,6 +32,9 @@ namespace Wavekeep.Core
         /// <summary>Per-run held upgrades; hero abilities resolve tag interactions against this (CLAUDE.md §3.8).</summary>
         public UpgradeInventory UpgradeInventory { get; }
 
+        /// <summary>Per-run purchased consumable effects; AbilityRuntime reads its modifiers (Task 06 §2).</summary>
+        public ConsumableInventory ConsumableInventory { get; }
+
         // Placeholder service slots — populated by later tasks:
         // TODO (Task 05): HeroRuntime HeroRuntime { get; }
         //
@@ -45,7 +48,8 @@ namespace Wavekeep.Core
             IInteractionInput interactionInput,
             CurrencyManager currencyManager,
             XPManager xpManager,
-            UpgradeInventory upgradeInventory)
+            UpgradeInventory upgradeInventory,
+            ConsumableInventory consumableInventory)
         {
             Events = eventBus;
             EnemyPool = enemyPool;
@@ -53,6 +57,7 @@ namespace Wavekeep.Core
             CurrencyManager = currencyManager;
             XPManager = xpManager;
             UpgradeInventory = upgradeInventory;
+            ConsumableInventory = consumableInventory;
         }
 
         /// <summary>Release all session-scoped state. Call when the run/scene ends.</summary>

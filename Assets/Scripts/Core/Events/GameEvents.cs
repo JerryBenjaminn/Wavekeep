@@ -35,6 +35,21 @@ namespace Wavekeep.Core.Events
         public WaveCompletedEvent(int waveIndex) => WaveIndex = waveIndex;
     }
 
+    /// <summary>Published when the spawner pauses between two waves and is waiting for the player to
+    /// continue (Task 06). A GENERAL pause hook — the spawner does not know about the shop; the shop
+    /// UI subscribes to open, and releases the gate via <c>WaveSpawner.ContinueAfterIntermission</c>.
+    /// Only fires when a next wave exists (never after the final wave).</summary>
+    public readonly struct IntermissionStartedEvent
+    {
+        public readonly int CompletedWaveIndex;
+        public readonly int NextWaveIndex;
+        public IntermissionStartedEvent(int completedWaveIndex, int nextWaveIndex)
+        {
+            CompletedWaveIndex = completedWaveIndex;
+            NextWaveIndex = nextWaveIndex;
+        }
+    }
+
     /// <summary>Published when the active hero gains an XP level.</summary>
     public readonly struct XPLevelUpEvent
     {

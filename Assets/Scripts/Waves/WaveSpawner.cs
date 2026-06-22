@@ -57,6 +57,7 @@ namespace Wavekeep.Waves
         private int _spawnMarkerCursor;
         private bool _runStarted;
         private bool _runEnded;
+        private bool _awaitingContinue;
 
         /// <summary>Live, read-only view of the currently active enemies (Task 04: ability target
         /// acquisition reads this). Do not cache across frames — entries are added/removed as enemies
@@ -132,6 +133,13 @@ namespace Wavekeep.Waves
             StartCoroutine(RunRoutine());
         }
 
+        /// <summary>Release the between-wave pause gate so the next wave begins (Task 06). Called by the
+        /// shop UI's Continue button. A general resume hook — no shop/wave-specific branching here.</summary>
+        public void ContinueAfterIntermission()
+        {
+            _awaitingContinue = false;
+        }
+
         private IEnumerator RunRoutine()
         {
             var waves = _difficultyTier.Waves;
@@ -152,6 +160,18 @@ namespace Wavekeep.Waves
 
                 _events.Publish(new WaveCompletedEvent(waveIndex));
                 Debug.Log($"[WaveSpawner] Wave {waveIndex} completed.");
+
+                // Task 06: pause between waves so the player can visit the shop, but only when another
+                // wave follows (never after the final wave — that goes straight to victory). This is a
+                // general pause/resume gate; the spawner stays ignorant of the shop. The shop UI opens
+                // on IntermissionStartedEvent and releases the gate via ContinueAfterIntermission().
+                if (waveIndex < waves.Count - 1)
+                {
+                    _awaitingContinue = true;
+                    _events.Publish(new IntermissionStartedEvent(waveIndex, waveIndex + 1));
+                    yield return new WaitUntil(() => !_awaitingContinue || _runEnded);
+                    if (_runEnded) yield break;
+                }
             }
 
             EndRun(RunOutcome.WavesCleared);
