@@ -154,7 +154,8 @@ namespace Wavekeep.EditorTools
             var so = new SerializedObject(ability);
             so.FindProperty("_abilityName").stringValue = "Frost Zone";
             so.FindProperty("_baseDamage").floatValue = 0f; // damage comes from the DoT payload, not a hit
-            so.FindProperty("_baseCooldown").floatValue = 8f;
+            // Task 21: a real, meaningful cooldown for an arena-wide DoT+Slow ultimate (tunable placeholder).
+            so.FindProperty("_baseCooldown").floatValue = 35f;
             so.FindProperty("_range").floatValue = 100f;
             so.FindProperty("_targetingType").enumValueIndex = (int)AbilityTargetingType.AreaOfEffect;
             so.FindProperty("_appliesStatusEffects").boolValue = false;

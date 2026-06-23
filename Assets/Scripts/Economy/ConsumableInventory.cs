@@ -30,10 +30,39 @@ namespace Wavekeep.Economy
             public bool Permanent;
         }
 
+        /// <summary>Read-only view of one live effect for UI (Task 22). Mirrors the private
+        /// <see cref="ActiveEffect"/> without exposing the mutable storage.</summary>
+        public readonly struct ActiveEffectView
+        {
+            public readonly ConsumableEffectType Type;
+            public readonly float Value;
+            public readonly float RemainingSeconds; // only meaningful when !Permanent
+            public readonly bool Permanent;
+
+            public ActiveEffectView(ConsumableEffectType type, float value, float remainingSeconds, bool permanent)
+            {
+                Type = type;
+                Value = value;
+                RemainingSeconds = remainingSeconds;
+                Permanent = permanent;
+            }
+        }
+
         private readonly List<ConsumableDefinitionSO> _owned = new List<ConsumableDefinitionSO>();
         private readonly List<ActiveEffect> _activeEffects = new List<ActiveEffect>();
 
         public IReadOnlyList<ConsumableDefinitionSO> Owned => _owned;
+
+        /// <summary>Number of live ongoing effects (Task 22 stat panel). Indexed by <see cref="GetActiveEffect"/>.</summary>
+        public int ActiveEffectCount => _activeEffects.Count;
+
+        /// <summary>A read-only snapshot of the live effect at <paramref name="index"/> (Task 22). Indexed
+        /// (not a list property) so the panel can iterate each frame without allocating.</summary>
+        public ActiveEffectView GetActiveEffect(int index)
+        {
+            var e = _activeEffects[index];
+            return new ActiveEffectView(e.Type, e.Value, e.RemainingSeconds, e.Permanent);
+        }
 
         /// <summary>True if this exact consumable has already been purchased this run (non-stackable gate).</summary>
         public bool Owns(ConsumableDefinitionSO definition)

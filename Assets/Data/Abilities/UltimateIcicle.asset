@@ -15,7 +15,7 @@ MonoBehaviour:
   _abilityName: Frost Zone
   _icon: {fileID: 0}
   _baseDamage: 0
-  _baseCooldown: 8
+  _baseCooldown: 35
   _range: 100
   _targetingType: 1
   _upgradeLevels: []

@@ -35,6 +35,12 @@ namespace Wavekeep.Runtime
         public IAbility Basic { get; private set; }
         public IAbility Ultimate { get; private set; }
 
+        /// <summary>Task 22: the basic/ultimate's FINAL stats, resolved through the SAME inputs this hero
+        /// feeds the abilities each frame (upgrades + consumables + equipped gear). Null until the ability
+        /// exists. The stat panel reads these so its numbers match real execution exactly.</summary>
+        public AbilityStats? BasicStats => Basic?.ResolveStats(_upgrades, _consumables, _equippedModifiers);
+        public AbilityStats? UltimateStats => Ultimate?.ResolveStats(_upgrades, _consumables, _equippedModifiers);
+
         private WaveSpawner _waveSpawner;
         private UpgradeInventory _upgrades;
         private ConsumableInventory _consumables;
@@ -107,8 +113,19 @@ namespace Wavekeep.Runtime
                 var keyboard = Keyboard.current;
                 if (keyboard != null && keyboard[_ultimateKey].wasPressedThisFrame)
                 {
-                    Ultimate.Execute(context);
-                    Debug.Log($"[HeroRuntime] {Definition.HeroName}: ultimate triggered.");
+                    // Task 21: the cooldown is now a real gate. Only fire if charged; Execute starts the
+                    // cooldown on a successful hit (its existing behaviour). A press while charging is a
+                    // no-op so the ultimate can't be spammed.
+                    if (Ultimate.IsReady)
+                    {
+                        Ultimate.Execute(context);
+                        Debug.Log($"[HeroRuntime] {Definition.HeroName}: ultimate triggered.");
+                    }
+                    else
+                    {
+                        Debug.Log($"[HeroRuntime] {Definition.HeroName}: ultimate on cooldown " +
+                                  $"({Ultimate.CooldownProgress01 * 100f:0}% charged).");
+                    }
                 }
             }
         }

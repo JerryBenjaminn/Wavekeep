@@ -25,6 +25,7 @@ namespace Wavekeep.Runtime
     public sealed class AbilityRuntime : IAbility
     {
         private float _cooldownTimer;
+        private float _cooldownDuration; // full cooldown last applied; drives the charge-bar progress (Task 21)
         private readonly AbilityRole _role;
 
         // Reusable buffer so AoE target collection doesn't allocate, and (crucially) so we never
@@ -34,6 +35,12 @@ namespace Wavekeep.Runtime
         public AbilityDefinitionSO Definition { get; }
         public int CurrentLevel { get; private set; } = 1;
         public bool IsReady => _cooldownTimer <= 0f;
+
+        /// <summary>Charge progress in [0,1] for UI (Task 21): 0 right after a cast, climbing to 1 when
+        /// the ability is ready again. Derived purely from the live cooldown state — no parallel timer.
+        /// Reads 1 before the first cast (no cooldown has been applied yet → ready).</summary>
+        public float CooldownProgress01 =>
+            _cooldownDuration <= 0f ? 1f : Mathf.Clamp01(1f - _cooldownTimer / _cooldownDuration);
 
         public AbilityRuntime(AbilityDefinitionSO definition, AbilityRole role = AbilityRole.Basic)
         {
@@ -93,6 +100,7 @@ namespace Wavekeep.Runtime
             if (hitSomething)
             {
                 _cooldownTimer = cooldown;
+                _cooldownDuration = cooldown; // remember the full duration so the UI can show fill progress
             }
         }
 
@@ -288,24 +296,15 @@ namespace Wavekeep.Runtime
         {
             if (!Definition.AppliesZonePayload || target == null) return;
 
-            float duration = Definition.ZoneDuration;
-            float slow = Definition.ZoneSlowMagnitude;
-            if (context.Upgrades != null)
-            {
-                duration = context.Upgrades.ResolveModifier(UpgradeModifierTarget.UltimateDuration, duration);
-                slow = context.Upgrades.ResolveModifier(UpgradeModifierTarget.UltimateSlowMagnitude, slow);
-            }
-            slow = ApplySlowTagInteractions(slow, context.Upgrades);
-            slow = Mathf.Clamp01(slow);
-            duration = Mathf.Max(0f, duration);
+            ResolveZonePayload(context.Upgrades, out float slow, out float duration, out float dotPerSecond);
 
             if (slow > 0f && duration > 0f)
                 target.ApplyStatusEffect(StatusEffectType.Slow, slow, duration);
 
             // DoT delivered as Burn (the generic DoT), converting damage-per-second to per-tick.
-            if (Definition.ZoneDotDamagePerSecond > 0f && duration > 0f)
+            if (dotPerSecond > 0f && duration > 0f)
             {
-                float perTick = Definition.ZoneDotDamagePerSecond * EnemyRuntime.BurnTickInterval;
+                float perTick = dotPerSecond * EnemyRuntime.BurnTickInterval;
                 target.ApplyStatusEffect(StatusEffectType.Burn, perTick, duration);
             }
 
@@ -318,6 +317,54 @@ namespace Wavekeep.Runtime
             {
                 target.ApplyStatusEffect(StatusEffectType.Freeze, 0f, freezeDur);
             }
+        }
+
+        // Resolve the zone payload's effective Slow magnitude, duration and DoT/s (Task 19) from the SO
+        // base + held upgrade modifiers + Slow-tag interactions. Shared by the live cast (ApplyZonePayload)
+        // and the read-only stat snapshot (ResolveStats), so the panel and the real cast never disagree.
+        private void ResolveZonePayload(UpgradeInventory upgrades, out float slow, out float duration,
+            out float dotPerSecond)
+        {
+            duration = Definition.ZoneDuration;
+            slow = Definition.ZoneSlowMagnitude;
+            if (upgrades != null)
+            {
+                duration = upgrades.ResolveModifier(UpgradeModifierTarget.UltimateDuration, duration);
+                slow = upgrades.ResolveModifier(UpgradeModifierTarget.UltimateSlowMagnitude, slow);
+            }
+            slow = ApplySlowTagInteractions(slow, upgrades);
+            slow = Mathf.Clamp01(slow);
+            duration = Mathf.Max(0f, duration);
+            dotPerSecond = Definition.ZoneDotDamagePerSecond;
+        }
+
+        /// <summary>Task 22: a read-only snapshot of this ability's FINAL stats, computed through the
+        /// SAME helpers the live cast uses (ComputeStats / ResolveZonePayload / ResolveFrostConfig). No
+        /// re-derivation, so the stat panel always matches actual execution.</summary>
+        public AbilityStats ResolveStats(UpgradeInventory upgrades, ConsumableInventory consumables,
+            IReadOnlyList<StatModifier> equippedModifiers)
+        {
+            ComputeStats(upgrades, consumables, equippedModifiers,
+                out float damage, out float cooldown, out float range);
+
+            bool targeted = Definition.TargetingType == AbilityTargetingType.TargetedAreaOfEffect;
+            float castDistance = targeted ? Definition.Range : range;
+
+            bool hasZone = Definition.AppliesZonePayload;
+            float slow = 0f, duration = 0f, dotPerSecond = 0f;
+            if (hasZone) ResolveZonePayload(upgrades, out slow, out duration, out dotPerSecond);
+
+            bool hasFrost = Definition.AppliesFrostStack;
+            float frostPerStackSlow = 0f, frostFreeze = 0f;
+            int frostMax = 0;
+            if (hasFrost) ResolveFrostConfig(upgrades, out frostPerStackSlow, out frostMax, out _, out frostFreeze);
+
+            return new AbilityStats(
+                Definition, Definition.TargetingType,
+                damage, cooldown, range, castDistance,
+                IsReady, CooldownProgress01,
+                hasZone, slow, duration, dotPerSecond,
+                hasFrost, frostMax, frostFreeze, frostPerStackSlow);
         }
 
         // Walk the ability's TagInteractionRules for SlowMagnitudeMultiplier entries whose tag the
