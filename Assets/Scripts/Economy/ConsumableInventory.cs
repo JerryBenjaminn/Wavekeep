@@ -120,6 +120,37 @@ namespace Wavekeep.Economy
             return multiplier;
         }
 
+        // --- Task 23 aggregates: each sums the active effects of one new type, mirroring the pattern
+        // above. AbilityRuntime reads these as additional modifier SOURCES — never a parallel damage path.
+
+        private float SumOf(ConsumableEffectType type)
+        {
+            float total = 0f;
+            for (int i = 0; i < _activeEffects.Count; i++)
+            {
+                if (_activeEffects[i].Type == type) total += _activeEffects[i].Value;
+            }
+            return total;
+        }
+
+        /// <summary>Total crit CHANCE [0..1] from all active Crit Chance effects (clamped).</summary>
+        public float TotalCritChance() => Mathf.Clamp01(SumOf(ConsumableEffectType.CritChanceBoost));
+
+        /// <summary>Total crit DAMAGE bonus fraction from all active Crit Damage effects (a crit deals ×(1+this)).</summary>
+        public float TotalCritDamageBonus() => SumOf(ConsumableEffectType.CritDamageBoost);
+
+        /// <summary>Total per-stack frost slow bonus [0..1] from Frost Potions (Task 23).</summary>
+        public float FrostPerStackSlowBonus() => SumOf(ConsumableEffectType.FrostPotency);
+
+        /// <summary>Total flat damage from Lightning Potions — generic placeholder applied to ALL abilities.</summary>
+        public float TotalElementalLightningBonus() => SumOf(ConsumableEffectType.ElementalLightning);
+
+        /// <summary>Total seconds added to the ultimate's zone duration by Ultimate Duration Potions.</summary>
+        public float UltimateDurationBonus() => SumOf(ConsumableEffectType.UltimateDurationBoost);
+
+        /// <summary>Total flat damage added to the BASIC ability only by Basic Attack Damage Potions.</summary>
+        public float BasicDamageBonus() => SumOf(ConsumableEffectType.BasicDamageBoost);
+
         /// <summary>Advance timed effects and drop any that have expired. Permanent effects are untouched.
         /// Driven once per frame by the per-frame ability consumer (HeroRuntime).</summary>
         public void Tick(float deltaTime)

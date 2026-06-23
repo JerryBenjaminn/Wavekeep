@@ -21,6 +21,32 @@ namespace Wavekeep.Data
 
         /// <summary>Grants reroll points (Task 09) by amount = effect value, routed to <c>RerollManager.Add</c>.
         /// Applied through the normal <c>ShopController.TryPurchase</c> path like any other consumable.</summary>
-        GainRerollPoints
+        GainRerollPoints,
+
+        // --- Task 23 new ongoing ability modifiers (all read by AbilityRuntime's existing pipeline) ---
+
+        /// <summary>Adds flat crit CHANCE (value is a fraction [0..1]). Aggregated by ConsumableInventory and
+        /// rolled as the final multiplicative step in AbilityRuntime's damage pipeline.</summary>
+        CritChanceBoost,
+
+        /// <summary>Adds flat crit DAMAGE bonus (value is a fraction; a crit deals ×(1+sum)). Aggregated and
+        /// applied only when a crit chance roll succeeds.</summary>
+        CritDamageBoost,
+
+        /// <summary>Frost Potion: adds to the per-stack slow of a frost-applying ability (value [0..1]). A
+        /// no-op for heroes whose abilities don't apply Frost stacks (Task 19/23).</summary>
+        FrostPotency,
+
+        /// <summary>Lightning Potion (PLACEHOLDER, Task 23): a generic flat damage bonus to ALL abilities for
+        /// now, kept as its own effect type so a future Lightning hero/kit can repurpose it without re-authoring
+        /// the shop assets.</summary>
+        ElementalLightning,
+
+        /// <summary>Adds seconds to the hero's ultimate zone duration (value in seconds), through the SAME
+        /// duration pipeline as Task 19's Extended Zone. A no-op for ultimates without a zone duration.</summary>
+        UltimateDurationBoost,
+
+        /// <summary>Flat damage bonus to the BASIC ability only (value), via the role-aware damage pipeline.</summary>
+        BasicDamageBoost
     }
 }

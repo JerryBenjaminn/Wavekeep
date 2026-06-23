@@ -2101,6 +2101,24 @@ MonoBehaviour:
   - {fileID: 11400000, guid: a6283e8fb6809784582f3eb1721a70d9, type: 2}
   - {fileID: 11400000, guid: f5c0c997746eff74990be09e0c90c48c, type: 2}
   - {fileID: 11400000, guid: 42cabe0242fe5db4bbe69bdade2785ed, type: 2}
+  - {fileID: 11400000, guid: 4b467fe73605c9a4d921ba3afb26007c, type: 2}
+  - {fileID: 11400000, guid: a1d36a8b63fa9d54e8e8ae7af68bb4b5, type: 2}
+  - {fileID: 11400000, guid: 7de0a82448c38124487e77c91c8fae5d, type: 2}
+  - {fileID: 11400000, guid: 6f9ae8d2b237b88418e136d6e3bfe9da, type: 2}
+  - {fileID: 11400000, guid: 926c61d4fb06d0f4383d6c79b7d04f62, type: 2}
+  - {fileID: 11400000, guid: 38b24c548e4aafc49aff57adc6772bd6, type: 2}
+  - {fileID: 11400000, guid: 6f7daa19b643c8c48a3400b37f875ca3, type: 2}
+  - {fileID: 11400000, guid: 1a9df0c3d65272144b952ede9c08d473, type: 2}
+  - {fileID: 11400000, guid: 956feb3d19324f642b180692ebd7aff8, type: 2}
+  - {fileID: 11400000, guid: 74830f10868197f4280fcfd2ee49b2b7, type: 2}
+  - {fileID: 11400000, guid: 4412b7b9bd9eaff468dd372b10479bf9, type: 2}
+  - {fileID: 11400000, guid: 6b78e0093eb8eb74f96f5cb5d05ff106, type: 2}
+  - {fileID: 11400000, guid: 1390bfb9f9af8d842be53f3cddd51051, type: 2}
+  - {fileID: 11400000, guid: b5a26495c6eb7bd43b33202454251594, type: 2}
+  - {fileID: 11400000, guid: 0df136b5243f76240b1ad37cf91adab1, type: 2}
+  - {fileID: 11400000, guid: 6f8184533cda1c74b906253542e02bd4, type: 2}
+  - {fileID: 11400000, guid: 3764b5c641bf20a43af21980b5f4c0cf, type: 2}
+  - {fileID: 11400000, guid: 0c058c49b307390468b4e5f09538658e, type: 2}
   _offerSize: 4
   _shopPanel: {fileID: 1103160862}
   _itemContainer: {fileID: 425824524}

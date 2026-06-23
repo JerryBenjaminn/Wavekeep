@@ -78,6 +78,11 @@ namespace Wavekeep.Runtime
             ComputeStats(context.Upgrades, context.Consumables, context.EquippedModifiers,
                 out float damage, out float cooldown, out float range);
 
+            // Task 23: crit is the FINAL multiplicative step in the damage pipeline — a per-cast roll on
+            // the fully-modified damage. Rolled here (at execution), NOT in ComputeStats, so deterministic
+            // previews (GetEffectiveDamage / ResolveStats) never randomly crit. Defaults to no-op (0% chance).
+            damage = RollCrit(damage, context.Consumables);
+
             bool hitSomething;
             switch (Definition.TargetingType)
             {
@@ -239,7 +244,7 @@ namespace Wavekeep.Runtime
         {
             if (!Definition.AppliesFrostStack || target == null) return;
 
-            ResolveFrostConfig(context.Upgrades, out float perStackSlow,
+            ResolveFrostConfig(context.Upgrades, context.Consumables, out float perStackSlow,
                 out int maxStacks, out float decay, out float freezeDuration);
             int stacksPerHit = Definition.FrostStacksPerHit;
 
@@ -271,10 +276,11 @@ namespace Wavekeep.Runtime
             }
         }
 
-        private void ResolveFrostConfig(UpgradeInventory upgrades,
+        private void ResolveFrostConfig(UpgradeInventory upgrades, ConsumableInventory consumables,
             out float perStackSlow, out int maxStacks, out float decay, out float freezeDuration)
         {
             perStackSlow = Definition.FrostPerStackSlow;
+            if (consumables != null) perStackSlow += consumables.FrostPerStackSlowBonus(); // Task 23: Frost Potion
             decay = Definition.FrostDecayInterval;
             float baseMax = Definition.FrostMaxStacks;
             float baseFreeze = Definition.FrostTriggerFreezeDuration;
@@ -296,7 +302,7 @@ namespace Wavekeep.Runtime
         {
             if (!Definition.AppliesZonePayload || target == null) return;
 
-            ResolveZonePayload(context.Upgrades, out float slow, out float duration, out float dotPerSecond);
+            ResolveZonePayload(context.Upgrades, context.Consumables, out float slow, out float duration, out float dotPerSecond);
 
             if (slow > 0f && duration > 0f)
                 target.ApplyStatusEffect(StatusEffectType.Slow, slow, duration);
@@ -322,8 +328,8 @@ namespace Wavekeep.Runtime
         // Resolve the zone payload's effective Slow magnitude, duration and DoT/s (Task 19) from the SO
         // base + held upgrade modifiers + Slow-tag interactions. Shared by the live cast (ApplyZonePayload)
         // and the read-only stat snapshot (ResolveStats), so the panel and the real cast never disagree.
-        private void ResolveZonePayload(UpgradeInventory upgrades, out float slow, out float duration,
-            out float dotPerSecond)
+        private void ResolveZonePayload(UpgradeInventory upgrades, ConsumableInventory consumables,
+            out float slow, out float duration, out float dotPerSecond)
         {
             duration = Definition.ZoneDuration;
             slow = Definition.ZoneSlowMagnitude;
@@ -332,10 +338,29 @@ namespace Wavekeep.Runtime
                 duration = upgrades.ResolveModifier(UpgradeModifierTarget.UltimateDuration, duration);
                 slow = upgrades.ResolveModifier(UpgradeModifierTarget.UltimateSlowMagnitude, slow);
             }
+            if (consumables != null) duration += consumables.UltimateDurationBonus(); // Task 23: Ultimate Duration Potion
             slow = ApplySlowTagInteractions(slow, upgrades);
             slow = Mathf.Clamp01(slow);
             duration = Mathf.Max(0f, duration);
             dotPerSecond = Definition.ZoneDotDamagePerSecond;
+        }
+
+        // Task 23: roll the final crit step. Reads crit chance/damage from the consumable aggregates (the
+        // only crit source for now; upgrades/gear could feed the same getters later). No-op at 0% chance.
+        private float RollCrit(float damage, ConsumableInventory consumables)
+        {
+            if (consumables == null || damage <= 0f) return damage;
+
+            float chance = consumables.TotalCritChance();
+            if (chance <= 0f) return damage;
+
+            if (Random.value < chance)
+            {
+                float critted = damage * (1f + consumables.TotalCritDamageBonus());
+                Debug.Log($"[AbilityRuntime] {Definition.AbilityName} CRIT! {damage:0.#} → {critted:0.#}");
+                return critted;
+            }
+            return damage;
         }
 
         /// <summary>Task 22: a read-only snapshot of this ability's FINAL stats, computed through the
@@ -352,12 +377,12 @@ namespace Wavekeep.Runtime
 
             bool hasZone = Definition.AppliesZonePayload;
             float slow = 0f, duration = 0f, dotPerSecond = 0f;
-            if (hasZone) ResolveZonePayload(upgrades, out slow, out duration, out dotPerSecond);
+            if (hasZone) ResolveZonePayload(upgrades, consumables, out slow, out duration, out dotPerSecond);
 
             bool hasFrost = Definition.AppliesFrostStack;
             float frostPerStackSlow = 0f, frostFreeze = 0f;
             int frostMax = 0;
-            if (hasFrost) ResolveFrostConfig(upgrades, out frostPerStackSlow, out frostMax, out _, out frostFreeze);
+            if (hasFrost) ResolveFrostConfig(upgrades, consumables, out frostPerStackSlow, out frostMax, out _, out frostFreeze);
 
             return new AbilityStats(
                 Definition, Definition.TargetingType,
@@ -447,6 +472,8 @@ namespace Wavekeep.Runtime
             if (consumables != null)
             {
                 damage += consumables.TotalFlatDamageBonus();
+                damage += consumables.TotalElementalLightningBonus(); // Task 23: Lightning placeholder (all abilities)
+                if (_role == AbilityRole.Basic) damage += consumables.BasicDamageBonus(); // Task 23: basic-only
                 cooldown *= consumables.CooldownMultiplier();
             }
 

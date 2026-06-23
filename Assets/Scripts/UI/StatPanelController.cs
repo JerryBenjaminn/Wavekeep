@@ -89,6 +89,7 @@ namespace Wavekeep.UI
                 _sb.AppendLine("<i>No hero spawned yet.</i>");
             }
 
+            AppendCrit();
             AppendUpgrades();
             AppendConsumables();
             _sb.Append("<b>Reroll points:</b> ").Append(_session.RerollManager.CurrentPoints);
@@ -145,6 +146,15 @@ namespace Wavekeep.UI
                 default:
                     return $"Range: {s.Range:0.##}m";
             }
+        }
+
+        // Task 23: crit is a global combat modifier (from consumables), so show it once rather than per-ability.
+        private void AppendCrit()
+        {
+            _sb.AppendLine();
+            var c = _session.ConsumableInventory;
+            _sb.Append("<b>Crit:</b> ").Append((c.TotalCritChance() * 100f).ToString("0")).Append("% chance, +")
+               .Append((c.TotalCritDamageBonus() * 100f).ToString("0")).AppendLine("% dmg");
         }
 
         private void AppendUpgrades()

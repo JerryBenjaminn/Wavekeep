@@ -153,6 +153,15 @@ namespace Wavekeep.Economy
             {
                 case ConsumableEffectType.FlatDamageBoost:
                 case ConsumableEffectType.CooldownReduction:
+                // Task 23: the new potion effects are all ongoing ability modifiers too — they take the
+                // SAME AddEffect path and are read by AbilityRuntime's existing pipeline (crit roll,
+                // frost/zone resolvers, role-aware damage). No new purchase or calculation path.
+                case ConsumableEffectType.CritChanceBoost:
+                case ConsumableEffectType.CritDamageBoost:
+                case ConsumableEffectType.FrostPotency:
+                case ConsumableEffectType.ElementalLightning:
+                case ConsumableEffectType.UltimateDurationBoost:
+                case ConsumableEffectType.BasicDamageBoost:
                     // Ongoing ability modifier — read by AbilityRuntime's existing ComputeStats pipeline.
                     _inventory.AddEffect(item.EffectType, item.EffectValue, item.Duration);
                     break;
