@@ -12,15 +12,25 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 60780936f888a7c4aa712c364a657fa5, type: 3}
   m_Name: UltimateIcicle
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.AbilityDefinitionSO
-  _abilityName: Icicle
+  _abilityName: Frost Zone
   _icon: {fileID: 0}
-  _baseDamage: 40
-  _baseCooldown: 5
-  _range: 28
-  _targetingType: 0
+  _baseDamage: 0
+  _baseCooldown: 8
+  _range: 100
+  _targetingType: 1
   _upgradeLevels: []
   _tagInteractionRules:
-  - _matchTag: 1
-    _modifierType: 0
-    _modifierValue: 1.5
-  _appliesStatusEffects: 1
+  - _matchTag: 3
+    _modifierType: 4
+    _modifierValue: 1.1
+  _appliesStatusEffects: 0
+  _appliesFrostStack: 0
+  _frostStacksPerHit: 1
+  _frostPerStackSlow: 0.08
+  _frostMaxStacks: 5
+  _frostDecayInterval: 4
+  _frostTriggerFreezeDuration: 1.5
+  _appliesZonePayload: 1
+  _zoneSlowMagnitude: 0.25
+  _zoneDotDamagePerSecond: 4
+  _zoneDuration: 6

@@ -114,38 +114,62 @@ namespace Wavekeep.EditorTools
 
         private static AbilityDefinitionSO CreateFrostNova()
         {
+            // Task 20: Frost Bolt Burst is a ranged impact-AoE — it finds the nearest enemy within Range
+            // (cast distance) and explodes in a small AoeRadius blast at that enemy, applying Frost to all
+            // caught in the blast. Range stays at Task 18's 28 (reaches the spawn line); the blast is a
+            // small 2.5m (the old 3m was tuned for the now-removed caster-centred behaviour).
             var ability = AbilityAssetUtil.LoadOrCreate<AbilityDefinitionSO>(FrostNovaPath);
             var so = new SerializedObject(ability);
-            so.FindProperty("_abilityName").stringValue = "Frost Nova";
-            so.FindProperty("_baseDamage").floatValue = 6f;
-            so.FindProperty("_baseCooldown").floatValue = 0.8f;
-            // Task 18: AoE radius covers the full far-side spawn line (corner markers ≈ 25.94u from the
-            // set-back caster) so the basic hits enemies the instant they spawn, no dead zone.
+            so.FindProperty("_abilityName").stringValue = "Frost Bolt Burst";
+            so.FindProperty("_baseDamage").floatValue = 8f;
+            so.FindProperty("_baseCooldown").floatValue = 1.2f;
             so.FindProperty("_range").floatValue = 28f;
-            so.FindProperty("_targetingType").enumValueIndex = (int)AbilityTargetingType.AreaOfEffect;
+            so.FindProperty("_targetingType").enumValueIndex = (int)AbilityTargetingType.TargetedAreaOfEffect;
+            so.FindProperty("_aoeRadius").floatValue = 2.5f;
+            so.FindProperty("_appliesStatusEffects").boolValue = false;
 
+            // Frost stack config (Task 19 base values).
+            so.FindProperty("_appliesFrostStack").boolValue = true;
+            so.FindProperty("_frostStacksPerHit").intValue = 1;
+            so.FindProperty("_frostPerStackSlow").floatValue = 0.08f;
+            so.FindProperty("_frostMaxStacks").intValue = 5;
+            so.FindProperty("_frostDecayInterval").floatValue = 4f;
+            so.FindProperty("_frostTriggerFreezeDuration").floatValue = 1.5f;
+            so.FindProperty("_appliesZonePayload").boolValue = false;
+
+            // §2 TagInteractionRule: holding any AoE-tagged upgrade widens the burst (+15% radius).
             var rules = so.FindProperty("_tagInteractionRules");
             rules.arraySize = 1;
-            AbilityAssetUtil.SetRule(rules.GetArrayElementAtIndex(0), UpgradeTag.AoE, AbilityModifierType.DamageMultiplier, 1.5f);
+            AbilityAssetUtil.SetRule(rules.GetArrayElementAtIndex(0), UpgradeTag.AoE, AbilityModifierType.RangeMultiplier, 1.15f);
             so.ApplyModifiedPropertiesWithoutUndo();
             return ability;
         }
 
         private static AbilityDefinitionSO CreateIcicle()
         {
+            // Task 19: this is the Frost Warden ultimate "Frost Zone" — an arena-wide Slow + DoT zone.
+            // "Arena-wide" is implemented as a large AoE radius (covers the ~26u arena) rather than a
+            // dedicated all-enemies flag, reusing the existing caster-centred AoE path unchanged.
             var ability = AbilityAssetUtil.LoadOrCreate<AbilityDefinitionSO>(IciclePath);
             var so = new SerializedObject(ability);
-            so.FindProperty("_abilityName").stringValue = "Icicle";
-            so.FindProperty("_baseDamage").floatValue = 40f;
-            so.FindProperty("_baseCooldown").floatValue = 5f;
-            // Task 18: range covers the full far-side spawn line (corner markers ≈ 25.94u from the
-            // set-back caster) so the ultimate is targetable the instant enemies spawn, no dead zone.
-            so.FindProperty("_range").floatValue = 28f;
-            so.FindProperty("_targetingType").enumValueIndex = (int)AbilityTargetingType.SingleTarget;
+            so.FindProperty("_abilityName").stringValue = "Frost Zone";
+            so.FindProperty("_baseDamage").floatValue = 0f; // damage comes from the DoT payload, not a hit
+            so.FindProperty("_baseCooldown").floatValue = 8f;
+            so.FindProperty("_range").floatValue = 100f;
+            so.FindProperty("_targetingType").enumValueIndex = (int)AbilityTargetingType.AreaOfEffect;
+            so.FindProperty("_appliesStatusEffects").boolValue = false;
 
+            // Zone payload (Task 19 base values): Slow -25% + 4 dmg/s DoT for 6s to all enemies in range.
+            so.FindProperty("_appliesFrostStack").boolValue = false;
+            so.FindProperty("_appliesZonePayload").boolValue = true;
+            so.FindProperty("_zoneSlowMagnitude").floatValue = 0.25f;
+            so.FindProperty("_zoneDotDamagePerSecond").floatValue = 4f;
+            so.FindProperty("_zoneDuration").floatValue = 6f;
+
+            // §3 TagInteractionRule: holding any Slow-tagged upgrade boosts the zone's slow (+10%).
             var rules = so.FindProperty("_tagInteractionRules");
             rules.arraySize = 1;
-            AbilityAssetUtil.SetRule(rules.GetArrayElementAtIndex(0), UpgradeTag.SingleTarget, AbilityModifierType.DamageMultiplier, 1.5f);
+            AbilityAssetUtil.SetRule(rules.GetArrayElementAtIndex(0), UpgradeTag.Slow, AbilityModifierType.SlowMagnitudeMultiplier, 1.1f);
             so.ApplyModifiedPropertiesWithoutUndo();
             return ability;
         }

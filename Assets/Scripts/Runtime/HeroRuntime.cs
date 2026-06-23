@@ -69,8 +69,10 @@ namespace Wavekeep.Runtime
             }
             _feedback = presenter;
 
-            Basic = definition.BasicAbility != null ? new AbilityRuntime(definition.BasicAbility) : null;
-            Ultimate = definition.UltimateAbility != null ? new AbilityRuntime(definition.UltimateAbility) : null;
+            Basic = definition.BasicAbility != null
+                ? new AbilityRuntime(definition.BasicAbility, AbilityRole.Basic) : null;
+            Ultimate = definition.UltimateAbility != null
+                ? new AbilityRuntime(definition.UltimateAbility, AbilityRole.Ultimate) : null;
 
             ApplyTint(definition.Tint);
             _initialized = true;

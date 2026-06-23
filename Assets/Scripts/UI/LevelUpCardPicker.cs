@@ -272,16 +272,20 @@ namespace Wavekeep.UI
         {
             result.Clear();
 
+            // Task 19: branch-locked upgrades are filtered out of the candidate set BEFORE drawing, so a
+            // locked branch simply stops appearing (rather than being drawn then disabled in the UI). The
+            // filter is uniform across both pools and driven only by UpgradeBranch — generic-pool
+            // upgrades are Neutral and so are never excluded.
             _combinedPool.Clear();
             for (int i = 0; i < _upgradePool.Count; i++)
             {
-                if (_upgradePool[i] != null) _combinedPool.Add(_upgradePool[i]);
+                if (IsDrawable(_upgradePool[i])) _combinedPool.Add(_upgradePool[i]);
             }
             if (_activeHeroExclusives != null)
             {
                 for (int i = 0; i < _activeHeroExclusives.Count; i++)
                 {
-                    if (_activeHeroExclusives[i] != null) _combinedPool.Add(_activeHeroExclusives[i]);
+                    if (IsDrawable(_activeHeroExclusives[i])) _combinedPool.Add(_activeHeroExclusives[i]);
                 }
             }
 
@@ -295,6 +299,12 @@ namespace Wavekeep.UI
                 (_drawIndices[k], _drawIndices[swap]) = (_drawIndices[swap], _drawIndices[k]);
                 result.Add(_combinedPool[_drawIndices[k]]);
             }
+        }
+
+        // Task 19: a candidate is drawable if it exists and its branch isn't locked out for this run.
+        private bool IsDrawable(UpgradeDefinitionSO upgrade)
+        {
+            return upgrade != null && !_inventory.IsBranchLocked(upgrade.Branch);
         }
 
         private static string BuildInfo(UpgradeDefinitionSO upgrade)

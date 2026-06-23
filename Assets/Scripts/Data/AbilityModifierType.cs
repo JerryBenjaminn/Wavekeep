@@ -11,6 +11,11 @@ namespace Wavekeep.Data
         DamageMultiplier,
         DamageFlatBonus,
         CooldownMultiplier,
-        RangeMultiplier
+        RangeMultiplier,
+
+        /// <summary>Scales a zone/AoE ability's applied Slow magnitude (Task 19). Used by the Frost
+        /// Warden ultimate's "Slow tag → +10% slow" TagInteractionRule; resolved alongside the other
+        /// generic modifier kinds, never via a hardcoded per-hero check.</summary>
+        SlowMagnitudeMultiplier
     }
 }

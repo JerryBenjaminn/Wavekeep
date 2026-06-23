@@ -12,14 +12,26 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 60780936f888a7c4aa712c364a657fa5, type: 3}
   m_Name: BasicFrostNova
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.AbilityDefinitionSO
-  _abilityName: Frost Nova
+  _abilityName: Frost Bolt Burst
   _icon: {fileID: 0}
-  _baseDamage: 6
-  _baseCooldown: 0.8
+  _baseDamage: 8
+  _baseCooldown: 1.2
   _range: 28
-  _targetingType: 1
+  _targetingType: 2
+  _aoeRadius: 2.5
   _upgradeLevels: []
   _tagInteractionRules:
   - _matchTag: 0
-    _modifierType: 0
-    _modifierValue: 1.5
+    _modifierType: 3
+    _modifierValue: 1.15
+  _appliesStatusEffects: 0
+  _appliesFrostStack: 1
+  _frostStacksPerHit: 1
+  _frostPerStackSlow: 0.08
+  _frostMaxStacks: 5
+  _frostDecayInterval: 4
+  _frostTriggerFreezeDuration: 1.5
+  _appliesZonePayload: 0
+  _zoneSlowMagnitude: 0
+  _zoneDotDamagePerSecond: 0
+  _zoneDuration: 0

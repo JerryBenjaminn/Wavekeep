@@ -41,6 +41,7 @@ namespace Wavekeep.EditorTools
         private float _baseDamage = 5f;
         private float _baseCooldown = 1f;
         private float _range = 10f;
+        private float _aoeRadius = 2.5f;
         private AbilityTargetingType _targetingType = AbilityTargetingType.SingleTarget;
         private bool _appliesStatusEffects;
         private readonly List<LevelRow> _levels = new List<LevelRow>();
@@ -48,6 +49,7 @@ namespace Wavekeep.EditorTools
 
         // --- Upgrade fields ---
         private readonly List<UpgradeTag> _tags = new List<UpgradeTag>();
+        private UpgradeBranch _upgradeBranch = UpgradeBranch.Neutral;
         private UpgradeEffectType _effectType = UpgradeEffectType.FlatDamageBonus;
         private float _effectValue;
         private bool _appliesStatusEffect;
@@ -133,8 +135,13 @@ namespace Wavekeep.EditorTools
             EditorGUILayout.LabelField("Base Stats", EditorStyles.boldLabel);
             _baseDamage = EditorGUILayout.FloatField("Base Damage", _baseDamage);
             _baseCooldown = EditorGUILayout.FloatField("Base Cooldown", _baseCooldown);
-            _range = EditorGUILayout.FloatField("Range / AoE Radius", _range);
+            _range = EditorGUILayout.FloatField(new GUIContent("Range / Cast Distance",
+                "Acquisition range (SingleTarget), caster blast radius (AreaOfEffect), or max cast " +
+                "distance to find a target (TargetedAreaOfEffect)."), _range);
             _targetingType = (AbilityTargetingType)EditorGUILayout.EnumPopup("Targeting Type", _targetingType);
+            if (_targetingType == AbilityTargetingType.TargetedAreaOfEffect)
+                _aoeRadius = EditorGUILayout.FloatField(new GUIContent("AoE Radius (impact blast)",
+                    "Blast radius centred on the resolved target's position (Task 20)."), _aoeRadius);
             _appliesStatusEffects = EditorGUILayout.Toggle(new GUIContent("Applies Status Effects",
                 "Flag the deliberate payload ability (usually the ultimate), not a rapid auto-basic."), _appliesStatusEffects);
 
@@ -190,6 +197,11 @@ namespace Wavekeep.EditorTools
                 }
             }
             if (GUILayout.Button("+ Add Tag")) _tags.Add(UpgradeTag.AoE);
+
+            EditorGUILayout.Space();
+            _upgradeBranch = (UpgradeBranch)EditorGUILayout.EnumPopup(new GUIContent("Branch (Task 19)",
+                "Mage/Defender are mutually exclusive once picked; Neutral (default) is always drawable. " +
+                "Detailed parametric stat-modifiers are edited on the created asset in the Inspector."), _upgradeBranch);
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Generic Effect", EditorStyles.boldLabel);
@@ -273,6 +285,7 @@ namespace Wavekeep.EditorTools
             _baseDamage = _abilityTemplate.BaseDamage;
             _baseCooldown = _abilityTemplate.BaseCooldown;
             _range = _abilityTemplate.Range;
+            _aoeRadius = _abilityTemplate.AoeRadius;
             _targetingType = _abilityTemplate.TargetingType;
             _appliesStatusEffects = _abilityTemplate.AppliesStatusEffects;
 
@@ -297,6 +310,8 @@ namespace Wavekeep.EditorTools
             _statusType = _upgradeTemplate.StatusEffectType;
             _statusMagnitude = _upgradeTemplate.StatusMagnitude;
             _statusDuration = _upgradeTemplate.StatusDuration;
+
+            _upgradeBranch = _upgradeTemplate.Branch; // Task 19
 
             _tags.Clear();
             foreach (var tag in _upgradeTemplate.Tags) _tags.Add(tag);
@@ -331,6 +346,7 @@ namespace Wavekeep.EditorTools
             so.FindProperty("_baseDamage").floatValue = _baseDamage;
             so.FindProperty("_baseCooldown").floatValue = _baseCooldown;
             so.FindProperty("_range").floatValue = _range;
+            so.FindProperty("_aoeRadius").floatValue = _aoeRadius;
             so.FindProperty("_targetingType").enumValueIndex = (int)_targetingType;
             so.FindProperty("_appliesStatusEffects").boolValue = _appliesStatusEffects;
 
@@ -376,6 +392,7 @@ namespace Wavekeep.EditorTools
             tags.arraySize = _tags.Count;
             for (int i = 0; i < _tags.Count; i++) tags.GetArrayElementAtIndex(i).enumValueIndex = (int)_tags[i];
 
+            so.FindProperty("_branch").enumValueIndex = (int)_upgradeBranch; // Task 19
             so.FindProperty("_effectType").enumValueIndex = (int)_effectType;
             so.FindProperty("_effectValue").floatValue = _effectValue;
             so.FindProperty("_appliesStatusEffect").boolValue = _appliesStatusEffect;

@@ -48,8 +48,26 @@ namespace Wavekeep.Runtime
             public float BurnTimer; // only used by Burn
         }
 
-        private const float BurnTickInterval = 0.5f; // DoT granularity; per-tick damage comes from the SO
+        /// <summary>DoT granularity (seconds per tick); per-tick damage comes from the SO. Public so an
+        /// ability authoring a damage-per-SECOND zone can convert it to per-tick (Task 19).</summary>
+        public const float BurnTickInterval = 0.5f;
         private readonly List<ActiveStatusEffect> _statusEffects = new List<ActiveStatusEffect>();
+
+        // Task 19: generic STACKING-effect state — a counter per StackingEffectType that decays over time
+        // and fires a one-shot payload at max. Same pattern as _statusEffects (one list + one tick loop),
+        // parameterised entirely by the applier so it is NOT Frost-Warden-specific (CLAUDE.md §3.8).
+        private struct ActiveStackingEffect
+        {
+            public StackingEffectType Type;
+            public int Stacks;
+            public float PerStackSlow;       // movement-speed reduction contributed per stack
+            public int MaxStacks;            // reaching this triggers the payload, then resets to 0
+            public float DecayInterval;      // seconds to lose one stack when not refreshed
+            public float DecayTimer;         // counts toward the next decay
+            public float TriggerFreezeDuration; // Freeze applied (via the Task 11 status API) at max
+        }
+
+        private readonly List<ActiveStackingEffect> _stackingEffects = new List<ActiveStackingEffect>();
 
         public EnemyDefinitionSO Definition { get; private set; }
         public GameObject GameObject { get; private set; }
@@ -92,6 +110,7 @@ namespace Wavekeep.Runtime
             _isResolved = false;
             _lootTable = lootTable; // Task 13: resolved per spawn (regular def table / wave boss table)
             _statusEffects.Clear(); // reset per-run status state on pooled reuse (Task 11)
+            _stackingEffects.Clear(); // reset stacking-effect state on pooled reuse (Task 19)
 
             MaxHealth = definition.MaxHealth * statMultiplier;
             CurrentHealth = MaxHealth;
@@ -108,6 +127,7 @@ namespace Wavekeep.Runtime
             // which can resolve this enemy mid-tick — bail immediately if so (it's now pool-released).
             TickStatusEffects(deltaTime);
             if (_isResolved || _wall == null) return;
+            TickStackingEffects(deltaTime); // Task 19: stack decay (never lethal, so no resolve check needed)
 
             if (_isAttacking)
             {
@@ -152,6 +172,14 @@ namespace Wavekeep.Runtime
                             break;
                     }
                 }
+
+                // Task 19: stacking effects (Frost) slow MULTIPLICATIVELY too — perStackSlow × stacks.
+                for (int i = 0; i < _stackingEffects.Count; i++)
+                {
+                    var s = _stackingEffects[i];
+                    multiplier *= Mathf.Clamp01(1f - s.PerStackSlow * s.Stacks);
+                }
+
                 return MoveSpeed * multiplier;
             }
         }
@@ -186,6 +214,99 @@ namespace Wavekeep.Runtime
             });
 
             Debug.Log($"[EnemyRuntime] Status '{type}' applied (mag={magnitude:0.#}, dur={duration:0.#}s) to '{Definition.EnemyName}'.");
+        }
+
+        /// <summary>
+        /// Apply (or refresh) a generic stacking effect (Task 19). Adds <paramref name="amount"/> stacks
+        /// up to <paramref name="maxStacks"/>, refreshing the decay timer so a fresh hit extends rather
+        /// than double-counting past the max. When the count REACHES the max it triggers a Freeze (via
+        /// the existing Task 11 status API) and resets stacks to 0. All parameters come from the applier,
+        /// so the same machine serves any future stacking effect. Returns true if this call hit max and
+        /// fired the Freeze payload (so the caller can run on-trigger behaviour like Chain Frost spread).
+        /// </summary>
+        public bool ApplyStack(StackingEffectType type, int amount, float perStackSlow, int maxStacks,
+            float decayInterval, float triggerFreezeDuration)
+        {
+            if (_isResolved || amount <= 0 || maxStacks < 1) return false;
+
+            for (int i = 0; i < _stackingEffects.Count; i++)
+            {
+                if (_stackingEffects[i].Type != type) continue;
+
+                var e = _stackingEffects[i];
+                // Refresh tunables in case held upgrades changed them since the last hit, and reset decay.
+                e.PerStackSlow = perStackSlow;
+                e.MaxStacks = maxStacks;
+                e.DecayInterval = decayInterval;
+                e.TriggerFreezeDuration = triggerFreezeDuration;
+                e.DecayTimer = 0f;
+                e.Stacks = Mathf.Min(e.Stacks + amount, maxStacks); // clamp — never overshoot the max
+
+                if (e.Stacks >= maxStacks)
+                {
+                    _stackingEffects.RemoveAt(i); // max reached → consume the stacks (reset to 0)
+                    ApplyStatusEffect(StatusEffectType.Freeze, 0f, triggerFreezeDuration);
+                    Debug.Log($"[EnemyRuntime] Frost reached max ({maxStacks}) on '{Definition.EnemyName}' → Freeze {triggerFreezeDuration:0.#}s, stacks reset.");
+                    return true;
+                }
+
+                _stackingEffects[i] = e;
+                Debug.Log($"[EnemyRuntime] {type} stacks → {e.Stacks}/{maxStacks} on '{Definition.EnemyName}'.");
+                return false;
+            }
+
+            // First application of this type.
+            int initial = Mathf.Min(amount, maxStacks);
+            if (initial >= maxStacks)
+            {
+                ApplyStatusEffect(StatusEffectType.Freeze, 0f, triggerFreezeDuration);
+                Debug.Log($"[EnemyRuntime] Frost reached max ({maxStacks}) on '{Definition.EnemyName}' → Freeze {triggerFreezeDuration:0.#}s, stacks reset.");
+                return true;
+            }
+
+            _stackingEffects.Add(new ActiveStackingEffect
+            {
+                Type = type,
+                Stacks = initial,
+                PerStackSlow = perStackSlow,
+                MaxStacks = maxStacks,
+                DecayInterval = decayInterval,
+                DecayTimer = 0f,
+                TriggerFreezeDuration = triggerFreezeDuration
+            });
+            return false;
+        }
+
+        /// <summary>Current stack count of a stacking effect (Task 19), or 0 if none active.</summary>
+        public int GetStackCount(StackingEffectType type)
+        {
+            for (int i = 0; i < _stackingEffects.Count; i++)
+                if (_stackingEffects[i].Type == type) return _stackingEffects[i].Stacks;
+            return 0;
+        }
+
+        // Task 19: decay each stacking effect by one stack per DecayInterval of NOT being refreshed.
+        // Drop the effect entirely once it decays to zero.
+        private void TickStackingEffects(float deltaTime)
+        {
+            for (int i = _stackingEffects.Count - 1; i >= 0; i--)
+            {
+                var e = _stackingEffects[i];
+                e.DecayTimer += deltaTime;
+                bool decayed = false;
+                while (e.DecayTimer >= e.DecayInterval && e.Stacks > 0)
+                {
+                    e.DecayTimer -= e.DecayInterval;
+                    e.Stacks--;
+                    decayed = true;
+                }
+
+                if (decayed)
+                    Debug.Log($"[EnemyRuntime] {e.Type} decayed → {e.Stacks} stack(s) on '{Definition.EnemyName}'.");
+
+                if (e.Stacks <= 0) _stackingEffects.RemoveAt(i);
+                else _stackingEffects[i] = e;
+            }
         }
 
         // Advance durations, apply Burn ticks through the existing TakeDamage path (reusing the normal

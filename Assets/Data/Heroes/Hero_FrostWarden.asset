@@ -20,5 +20,12 @@ MonoBehaviour:
   _basicAbility: {fileID: 11400000, guid: c06234b7fa219e740a43200b5dd38cbd, type: 2}
   _ultimateAbility: {fileID: 11400000, guid: b0dad0b96f631b448a6263e7a839381b, type: 2}
   _exclusiveUpgrades:
-  - {fileID: 11400000, guid: 1f9d5cad293c6d040aeeaf29b47473bd, type: 2}
-  - {fileID: 11400000, guid: e5806a9ec21b29b499fd83b6a0fc5f23, type: 2}
+  - {fileID: 11400000, guid: 7a1c9f2e4b8d4c3a9e1f0b6d2c5a8e31, type: 2}
+  - {fileID: 11400000, guid: 3e9d2b7a1c4f8e6d5a0b9c2d1e3f4a52, type: 2}
+  - {fileID: 11400000, guid: 5c2a8e1d9b7f3a6c4e0d2b9a1f8c3e73, type: 2}
+  - {fileID: 11400000, guid: 9f4b1d8c2e6a3f7b5c0a9d2e1b4f8c64, type: 2}
+  - {fileID: 11400000, guid: 2d7e9a1c5b3f8d6a4c0e2b9f1a7d3c85, type: 2}
+  - {fileID: 11400000, guid: 8b3f1e9d2c7a5b4f6e0d1a9c3b2f8e96, type: 2}
+  - {fileID: 11400000, guid: 4a9c2e7d1b8f3a5c6e0d9b2a1f7c3ea7, type: 2}
+  - {fileID: 11400000, guid: 6e1d8b3f9c2a7e5d4b0c1a9f2d3b8eb8, type: 2}
+  - {fileID: 11400000, guid: 1c8a3e9d2b7f5c4a6e0d1b9a2f3c8dc9, type: 2}
