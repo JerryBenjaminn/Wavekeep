@@ -16,7 +16,7 @@ MonoBehaviour:
   _icon: {fileID: 0}
   _baseDamage: 40
   _baseCooldown: 5
-  _range: 20
+  _range: 28
   _targetingType: 0
   _upgradeLevels: []
   _tagInteractionRules:

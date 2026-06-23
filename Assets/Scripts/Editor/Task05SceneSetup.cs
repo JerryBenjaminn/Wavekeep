@@ -119,9 +119,9 @@ namespace Wavekeep.EditorTools
             so.FindProperty("_abilityName").stringValue = "Frost Nova";
             so.FindProperty("_baseDamage").floatValue = 6f;
             so.FindProperty("_baseCooldown").floatValue = 0.8f;
-            // Task 08 Part A fix: AoE radius enlarged to reach wall-edge enemies (was 8, only covered
-            // the central ~6.6u lateral band given the caster's set-back position behind the wide wall).
-            so.FindProperty("_range").floatValue = 14f;
+            // Task 18: AoE radius covers the full far-side spawn line (corner markers ≈ 25.94u from the
+            // set-back caster) so the basic hits enemies the instant they spawn, no dead zone.
+            so.FindProperty("_range").floatValue = 28f;
             so.FindProperty("_targetingType").enumValueIndex = (int)AbilityTargetingType.AreaOfEffect;
 
             var rules = so.FindProperty("_tagInteractionRules");
@@ -138,7 +138,9 @@ namespace Wavekeep.EditorTools
             so.FindProperty("_abilityName").stringValue = "Icicle";
             so.FindProperty("_baseDamage").floatValue = 40f;
             so.FindProperty("_baseCooldown").floatValue = 5f;
-            so.FindProperty("_range").floatValue = 20f;
+            // Task 18: range covers the full far-side spawn line (corner markers ≈ 25.94u from the
+            // set-back caster) so the ultimate is targetable the instant enemies spawn, no dead zone.
+            so.FindProperty("_range").floatValue = 28f;
             so.FindProperty("_targetingType").enumValueIndex = (int)AbilityTargetingType.SingleTarget;
 
             var rules = so.FindProperty("_tagInteractionRules");

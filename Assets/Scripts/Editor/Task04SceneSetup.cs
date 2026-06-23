@@ -43,7 +43,9 @@ namespace Wavekeep.EditorTools
             so.FindProperty("_abilityName").stringValue = "Auto Bolt";
             so.FindProperty("_baseDamage").floatValue = 8f;
             so.FindProperty("_baseCooldown").floatValue = 0.5f;
-            so.FindProperty("_range").floatValue = 16f;
+            // Task 18: range covers the full far-side spawn line (caster at z=-3 to corner markers at
+            // (±12, 20) ≈ 25.94u away) so enemies are targetable the instant they spawn, no dead zone.
+            so.FindProperty("_range").floatValue = 28f;
             so.FindProperty("_targetingType").enumValueIndex = (int)AbilityTargetingType.SingleTarget;
 
             var rules = so.FindProperty("_tagInteractionRules");
@@ -61,9 +63,9 @@ namespace Wavekeep.EditorTools
             so.FindProperty("_abilityName").stringValue = "Nova";
             so.FindProperty("_baseDamage").floatValue = 25f;
             so.FindProperty("_baseCooldown").floatValue = 4f;
-            // Task 08 Part A fix: AoE radius enlarged to reach wall-edge enemies (was 12, too small for
-            // the ~12.8u distance from the set-back caster to the wall corners).
-            so.FindProperty("_range").floatValue = 16f;
+            // Task 18: AoE radius covers the full far-side spawn line (corner markers ≈ 25.94u from the
+            // set-back caster) so the ultimate hits enemies the instant they spawn, no dead zone.
+            so.FindProperty("_range").floatValue = 28f;
             so.FindProperty("_targetingType").enumValueIndex = (int)AbilityTargetingType.AreaOfEffect;
 
             var rules = so.FindProperty("_tagInteractionRules");
