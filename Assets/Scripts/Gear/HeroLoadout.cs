@@ -18,6 +18,7 @@ namespace Wavekeep.Gear
 
         private readonly LootItemSO[] _slots;
         private readonly List<StatModifier> _aggregated = new List<StatModifier>();
+        private float _totalLuckBonus;
 
         public HeroLoadout()
         {
@@ -26,6 +27,10 @@ namespace Wavekeep.Gear
 
         /// <summary>All stat modifiers from every equipped item, recomputed on change. Empty when bare.</summary>
         public IReadOnlyList<StatModifier> AggregatedModifiers => _aggregated;
+
+        /// <summary>Task 24: summed <see cref="LootItemSO.LuckBonus"/> across all equipped slots, recomputed on
+        /// change (not per-frame). Feeds the gear-derived portion of the hero's Luck via <c>HeroRuntime</c>.</summary>
+        public float TotalLuckBonus => _totalLuckBonus;
 
         public LootItemSO GetEquipped(GearSlot slot) => _slots[(int)slot];
 
@@ -61,12 +66,14 @@ namespace Wavekeep.Gear
         private void Rebuild()
         {
             _aggregated.Clear();
+            _totalLuckBonus = 0f;
             for (int i = 0; i < _slots.Length; i++)
             {
                 var item = _slots[i];
                 if (item == null) continue;
                 var mods = item.StatModifiers;
                 for (int m = 0; m < mods.Count; m++) _aggregated.Add(mods[m]);
+                _totalLuckBonus += item.LuckBonus; // Task 24: non-combat, kept separate from stat modifiers
             }
         }
     }

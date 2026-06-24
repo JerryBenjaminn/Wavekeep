@@ -49,6 +49,10 @@ namespace Wavekeep.Core
         /// <summary>Rolls gear drops on enemy death into the GearManager (Task 13).</summary>
         public LootService LootService { get; }
 
+        /// <summary>Per-run Luck total + run-progress tracking (Task 24). Source of truth for the live Luck
+        /// the shop and loot rolls reweight against; resets each run like other per-run services.</summary>
+        public LuckState LuckState { get; }
+
         // Placeholder service slots — populated by later tasks:
         // TODO (Task 05): HeroRuntime HeroRuntime { get; }
         //
@@ -67,7 +71,8 @@ namespace Wavekeep.Core
             PauseState pauseState,
             RerollManager rerollManager,
             GearManager gearManager,
-            LootService lootService)
+            LootService lootService,
+            LuckState luckState)
         {
             Events = eventBus;
             EnemyPool = enemyPool;
@@ -80,6 +85,7 @@ namespace Wavekeep.Core
             RerollManager = rerollManager;
             GearManager = gearManager;
             LootService = lootService;
+            LuckState = luckState;
         }
 
         /// <summary>Release all session-scoped state. Call when the run/scene ends.</summary>
@@ -89,6 +95,7 @@ namespace Wavekeep.Core
             CurrencyManager?.Dispose();
             XPManager?.Dispose();
             LootService?.Dispose();
+            LuckState?.Dispose();
             Events.UnsubscribeAll();
             EnemyPool.Clear();
         }

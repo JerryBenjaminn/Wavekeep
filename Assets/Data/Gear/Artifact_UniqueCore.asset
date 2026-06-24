@@ -19,3 +19,4 @@ MonoBehaviour:
   _statModifiers:
   - _modifierType: 0
     _value: 1.3
+  _luckBonus: 10

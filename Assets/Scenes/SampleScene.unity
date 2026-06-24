@@ -2119,7 +2119,11 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 6f8184533cda1c74b906253542e02bd4, type: 2}
   - {fileID: 11400000, guid: 3764b5c641bf20a43af21980b5f4c0cf, type: 2}
   - {fileID: 11400000, guid: 0c058c49b307390468b4e5f09538658e, type: 2}
+  - {fileID: 11400000, guid: 1903d657292515f44a557fb14922c5d2, type: 2}
+  - {fileID: 11400000, guid: deaf35c7d389d394a93577d92550ce70, type: 2}
+  - {fileID: 11400000, guid: b654b2fd46ce34b43ab97a541075bf35, type: 2}
   _offerSize: 4
+  _tierWeightingConfig: {fileID: 11400000, guid: 74bc6455a0fd8fb42a77f407086b6dc6, type: 2}
   _shopPanel: {fileID: 1103160862}
   _itemContainer: {fileID: 425824524}
   _currencyText: {fileID: 2098511271}
@@ -2749,6 +2753,7 @@ MonoBehaviour:
   _xpIncrementPerLevel: 5
   _startingRerollPoints: 3
   _gearCatalog: {fileID: 11400000, guid: 9b4b153f377a3b3408fae0cce4d14410, type: 2}
+  _tierWeightingConfig: {fileID: 11400000, guid: 74bc6455a0fd8fb42a77f407086b6dc6, type: 2}
 --- !u!4 &1169181628
 Transform:
   m_ObjectHideFlags: 0

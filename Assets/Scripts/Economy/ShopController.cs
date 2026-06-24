@@ -36,8 +36,15 @@ namespace Wavekeep.Economy
         private readonly IReadOnlyList<ConsumableDefinitionSO> _pool;
         private readonly int _offerSize;
 
+        // Task 24: Luck-driven tier weighting for the offer draw. Both optional — when either is null the
+        // draw falls back to a uniform distinct subset (the Task 09 behaviour), so older scenes still work.
+        private readonly LuckState _luck;
+        private readonly TierWeightingConfigSO _weightingConfig;
+        private static readonly int ConsumableTierCount = System.Enum.GetValues(typeof(ConsumableTier)).Length;
+
         private readonly List<ConsumableDefinitionSO> _offer = new List<ConsumableDefinitionSO>();
         private readonly List<int> _drawIndices = new List<int>(); // scratch for the distinct draw
+        private readonly List<float> _drawWeights = new List<float>(); // scratch parallel weights (Task 24)
 
         // Task 17: which items of the CURRENT offer have already been bought this offer. Keyed by the SO
         // reference — an offer holds distinct items (GenerateOffer draws a distinct subset), so this is
@@ -51,7 +58,9 @@ namespace Wavekeep.Economy
             WallRuntime wall,
             RerollManager reroll,
             IReadOnlyList<ConsumableDefinitionSO> pool,
-            int offerSize)
+            int offerSize,
+            LuckState luck = null,
+            TierWeightingConfigSO weightingConfig = null)
         {
             _currency = currency;
             _inventory = inventory;
@@ -59,6 +68,8 @@ namespace Wavekeep.Economy
             _reroll = reroll;
             _pool = pool;
             _offerSize = Mathf.Max(1, offerSize);
+            _luck = luck;
+            _weightingConfig = weightingConfig;
         }
 
         /// <summary>The items currently offered this visit (read-only). Re-populated by
@@ -71,7 +82,14 @@ namespace Wavekeep.Economy
         /// <summary>True while a reroll can be spent (used to enable/disable the reroll button).</summary>
         public bool CanReroll => _reroll != null && _reroll.CanReroll;
 
-        /// <summary>Draw a fresh offer (FREE — does not touch reroll points). Called on each shop open.</summary>
+        /// <summary>Draw a fresh offer (FREE — does not touch reroll points). Called on each shop open.
+        ///
+        /// Task 24: the draw is now TIER-WEIGHTED — each pool item's draw weight is its configured base
+        /// tier odds × the shared <see cref="TierWeighting"/> multiplier for current Luck + wave progress,
+        /// so higher tiers grow progressively more likely as Luck/wave rise (Luck the stronger factor).
+        /// The lowest tier's weight is never reduced, so it always remains reachable (no zero odds). When
+        /// no Luck/config is wired the weights collapse to the base odds (still tier-weighted, but static),
+        /// and a missing config means uniform — i.e. the original Task 09 behaviour.</summary>
         public void GenerateOffer()
         {
             _offer.Clear();
@@ -80,20 +98,57 @@ namespace Wavekeep.Economy
             _purchasedThisOffer.Clear();
             if (_pool == null) return;
 
-            // Collect valid pool indices, then partial Fisher–Yates to pick a distinct random subset.
+            // Collect valid pool indices + their Luck-adjusted draw weights (parallel lists).
             _drawIndices.Clear();
+            _drawWeights.Clear();
             for (int i = 0; i < _pool.Count; i++)
             {
-                if (_pool[i] != null) _drawIndices.Add(i);
+                if (_pool[i] == null) continue;
+                _drawIndices.Add(i);
+                _drawWeights.Add(OfferWeight(_pool[i]));
             }
 
+            // Weighted sampling WITHOUT replacement: pick by weight, then swap the chosen entry out of the
+            // remaining range (mirrors the old partial Fisher–Yates, but weighted instead of uniform).
             int want = Mathf.Min(_offerSize, _drawIndices.Count);
             for (int k = 0; k < want; k++)
             {
-                int swap = Random.Range(k, _drawIndices.Count);
-                (_drawIndices[k], _drawIndices[swap]) = (_drawIndices[swap], _drawIndices[k]);
+                int picked = PickWeighted(k);
+                (_drawIndices[k], _drawIndices[picked]) = (_drawIndices[picked], _drawIndices[k]);
+                (_drawWeights[k], _drawWeights[picked]) = (_drawWeights[picked], _drawWeights[k]);
                 _offer.Add(_pool[_drawIndices[k]]);
             }
+        }
+
+        // Draw weight for one item: base tier odds × Luck/wave tier multiplier. Always > 0 so every item
+        // stays reachable. Falls back to uniform (1) when no weighting config is wired.
+        private float OfferWeight(ConsumableDefinitionSO item)
+        {
+            if (_weightingConfig == null) return 1f;
+
+            int ordinal = (int)item.Tier;
+            float baseWeight = _weightingConfig.ShopBaseTierWeight(ordinal);
+            float normTier = ConsumableTierCount > 1 ? (float)ordinal / (ConsumableTierCount - 1) : 0f;
+            float multiplier = _luck != null ? _luck.ShopTierMultiplier(normTier) : 1f;
+            return baseWeight * multiplier;
+        }
+
+        // Weighted pick over the still-available range [start.._drawIndices.Count). Returns the chosen
+        // index into the scratch lists. Degrades to a uniform pick if all remaining weights are zero.
+        private int PickWeighted(int start)
+        {
+            float total = 0f;
+            for (int i = start; i < _drawWeights.Count; i++) total += Mathf.Max(0f, _drawWeights[i]);
+
+            if (total <= 0f) return Random.Range(start, _drawIndices.Count);
+
+            float roll = Random.value * total;
+            for (int i = start; i < _drawWeights.Count; i++)
+            {
+                roll -= Mathf.Max(0f, _drawWeights[i]);
+                if (roll < 0f) return i;
+            }
+            return _drawIndices.Count - 1;
         }
 
         /// <summary>Spend one reroll point and re-draw the offer (same generation as <see cref="GenerateOffer"/>).
@@ -177,6 +232,14 @@ namespace Wavekeep.Economy
                     // other consumable (no special-cased path). Value carries the per-tier amount (+1/2/3).
                     if (_reroll != null) _reroll.Add(Mathf.RoundToInt(item.EffectValue));
                     else Debug.LogWarning("[ShopController] GainRerollPoints purchased but no RerollManager is wired.");
+                    break;
+
+                case ConsumableEffectType.LuckBoost:
+                    // Task 24: Luck Potion — adds an in-run, non-persistent Luck bonus through the SAME
+                    // purchase→effect flow as any other consumable. LuckState clamps the total to 0–100 and
+                    // resets the potion portion at run end. Not an AbilityRuntime modifier (Luck is non-combat).
+                    if (_luck != null) _luck.AddPotionBonus(item.EffectValue);
+                    else Debug.LogWarning("[ShopController] LuckBoost purchased but no LuckState is wired.");
                     break;
             }
         }

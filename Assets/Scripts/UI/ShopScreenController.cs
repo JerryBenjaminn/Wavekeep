@@ -41,6 +41,10 @@ namespace Wavekeep.UI
         [Tooltip("How many items the shop offers per visit (Task 06 count; reroll re-draws this many).")]
         [SerializeField, Min(1)] private int _offerSize = 4;
 
+        [Tooltip("Task 24: Luck/wave tier-weighting config for the offer draw. If unset, offers fall back to " +
+                 "uniform (Task 09 behaviour). Wire the same asset the GameSessionBootstrap uses.")]
+        [SerializeField] private TierWeightingConfigSO _tierWeightingConfig;
+
         [Header("UI")]
         [Tooltip("Root object shown during the between-wave intermission, hidden otherwise.")]
         [SerializeField] private GameObject _shopPanel;
@@ -82,7 +86,8 @@ namespace Wavekeep.UI
             _currency = session.CurrencyManager;
             _shop = new ShopController(
                 _currency, session.ConsumableInventory, _wall, session.RerollManager,
-                _availableConsumables, _offerSize);
+                _availableConsumables, _offerSize,
+                session.LuckState, _tierWeightingConfig); // Task 24: Luck-weighted offer tiers
 
             BuildSlots();
 

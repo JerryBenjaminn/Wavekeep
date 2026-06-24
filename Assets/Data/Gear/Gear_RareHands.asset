@@ -19,4 +19,5 @@ MonoBehaviour:
   _statModifiers:
   - _modifierType: 2
     _value: 0.85
+  _luckBonus: 4
   _slot: 2

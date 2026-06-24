@@ -81,6 +81,9 @@ namespace Wavekeep.UI
             if (_hero != null)
             {
                 _sb.Append("<b>Hero:</b> ").AppendLine(_hero.Definition != null ? _hero.Definition.HeroName : "—");
+                // Task 24: live total Luck (hero base + equipped gear + in-run potions), read straight off
+                // HeroRuntime — the same value the shop/loot rolls reweight against (no re-derivation here).
+                _sb.Append("<b>Luck:</b> ").AppendLine(_hero.CurrentLuck.ToString("0"));
                 AppendAbility("Basic", _hero.BasicStats);
                 AppendAbility("Ultimate", _hero.UltimateStats);
             }

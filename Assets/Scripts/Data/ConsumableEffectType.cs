@@ -47,6 +47,14 @@ namespace Wavekeep.Data
         UltimateDurationBoost,
 
         /// <summary>Flat damage bonus to the BASIC ability only (value), via the role-aware damage pipeline.</summary>
-        BasicDamageBoost
+        BasicDamageBoost,
+
+        // --- Task 24 ---
+
+        /// <summary>Luck Potion: adds a flat, runtime-only Luck bonus (value) for the rest of the run, routed
+        /// to <c>LuckState.AddPotionBonus</c> through the normal <c>ShopController.TryPurchase</c> path. Luck is
+        /// strictly non-combat — it reweights shop offer tiers (and, more weakly, loot drop tiers), never damage.
+        /// Resets to zero at run end like other per-run state (CLAUDE.md §6).</summary>
+        LuckBoost
     }
 }

@@ -27,11 +27,19 @@ namespace Wavekeep.Data
         [Tooltip("Stat modifiers applied while equipped (Task 12). Reuse the AbilityModifierType vocabulary.")]
         [SerializeField] private List<StatModifier> _statModifiers = new List<StatModifier>();
 
+        [Tooltip("Task 24: flat Luck this item grants while equipped (placeholder magnitude, designer-tunable). " +
+                 "Luck is non-combat, so it is NOT a StatModifier (those feed the damage pipeline) — HeroLoadout " +
+                 "sums this across equipped slots into the hero's gear-derived Luck. Persists like other equip data.")]
+        [SerializeField, Min(0f)] private float _luckBonus = 0f;
+
         public string ItemId => _itemId;
         public string ItemName => _itemName;
         public Sprite Icon => _icon;
         public Rarity Rarity => _rarity;
         public IReadOnlyList<StatModifier> StatModifiers => _statModifiers;
+
+        /// <summary>Flat Luck granted while this item is equipped (Task 24). Summed by <c>HeroLoadout</c>.</summary>
+        public float LuckBonus => _luckBonus;
 
         /// <summary>Which equip slot this item occupies. Gear returns its authored slot; artifacts return Artifact.</summary>
         public abstract GearSlot Slot { get; }

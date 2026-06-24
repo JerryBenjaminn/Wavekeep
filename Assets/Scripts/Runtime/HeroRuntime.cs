@@ -47,7 +47,14 @@ namespace Wavekeep.Runtime
         private PauseState _pause;
         private IAbilityFeedback _feedback;
         private IReadOnlyList<StatModifier> _equippedModifiers;
+        private LuckState _luck;
         private bool _initialized;
+
+        /// <summary>Task 24: the hero's live total Luck (hero base + summed equipped-gear Luck + in-run
+        /// potion bonus), clamped to 0–100. Delegates to the run's <see cref="LuckState"/>, which is the
+        /// single numeric source of truth the shop/loot rolls reweight against — so the stat panel, the
+        /// shop, and loot all read the SAME value. 0 until <see cref="Initialize"/> runs.</summary>
+        public float CurrentLuck => _luck != null ? _luck.CurrentLuck : 0f;
 
         /// <summary>
         /// Configure this hero instance from its definition + run services. Called by the hero-select
@@ -65,7 +72,15 @@ namespace Wavekeep.Runtime
             // Task 12: this hero's equipped gear/artifact modifiers (a live view of the loadout's
             // aggregated list) feed AbilityRuntime's existing modifier pipeline. Equip happens between
             // runs, so it's stable during a run; reading the live reference keeps it correct regardless.
-            _equippedModifiers = session.GearManager.GetLoadout(definition).AggregatedModifiers;
+            var loadout = session.GearManager.GetLoadout(definition);
+            _equippedModifiers = loadout.AggregatedModifiers;
+
+            // Task 24: feed the two persistent Luck sources (hero base + summed equipped-gear Luck) into the
+            // run's LuckState. The gear portion is read from the loadout's recompute-on-change total (not per
+            // frame); the third source — in-run Luck potions — is added to LuckState by the shop and resets
+            // each run. CurrentLuck (read by the stat panel + shop + loot) is the clamped sum of all three.
+            _luck = session.LuckState;
+            _luck?.SetHeroLuck(definition.BaseLuck, loadout.TotalLuckBonus);
 
             // Task 08: self-contained visual feedback — no scene/prefab wiring. Added on the hero so its
             // beam/ring originate at the caster. AddComponent runs its Awake synchronously (hero is active).

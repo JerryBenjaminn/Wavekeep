@@ -44,6 +44,11 @@ namespace Wavekeep.Core
         [Tooltip("Master catalog of all gear/artifact items, used to resolve saved item ids on load.")]
         [SerializeField] private GearCatalogSO _gearCatalog;
 
+        [Header("Luck / Tier Weighting (Task 24)")]
+        [Tooltip("Tunable inputs for Luck-driven shop + loot tier weighting. If unset, weighting is disabled " +
+                 "(flat odds) and Luck still tracks/clamps correctly — so older scenes keep working.")]
+        [SerializeField] private TierWeightingConfigSO _tierWeightingConfig;
+
         /// <summary>The assembled session for this scene. Available after Awake.</summary>
         public GameSession Session { get; private set; }
 
@@ -73,13 +78,19 @@ namespace Wavekeep.Core
             var savePath = Path.Combine(Application.persistentDataPath, GearManager.DefaultSaveFileName);
             var gearManager = new GearManager(_gearCatalog, savePath);
 
+            // Task 24: per-run Luck total + run-progress tracker (fresh each scene load → potion bonus resets).
+            // Built before LootService so loot rolls can reweight tiers against current Luck.
+            var luckState = new LuckState(eventBus, _tierWeightingConfig);
+
             // Task 13: subscribes to EnemyKilledEvent (after Currency/XP) to roll drops into the gear
             // manager — an additional consumer of the kill event, not a change to the death path.
-            var lootService = new LootService(eventBus, gearManager);
+            // Task 24: also takes LuckState so drop-tier odds shift (weakly) with Luck.
+            var lootService = new LootService(eventBus, gearManager, luckState);
 
             Session = new GameSession(
                 eventBus, enemyPool, interactionInput, currencyManager, xpManager,
-                upgradeInventory, consumableInventory, pauseState, rerollManager, gearManager, lootService);
+                upgradeInventory, consumableInventory, pauseState, rerollManager, gearManager, lootService,
+                luckState);
         }
 
         private void OnDestroy()

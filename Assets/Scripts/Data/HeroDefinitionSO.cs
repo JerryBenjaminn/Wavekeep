@@ -29,6 +29,11 @@ namespace Wavekeep.Data
                  "since applying such a scalar would require modifying the Task 04 AbilityRuntime.")]
         [SerializeField] private float _baseHealth = 100f;
 
+        [Tooltip("Task 24: per-hero starting Luck (placeholder magnitude, designer-tunable). One of the three " +
+                 "Luck sources combined by HeroRuntime/LuckState (base + equipped gear + in-run potions), " +
+                 "clamped to 0–100. Luck reshapes shop offer tiers and, weakly, loot drop tiers — never combat.")]
+        [SerializeField, Min(0f)] private float _baseLuck = 5f;
+
         [Header("Abilities (unique per hero, §3.8)")]
         [SerializeField] private AbilityDefinitionSO _basicAbility;
         [SerializeField] private AbilityDefinitionSO _ultimateAbility;
@@ -41,6 +46,7 @@ namespace Wavekeep.Data
         public GameObject Prefab => _prefab;
         public Color Tint => _tint;
         public float BaseHealth => _baseHealth;
+        public float BaseLuck => _baseLuck;
         public AbilityDefinitionSO BasicAbility => _basicAbility;
         public AbilityDefinitionSO UltimateAbility => _ultimateAbility;
 
