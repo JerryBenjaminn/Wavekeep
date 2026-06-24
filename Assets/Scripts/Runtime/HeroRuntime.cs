@@ -50,6 +50,18 @@ namespace Wavekeep.Runtime
         private LuckState _luck;
         private bool _initialized;
 
+        // Task 29: per-line tier state (0 = not yet picked, 1–3 = current tier). This IS the line
+        // progression model — there is no flat list of picked upgrade ids. The picked tier's effect is
+        // pushed into the existing UpgradeInventory (so AbilityRuntime resolves it unchanged); this map is
+        // the source of truth for "which tier is each line at".
+        private readonly Dictionary<UpgradeLineDefinitionSO, int> _lineTiers =
+            new Dictionary<UpgradeLineDefinitionSO, int>();
+        private IReadOnlyList<ApexTalentDefinitionSO> _apexTalents;
+        private readonly HashSet<ApexTalentDefinitionSO> _unlockedApexes = new HashSet<ApexTalentDefinitionSO>();
+        // Unlocked apex abilities — independent IAbility instances ticked + auto-fired each frame, with no
+        // player input, alongside (but separate from) Basic/Ultimate.
+        private readonly List<IAbility> _apexAbilities = new List<IAbility>();
+
         /// <summary>Task 24: the hero's live total Luck (hero base + summed equipped-gear Luck + in-run
         /// potion bonus), clamped to 0–100. Delegates to the run's <see cref="LuckState"/>, which is the
         /// single numeric source of truth the shop/loot rolls reweight against — so the stat panel, the
@@ -95,8 +107,96 @@ namespace Wavekeep.Runtime
             Ultimate = definition.UltimateAbility != null
                 ? new AbilityRuntime(definition.UltimateAbility, AbilityRole.Ultimate) : null;
 
+            // Task 29: seed every owned line at tier 0, and remember the hero's apex talents so unlocks can
+            // be checked as lines reach max tier. No upgrades are picked yet, so no apex is unlocked here.
+            _lineTiers.Clear();
+            _unlockedApexes.Clear();
+            _apexAbilities.Clear();
+            if (definition.UpgradeLines != null)
+            {
+                for (int i = 0; i < definition.UpgradeLines.Count; i++)
+                {
+                    var line = definition.UpgradeLines[i];
+                    if (line != null && !_lineTiers.ContainsKey(line)) _lineTiers[line] = 0;
+                }
+            }
+            _apexTalents = definition.ApexTalents;
+
             ApplyTint(definition.Tint);
             _initialized = true;
+        }
+
+        // --- Task 29: upgrade-line progression + apex talents -------------------------------------
+
+        /// <summary>The lines this hero owns (from its definition), or null.</summary>
+        public IReadOnlyList<UpgradeLineDefinitionSO> UpgradeLines =>
+            Definition != null ? Definition.UpgradeLines : null;
+
+        /// <summary>Current tier of a line (0 = not yet picked, 1–3). Unknown lines read 0.</summary>
+        public int GetLineTier(UpgradeLineDefinitionSO line) =>
+            line != null && _lineTiers.TryGetValue(line, out int tier) ? tier : 0;
+
+        /// <summary>True once a line is at its max tier (no further picks possible).</summary>
+        public bool IsLineMaxed(UpgradeLineDefinitionSO line) =>
+            line != null && GetLineTier(line) >= line.TierCount;
+
+        /// <summary>Advance a line by one tier (the level-up card pick). Pushes the new tier's effect into
+        /// the run's UpgradeInventory — the SAME inventory AbilityRuntime resolves against, so the line's
+        /// effect applies through the existing pipeline with no parallel path. Then re-checks apex unlocks.
+        /// Returns false (no change) if the line is null, not owned, or already maxed.</summary>
+        public bool TryUpgradeLine(UpgradeLineDefinitionSO line)
+        {
+            if (line == null || !_lineTiers.ContainsKey(line)) return false;
+
+            int current = _lineTiers[line];
+            if (current >= line.TierCount) return false; // already maxed
+
+            int next = current + 1;
+            _lineTiers[line] = next;
+
+            var tier = line.TierAt(next);
+            if (tier != null && tier.Effect != null)
+            {
+                // Feed the existing resolution engine — identical to a pre-migration upgrade pick.
+                _upgrades?.Add(tier.Effect);
+            }
+            Debug.Log($"[HeroRuntime] Line '{line.LineName}' → Tier {next}/{line.TierCount}.");
+
+            CheckApexUnlocks();
+            return true;
+        }
+
+        // After any tier change, unlock every apex whose required lines are now ALL at max tier. An unlocked
+        // apex becomes a live, auto-firing AbilityRuntime instance (its own cooldown, no player input).
+        private void CheckApexUnlocks()
+        {
+            if (_apexTalents == null) return;
+            for (int i = 0; i < _apexTalents.Count; i++)
+            {
+                var apex = _apexTalents[i];
+                if (apex == null || _unlockedApexes.Contains(apex)) continue;
+                if (!AllLinesMaxed(apex.RequiredLines)) continue;
+
+                _unlockedApexes.Add(apex); // mark unlocked even if mis-authored, so we don't re-warn each tier
+                if (apex.Ability == null)
+                {
+                    Debug.LogWarning($"[HeroRuntime] Apex '{apex.ApexName}' unlocked but has no ability assigned.");
+                    continue;
+                }
+                _apexAbilities.Add(new AbilityRuntime(apex.Ability, AbilityRole.Apex));
+                Debug.Log($"[HeroRuntime] APEX UNLOCKED: '{apex.ApexName}' — now auto-firing on its own cooldown.");
+            }
+        }
+
+        private bool AllLinesMaxed(IReadOnlyList<UpgradeLineDefinitionSO> lines)
+        {
+            if (lines == null || lines.Count == 0) return false; // an apex with no required lines never unlocks
+            for (int i = 0; i < lines.Count; i++)
+            {
+                var line = lines[i];
+                if (line == null || GetLineTier(line) < line.TierCount) return false;
+            }
+            return true;
         }
 
         private void Update()
@@ -142,6 +242,15 @@ namespace Wavekeep.Runtime
                                   $"({Ultimate.CooldownProgress01 * 100f:0}% charged).");
                     }
                 }
+            }
+
+            // Task 29: unlocked apex talents tick + auto-fire on their OWN cooldowns, no player input —
+            // they share the same execution context (targets/upgrades/gear) as the Basic/Ultimate.
+            for (int i = 0; i < _apexAbilities.Count; i++)
+            {
+                var apex = _apexAbilities[i];
+                apex.Tick(Time.deltaTime);
+                apex.Execute(context); // no-ops unless ready AND a target is in range
             }
         }
 

@@ -12,11 +12,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ca262ce2c57035540b0079d34687360f, type: 3}
   m_Name: LootTable_Regular
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.LootTableSO
-  _dropChance: 0.004
+  _dropChance: 0.028
   _entries:
+  - _item: {fileID: 11400000, guid: c117d08b2e51e994bb5bfb211c6c6998, type: 2}
+    _weight: 0
+  - _item: {fileID: 11400000, guid: c28fe9cb46b6a73479a9003f4b26f68a, type: 2}
+    _weight: 0
+  - _item: {fileID: 11400000, guid: 4cccde8aff9cc7d498ee2805d57ffa65, type: 2}
+    _weight: 0
   - _item: {fileID: 11400000, guid: 2bc3009e7c7fd614196e4f2aec360d13, type: 2}
-    _weight: 5
-  - _item: {fileID: 11400000, guid: 09b972e1d36b7bb41ab7e8309e2ac502, type: 2}
-    _weight: 3
-  - _item: {fileID: 11400000, guid: fbeb9ef5bdd861145b757d37a18047f6, type: 2}
-    _weight: 1
+    _weight: 0
+  - _item: {fileID: 11400000, guid: 575a59341f976784e934e0149f122b0d, type: 2}
+    _weight: 0

@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 25df9dde38156404ba98e11c10eb75e2, type: 3}
+  m_Name: Artifact_LegendaryCore
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.ArtifactItemSO
+  _itemId: artifact_legendary_core
+  _itemName: Legendary Artifact
+  _icon: {fileID: 0}
+  _rarity: 4
+  _statModifiers:
+  - _modifierType: 0
+    _value: 1.55
+  _luckBonus: 5

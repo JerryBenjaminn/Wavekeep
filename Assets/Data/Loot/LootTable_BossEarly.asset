@@ -20,3 +20,13 @@ MonoBehaviour:
     _weight: 3
   - _item: {fileID: 11400000, guid: fbeb9ef5bdd861145b757d37a18047f6, type: 2}
     _weight: 2
+  - _item: {fileID: 11400000, guid: ebd9d0398f2abe04785c35602eee01d4, type: 2}
+    _weight: 2
+  - _item: {fileID: 11400000, guid: f9804a6dc38fdcd4385612bc5888c34c, type: 2}
+    _weight: 2
+  - _item: {fileID: 11400000, guid: fbeb9ef5bdd861145b757d37a18047f6, type: 2}
+    _weight: 2
+  - _item: {fileID: 11400000, guid: 33af9def7e82afe48bf56618c3057f93, type: 2}
+    _weight: 2
+  - _item: {fileID: 11400000, guid: 4207a9307b605c84893efd9593ce09a2, type: 2}
+    _weight: 2

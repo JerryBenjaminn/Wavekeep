@@ -144,13 +144,9 @@ namespace Wavekeep.EditorTools
             so.FindProperty("_bootstrap").objectReferenceValue = bootstrap;
             so.FindProperty("_panel").objectReferenceValue = panel;
             so.FindProperty("_cardContainer").objectReferenceValue = crt;
-
-            var poolProp = so.FindProperty("_upgradePool");
-            poolProp.arraySize = pool.Count;
-            for (int i = 0; i < pool.Count; i++)
-            {
-                poolProp.GetArrayElementAtIndex(i).objectReferenceValue = pool[i];
-            }
+            // Task 29: the picker no longer has a generic _upgradePool — it draws from the active hero's
+            // UpgradeLineDefinitionSO lines at runtime. The generic upgrade assets created above are now
+            // unused by level-up (their move into the shop is a separate, pending task).
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 

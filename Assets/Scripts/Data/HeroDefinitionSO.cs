@@ -38,8 +38,12 @@ namespace Wavekeep.Data
         [SerializeField] private AbilityDefinitionSO _basicAbility;
         [SerializeField] private AbilityDefinitionSO _ultimateAbility;
 
-        [Header("Exclusive Upgrade Pool (§3.8 — only this hero can draw these, alongside the generic pool)")]
-        [SerializeField] private List<UpgradeDefinitionSO> _exclusiveUpgrades = new List<UpgradeDefinitionSO>();
+        [Header("Upgrade Lines & Apex Talents (Task 29 — replaces the §3.8 tag-based exclusive pool)")]
+        [Tooltip("The per-skill upgrade lines this hero owns. Level-up cards draw from these (the ones not " +
+                 "yet at max tier); each line progresses independently across three tiers.")]
+        [SerializeField] private List<UpgradeLineDefinitionSO> _upgradeLines = new List<UpgradeLineDefinitionSO>();
+        [Tooltip("Apex talents this hero can unlock once enough of its lines reach max tier.")]
+        [SerializeField] private List<ApexTalentDefinitionSO> _apexTalents = new List<ApexTalentDefinitionSO>();
 
         public string HeroName => _heroName;
         public Sprite Icon => _icon;
@@ -50,7 +54,10 @@ namespace Wavekeep.Data
         public AbilityDefinitionSO BasicAbility => _basicAbility;
         public AbilityDefinitionSO UltimateAbility => _ultimateAbility;
 
-        /// <summary>Upgrades only this hero can be offered by the level-up card picker (Task 11).</summary>
-        public IReadOnlyList<UpgradeDefinitionSO> ExclusiveUpgrades => _exclusiveUpgrades;
+        /// <summary>Task 29: the per-skill upgrade lines the level-up card picker draws from.</summary>
+        public IReadOnlyList<UpgradeLineDefinitionSO> UpgradeLines => _upgradeLines;
+
+        /// <summary>Task 29: apex talents this hero can unlock when its required lines all reach max tier.</summary>
+        public IReadOnlyList<ApexTalentDefinitionSO> ApexTalents => _apexTalents;
     }
 }

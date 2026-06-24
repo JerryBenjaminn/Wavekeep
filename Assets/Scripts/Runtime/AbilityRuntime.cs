@@ -475,6 +475,7 @@ namespace Wavekeep.Runtime
                 damage += consumables.TotalElementalLightningBonus(); // Task 23: Lightning placeholder (all abilities)
                 if (_role == AbilityRole.Basic) damage += consumables.BasicDamageBonus(); // Task 23: basic-only
                 cooldown *= consumables.CooldownMultiplier();
+                range += consumables.AoeRadiusBonus(); // Task 30: migrated generic AoE-radius upgrade (flat metres)
             }
 
             // Equipped gear/artifact bonuses (Task 12): the active hero loadout's aggregated modifiers,

@@ -151,6 +151,10 @@ namespace Wavekeep.Economy
         /// <summary>Total flat damage added to the BASIC ability only by Basic Attack Damage Potions.</summary>
         public float BasicDamageBonus() => SumOf(ConsumableEffectType.BasicDamageBoost);
 
+        /// <summary>Total flat AoE/blast-radius bonus (metres) from AoE Radius potions (Task 30 — migrated
+        /// generic "AoE radius" upgrade). Added to the resolved ability radius in AbilityRuntime.</summary>
+        public float AoeRadiusBonus() => SumOf(ConsumableEffectType.AoeRadiusBoost);
+
         /// <summary>Advance timed effects and drop any that have expired. Permanent effects are untouched.
         /// Driven once per frame by the per-frame ability consumer (HeroRuntime).</summary>
         public void Tick(float deltaTime)

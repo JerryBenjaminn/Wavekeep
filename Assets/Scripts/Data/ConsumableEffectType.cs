@@ -55,6 +55,13 @@ namespace Wavekeep.Data
         /// to <c>LuckState.AddPotionBonus</c> through the normal <c>ShopController.TryPurchase</c> path. Luck is
         /// strictly non-combat — it reweights shop offer tiers (and, more weakly, loot drop tiers), never damage.
         /// Resets to zero at run end like other per-run state (CLAUDE.md §6).</summary>
-        LuckBoost
+        LuckBoost,
+
+        // --- Task 30 (migrated from the retired §3.8 generic level-up pool) ---
+
+        /// <summary>Adds a FLAT bonus to every hero ability's AoE/blast radius (value in metres). The migrated
+        /// generic "AoE radius / burst" upgrade. Aggregated by ConsumableInventory and added to the resolved
+        /// radius in AbilityRuntime's existing ComputeStats pipeline — no parallel path.</summary>
+        AoeRadiusBoost
     }
 }

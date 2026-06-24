@@ -200,8 +200,18 @@ namespace Wavekeep.Waves
                 if (waveIndex < waves.Count - 1 && IsShopIntermissionWave(_currentWaveNumber))
                 {
                     _awaitingContinue = true;
+
+                    // Task 28: the between-wave shop intermission halts wave progression, so raise the SHARED
+                    // PauseState — the SAME signal the level-up card picker already uses. Previously the
+                    // intermission only halted the spawner locally (via _awaitingContinue), leaving time-based
+                    // systems that key off PauseState (notably ultimate charge accrual in HeroRuntime) running
+                    // through the shop. Pausing here makes every paused system freeze uniformly while the shop
+                    // is open, then resume when the player continues. PauseState is reference-counted, so this
+                    // nests safely with any other pause source.
+                    _pause?.Pause();
                     _events.Publish(new IntermissionStartedEvent(waveIndex, waveIndex + 1));
                     yield return new WaitUntil(() => !_awaitingContinue || _runEnded);
+                    _pause?.Resume();
                     if (_runEnded) yield break;
                 }
             }

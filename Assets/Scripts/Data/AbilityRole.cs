@@ -9,6 +9,10 @@ namespace Wavekeep.Data
     public enum AbilityRole
     {
         Basic,
-        Ultimate
+        Ultimate,
+
+        /// <summary>Task 29: an Apex Talent's own independent ability. Gets no role-targeted Basic/Ultimate
+        /// upgrade modifiers — it is a separate skill, not a buff on either of them.</summary>
+        Apex
     }
 }

@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6896a0f6427ef404fb51ed958206a6e6, type: 3}
+  m_Name: Gear_UniqueBody
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.GearItemSO
+  _itemId: gear_unique_body
+  _itemName: Unique Body
+  _icon: {fileID: 0}
+  _rarity: 5
+  _statModifiers:
+  - _modifierType: 0
+    _value: 1.6
+  _luckBonus: 6
+  _slot: 1

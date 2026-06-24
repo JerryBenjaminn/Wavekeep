@@ -217,6 +217,9 @@ namespace Wavekeep.Economy
                 case ConsumableEffectType.ElementalLightning:
                 case ConsumableEffectType.UltimateDurationBoost:
                 case ConsumableEffectType.BasicDamageBoost:
+                // Task 30: migrated generic AoE-radius upgrade — also an ongoing ability modifier on the
+                // SAME AddEffect path, read by AbilityRuntime's ComputeStats (range) pipeline.
+                case ConsumableEffectType.AoeRadiusBoost:
                     // Ongoing ability modifier — read by AbilityRuntime's existing ComputeStats pipeline.
                     _inventory.AddEffect(item.EffectType, item.EffectValue, item.Duration);
                     break;

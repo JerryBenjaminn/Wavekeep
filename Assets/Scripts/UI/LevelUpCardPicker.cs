@@ -2,29 +2,28 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using Wavekeep.Abilities;
 using Wavekeep.Core;
 using Wavekeep.Core.Events;
 using Wavekeep.Data;
+using Wavekeep.Runtime;
 
 namespace Wavekeep.UI
 {
     /// <summary>
-    /// The real player-facing level-up flow (Task 07), replacing Task 04's 1/2/3 debug keys. Subscribes
-    /// to <see cref="XPLevelUpEvent"/> (Task 03's <c>XPManager</c>); on each level-up it pauses gameplay
-    /// via the session <see cref="PauseState"/>, draws 2–3 random <see cref="UpgradeDefinitionSO"/> from
-    /// the shared pool, and shows a card per choice. Picking a card adds it to <c>UpgradeInventory</c>
-    /// through the SAME <see cref="UpgradeInventory.Add"/> call the debug keys use (no divergent path),
-    /// then either shows the next queued pick or resumes the run.
+    /// The player-facing level-up flow (Task 07, migrated in Task 29). Subscribes to
+    /// <see cref="XPLevelUpEvent"/>; on each level-up it pauses gameplay via the session
+    /// <see cref="PauseState"/> and offers cards.
     ///
-    /// Multi-level-up handling: a single big XP gain makes <c>XPManager</c> publish several
-    /// <see cref="XPLevelUpEvent"/>s synchronously (its threshold loop). Each increments a pending
-    /// counter; one card screen is shown at a time and the next is shown only after the current pick,
-    /// so picks queue instead of overlapping or being dropped. The world stays paused (no kills → no
-    /// further level-ups) until the queue drains.
+    /// Task 29 — the draw source changed: cards are drawn from the ACTIVE HERO's
+    /// <see cref="UpgradeLineDefinitionSO"/> lines that are not yet at max tier (read from the live
+    /// <see cref="HeroRuntime"/>). The old shared generic pool and tag-based hero-exclusive pool are gone
+    /// (the generic pool's move into the shop is a separate, pending task). Picking a card advances that
+    /// line one tier via <see cref="HeroRuntime.TryUpgradeLine"/>, which pushes the tier's effect into the
+    /// run's <c>UpgradeInventory</c> — the same resolution path the old upgrades used, so abilities are
+    /// unaffected. Selection stays random among eligible lines.
     ///
-    /// Lives in Scripts/UI with the other Canvas controllers (HeroSelect/Shop). Card slots are built at
-    /// runtime from the pool count, mirroring those controllers, so the editor only wires the frame.
+    /// Multi-level-up handling is unchanged: a burst of <see cref="XPLevelUpEvent"/>s queues picks; one
+    /// card screen shows at a time and the world stays paused until the queue drains.
     /// </summary>
     [AddComponentMenu("Wavekeep/UI/Level-Up Card Picker")]
     public sealed class LevelUpCardPicker : MonoBehaviour
@@ -32,9 +31,7 @@ namespace Wavekeep.UI
         [Header("Dependencies")]
         [SerializeField] private GameSessionBootstrap _bootstrap;
 
-        [Header("Upgrade Pool (shared draw pool — add a UpgradeDefinitionSO to include it)")]
-        [SerializeField] private List<UpgradeDefinitionSO> _upgradePool = new List<UpgradeDefinitionSO>();
-        [Tooltip("How many cards to offer per level-up (clamped to the pool size).")]
+        [Tooltip("How many cards to offer per level-up (clamped to the number of eligible lines).")]
         [SerializeField, Range(2, 3)] private int _cardsPerLevelUp = 3;
 
         [Header("UI")]
@@ -52,19 +49,17 @@ namespace Wavekeep.UI
         }
 
         private EventBus _events;
-        private UpgradeInventory _inventory;
         private PauseState _pause;
 
-        // Task 11: the active hero's exclusive pool, learned via HeroSelectedEvent. Only THIS hero's
-        // exclusives are ever cached here, so no other hero's exclusives can appear in the draw.
-        private IReadOnlyList<UpgradeDefinitionSO> _activeHeroExclusives;
+        // Task 29: the live hero, the single source of per-line tier state. Acquired lazily (it is spawned
+        // at runtime by the hero-select flow), mirroring UltimateChargeBar — no static singleton.
+        private HeroRuntime _hero;
 
         private readonly List<CardSlot> _slots = new List<CardSlot>();
 
         // Scratch buffers reused per draw so card selection doesn't allocate each level-up.
-        private readonly List<int> _drawIndices = new List<int>();
-        private readonly List<UpgradeDefinitionSO> _currentDraw = new List<UpgradeDefinitionSO>();
-        private readonly List<UpgradeDefinitionSO> _combinedPool = new List<UpgradeDefinitionSO>();
+        private readonly List<UpgradeLineDefinitionSO> _eligibleLines = new List<UpgradeLineDefinitionSO>();
+        private readonly List<UpgradeLineDefinitionSO> _currentDraw = new List<UpgradeLineDefinitionSO>();
 
         private int _pendingPicks;   // queued level-ups still awaiting a card choice
         private bool _isShowing;     // a card screen is currently displayed
@@ -80,13 +75,11 @@ namespace Wavekeep.UI
 
             var session = _bootstrap.Session;
             _events = session.Events;
-            _inventory = session.UpgradeInventory;
             _pause = session.PauseState;
 
             BuildSlots();
 
             _events.Subscribe<XPLevelUpEvent>(OnLevelUp);
-            _events.Subscribe<HeroSelectedEvent>(OnHeroSelected);
 
             SetPanelVisible(false);
         }
@@ -95,13 +88,6 @@ namespace Wavekeep.UI
         {
             if (_events == null) return;
             _events.Unsubscribe<XPLevelUpEvent>(OnLevelUp);
-            _events.Unsubscribe<HeroSelectedEvent>(OnHeroSelected);
-        }
-
-        // Task 11: cache the chosen hero's exclusive pool so the draw can include it.
-        private void OnHeroSelected(HeroSelectedEvent evt)
-        {
-            _activeHeroExclusives = evt.Hero != null ? evt.Hero.ExclusiveUpgrades : null;
         }
 
         private void BuildSlots()
@@ -190,21 +176,31 @@ namespace Wavekeep.UI
             }
         }
 
-        private void OnObtain(UpgradeDefinitionSO chosen)
+        private void OnObtain(UpgradeLineDefinitionSO chosen)
         {
             // Ignore stray clicks once the screen is no longer presenting a choice.
             if (!_isShowing) return;
 
-            // SAME path as the Task 04 debug keys — no divergent add logic (reviewer-blocking otherwise).
-            _inventory.Add(chosen);
-            Debug.Log($"[LevelUpCardPicker] Picked '{chosen.UpgradeName}'. Pending picks left: {_pendingPicks - 1}.");
+            // Task 29: advance the chosen line one tier via the hero (which feeds UpgradeInventory and
+            // checks apex unlocks). No divergent add path.
+            if (_hero != null && chosen != null)
+            {
+                _hero.TryUpgradeLine(chosen);
+                Debug.Log($"[LevelUpCardPicker] Picked line '{chosen.LineName}' → tier {_hero.GetLineTier(chosen)}. " +
+                          $"Pending picks left: {_pendingPicks - 1}.");
+            }
 
             _pendingPicks--;
+            AdvanceQueueOrResume();
+        }
 
+        // Shared drain step used after a pick AND after an auto-skip (empty draw), so the run never
+        // soft-locks and the pause is always balanced.
+        private void AdvanceQueueOrResume()
+        {
             if (_pendingPicks > 0)
             {
-                // More queued level-ups — re-draw and keep the screen up (still paused).
-                ShowCard();
+                ShowCard(); // more queued level-ups — re-draw, keep the screen up (still paused)
             }
             else
             {
@@ -218,23 +214,15 @@ namespace Wavekeep.UI
 
         private void ShowCard()
         {
-            DrawUpgrades(_currentDraw);
+            DrawLines(_currentDraw);
 
             if (_currentDraw.Count == 0)
             {
-                // No pool authored — can't offer a choice. Auto-resolve so the run never soft-locks.
-                Debug.LogWarning("[LevelUpCardPicker] Upgrade pool is empty; skipping pick.", this);
+                // No eligible lines (no hero yet, hero has no lines, or all lines maxed) — auto-resolve so
+                // the run never soft-locks.
+                Debug.LogWarning("[LevelUpCardPicker] No eligible upgrade lines to offer; skipping pick.", this);
                 _pendingPicks--;
-                if (_pendingPicks > 0)
-                {
-                    ShowCard();
-                }
-                else
-                {
-                    _isShowing = false;
-                    SetPanelVisible(false);
-                    _pause.Resume();
-                }
+                AdvanceQueueOrResume();
                 return;
             }
 
@@ -248,7 +236,7 @@ namespace Wavekeep.UI
                 }
                 else
                 {
-                    // Pool smaller than the slot count this draw — hide the spare slot.
+                    // Fewer eligible lines than slots this draw — hide the spare slot.
                     slot.Root.SetActive(false);
                 }
             }
@@ -256,91 +244,73 @@ namespace Wavekeep.UI
             SetPanelVisible(true);
         }
 
-        private void PopulateSlot(CardSlot slot, UpgradeDefinitionSO upgrade)
+        private void PopulateSlot(CardSlot slot, UpgradeLineDefinitionSO line)
         {
-            slot.NameText.text = upgrade.UpgradeName;
-            slot.InfoText.text = BuildInfo(upgrade);
+            slot.NameText.text = line.LineName;
+            slot.InfoText.text = BuildInfo(line);
 
             slot.ObtainButton.onClick.RemoveAllListeners();
-            slot.ObtainButton.onClick.AddListener(() => OnObtain(upgrade));
+            slot.ObtainButton.onClick.AddListener(() => OnObtain(line));
         }
 
-        // Draw up to _cardsPerLevelUp DISTINCT upgrades via a partial Fisher–Yates shuffle of indices.
-        // Task 11: the candidate set is the UNION of the generic pool and the active hero's exclusive
-        // pool. Simple random draw (no owned-exclusion) is fine for MVP: there is no per-upgrade stack cap.
-        private void DrawUpgrades(List<UpgradeDefinitionSO> result)
+        // Draw up to _cardsPerLevelUp DISTINCT not-yet-maxed lines from the active hero, via a partial
+        // Fisher–Yates shuffle. Random selection among eligible lines (consistent with the old picker).
+        private void DrawLines(List<UpgradeLineDefinitionSO> result)
         {
             result.Clear();
 
-            // Task 19: branch-locked upgrades are filtered out of the candidate set BEFORE drawing, so a
-            // locked branch simply stops appearing (rather than being drawn then disabled in the UI). The
-            // filter is uniform across both pools and driven only by UpgradeBranch — generic-pool
-            // upgrades are Neutral and so are never excluded.
-            _combinedPool.Clear();
-            for (int i = 0; i < _upgradePool.Count; i++)
+            if (_hero == null) _hero = Object.FindFirstObjectByType<HeroRuntime>();
+            if (_hero == null) return;
+
+            _eligibleLines.Clear();
+            var lines = _hero.UpgradeLines;
+            if (lines != null)
             {
-                if (IsDrawable(_upgradePool[i])) _combinedPool.Add(_upgradePool[i]);
-            }
-            if (_activeHeroExclusives != null)
-            {
-                for (int i = 0; i < _activeHeroExclusives.Count; i++)
+                for (int i = 0; i < lines.Count; i++)
                 {
-                    if (IsDrawable(_activeHeroExclusives[i])) _combinedPool.Add(_activeHeroExclusives[i]);
+                    var line = lines[i];
+                    if (line != null && !_hero.IsLineMaxed(line)) _eligibleLines.Add(line);
                 }
             }
 
-            _drawIndices.Clear();
-            for (int i = 0; i < _combinedPool.Count; i++) _drawIndices.Add(i);
-
-            int want = Mathf.Min(Mathf.Clamp(_cardsPerLevelUp, 2, 3), _drawIndices.Count);
+            int want = Mathf.Min(Mathf.Clamp(_cardsPerLevelUp, 2, 3), _eligibleLines.Count);
             for (int k = 0; k < want; k++)
             {
-                int swap = Random.Range(k, _drawIndices.Count);
-                (_drawIndices[k], _drawIndices[swap]) = (_drawIndices[swap], _drawIndices[k]);
-                result.Add(_combinedPool[_drawIndices[k]]);
+                int swap = Random.Range(k, _eligibleLines.Count);
+                (_eligibleLines[k], _eligibleLines[swap]) = (_eligibleLines[swap], _eligibleLines[k]);
+                result.Add(_eligibleLines[k]);
             }
         }
 
-        // Task 19: a candidate is drawable if it exists and its branch isn't locked out for this run.
-        private bool IsDrawable(UpgradeDefinitionSO upgrade)
+        // Card body: the NEXT tier the pick would grant — its tier number and description (falling back to
+        // a numeric description of the underlying effect when no text is authored).
+        private string BuildInfo(UpgradeLineDefinitionSO line)
         {
-            return upgrade != null && !_inventory.IsBranchLocked(upgrade.Branch);
-        }
+            int next = (_hero != null ? _hero.GetLineTier(line) : 0) + 1;
+            var tier = line.TierAt(next);
 
-        private static string BuildInfo(UpgradeDefinitionSO upgrade)
-        {
-            string tags = "—";
-            var t = upgrade.Tags;
-            if (t != null && t.Count > 0)
-            {
-                var sb = new System.Text.StringBuilder();
-                for (int i = 0; i < t.Count; i++)
-                {
-                    if (i > 0) sb.Append(", ");
-                    sb.Append(t[i]);
-                }
-                tags = sb.ToString();
-            }
+            string body;
+            if (tier != null && !string.IsNullOrEmpty(tier.Description)) body = tier.Description;
+            else body = DescribeEffect(tier != null ? tier.Effect : null);
 
-            return $"<size=80%>Tags: {tags}</size>\n\n{DescribeEffect(upgrade)}{StatusSuffix(upgrade)}";
+            return $"<size=80%>Tier {next} / {line.TierCount}</size>\n\n{body}";
         }
 
         private static string DescribeEffect(UpgradeDefinitionSO upgrade)
         {
+            if (upgrade == null) return "—";
+
+            string main;
             switch (upgrade.EffectType)
             {
-                case UpgradeEffectType.FlatDamageBonus: return $"+{upgrade.EffectValue:0.#} damage";
-                case UpgradeEffectType.CooldownReductionPercent: return $"-{upgrade.EffectValue:0.#}% cooldown";
-                case UpgradeEffectType.AoeRadiusBonus: return $"+{upgrade.EffectValue:0.#} AoE radius";
-                default: return upgrade.EffectType.ToString();
+                case UpgradeEffectType.FlatDamageBonus: main = $"+{upgrade.EffectValue:0.#} damage"; break;
+                case UpgradeEffectType.CooldownReductionPercent: main = $"-{upgrade.EffectValue:0.#}% cooldown"; break;
+                case UpgradeEffectType.AoeRadiusBonus: main = $"+{upgrade.EffectValue:0.#} AoE radius"; break;
+                default: main = upgrade.UpgradeName; break;
             }
-        }
-
-        // Task 11: surface a status-on-hit upgrade's effect on the card.
-        private static string StatusSuffix(UpgradeDefinitionSO upgrade)
-        {
-            if (!upgrade.AppliesStatusEffect) return "";
-            return $"\nApplies {upgrade.StatusEffectType} ({upgrade.StatusDuration:0.#}s)";
+            if (upgrade.AppliesStatusEffect)
+                main += $"\nApplies {upgrade.StatusEffectType} ({upgrade.StatusDuration:0.#}s)";
+            return main;
         }
 
         private void SetPanelVisible(bool visible)
