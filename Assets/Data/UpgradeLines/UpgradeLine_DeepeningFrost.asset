@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b40531314bde4845a89597168de6cad, type: 3}
+  m_Name: UpgradeLine_DeepeningFrost
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.UpgradeLineDefinitionSO
+  _hero: {fileID: 11400000, guid: 4b9f77b40606f9d4c82693927fbb4c6a, type: 2}
+  _skill: 1
+  _lineName: Deepening Frost
+  _tiers:
+  - _description: Frost Zone slow 30% (overrides base 25%).
+    _effect: {fileID: 11400000, guid: f76da44c7fb2cdc439a4a7118cd35933, type: 2}
+  - _description: Frost Zone slow 40%.
+    _effect: {fileID: 11400000, guid: 546527b1a5f4d89458fee161a35bfdda, type: 2}
+  - _description: Frost Zone slow 50%.
+    _effect: {fileID: 11400000, guid: 7301609a670880741b261015c1a56e18, type: 2}

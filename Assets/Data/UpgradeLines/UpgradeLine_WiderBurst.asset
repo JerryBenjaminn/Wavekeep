@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b40531314bde4845a89597168de6cad, type: 3}
+  m_Name: UpgradeLine_WiderBurst
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.UpgradeLineDefinitionSO
+  _hero: {fileID: 11400000, guid: 4b9f77b40606f9d4c82693927fbb4c6a, type: 2}
+  _skill: 0
+  _lineName: Wider Burst
+  _tiers:
+  - _description: +15% blast radius, +1 max target.
+    _effect: {fileID: 11400000, guid: f697c5cd4fd332140a49cb86f2a62f59, type: 2}
+  - _description: +30% blast radius, +2 max targets.
+    _effect: {fileID: 11400000, guid: c1e1278982eac664ba67daf0dbd0c5f5, type: 2}
+  - _description: +50% blast radius, +3 max targets.
+    _effect: {fileID: 11400000, guid: f303e9a33f7f3ed4ab99f06b9c75ef44, type: 2}

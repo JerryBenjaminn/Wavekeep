@@ -15,6 +15,9 @@ namespace Wavekeep.Data
         UltimateDuration,
         UltimateSlowMagnitude,
         FrostMaxStacks,
-        FrostFreezeDuration
+        FrostFreezeDuration,
+
+        /// <summary>Task 31 (Wider Burst): added to the basic AoE's max-targets cap (Add op).</summary>
+        BasicMaxTargets
     }
 }

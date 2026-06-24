@@ -30,6 +30,22 @@ namespace Wavekeep.Data
                  "for a targeted impact-AoE.")]
         [SerializeField, Min(0f)] private float _aoeRadius = 2.5f;
 
+        [Tooltip("Task 31: max enemies an AoE/TargetedAoE hit can affect. 0 = unlimited. Wider Burst raises " +
+                 "this via the BasicMaxTargets modifier. Ignored by SingleTarget.")]
+        [SerializeField, Min(0)] private int _maxTargets;
+
+        [Header("Apex / Baseline Status on Hit (Task 31 — the ability itself applies a status, no held upgrade)")]
+        [Tooltip("If true, every hit applies the status below directly (used by apex abilities like " +
+                 "Remorseless Winter's freeze — independent of held status-upgrades).")]
+        [SerializeField] private bool _appliesBaselineStatus;
+        [SerializeField] private StatusEffectType _baselineStatusType = StatusEffectType.Freeze;
+        [SerializeField, Min(0f)] private float _baselineStatusMagnitude;
+        [SerializeField, Min(0f)] private float _baselineStatusDuration;
+
+        [Tooltip("Task 31: if > 0, this ability's damage is this FRACTION of the caster's current BASIC " +
+                 "ability damage (e.g. 0.5 = 50%), instead of BaseDamage. Used by Permafrost Eruption.")]
+        [SerializeField, Min(0f)] private float _damageScalesWithBasicFraction;
+
         [Header("Upgrade Levels (ordered; level 1 = index 0; values are multipliers on base)")]
         [SerializeField] private List<AbilityUpgradeLevel> _upgradeLevels = new List<AbilityUpgradeLevel>();
 
@@ -75,6 +91,18 @@ namespace Wavekeep.Data
 
         /// <summary>Impact blast radius for <see cref="AbilityTargetingType.TargetedAreaOfEffect"/> (Task 20).</summary>
         public float AoeRadius => _aoeRadius;
+
+        /// <summary>Task 31: base cap on enemies an AoE hit affects (0 = unlimited). Raised by Wider Burst.</summary>
+        public int MaxTargets => _maxTargets;
+
+        // Task 31 baseline status-on-hit (apex abilities apply a status directly, no held upgrade needed).
+        public bool AppliesBaselineStatus => _appliesBaselineStatus;
+        public StatusEffectType BaselineStatusType => _baselineStatusType;
+        public float BaselineStatusMagnitude => _baselineStatusMagnitude;
+        public float BaselineStatusDuration => _baselineStatusDuration;
+
+        /// <summary>Task 31: if &gt; 0, damage = this fraction of the caster's current basic damage.</summary>
+        public float DamageScalesWithBasicFraction => _damageScalesWithBasicFraction;
         public IReadOnlyList<AbilityUpgradeLevel> UpgradeLevels => _upgradeLevels;
         public IReadOnlyList<TagInteractionRule> TagInteractionRules => _tagInteractionRules;
 

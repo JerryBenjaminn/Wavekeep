@@ -74,6 +74,23 @@ namespace Wavekeep.Waves
         /// spawn and resolve.</summary>
         public IReadOnlyList<EnemyRuntime> ActiveEnemies => _activeEnemies;
 
+        /// <summary>Task 33: the defended line's Z (the wall's position along the approach axis). Frost Zone
+        /// places its full-width band relative to this.</summary>
+        public float DefendedLineZ => _wall != null ? _wall.transform.position.z : 0f;
+
+        /// <summary>Task 33: sign (+1/−1) pointing from the wall toward the spawn side along Z, so a band can
+        /// be placed "in front of the wall" regardless of arena orientation.</summary>
+        public float ApproachDirectionZ
+        {
+            get
+            {
+                if (_wall == null || _spawnMarkers == null || _spawnMarkers.Length == 0 || _spawnMarkers[0] == null)
+                    return 1f;
+                float delta = _spawnMarkers[0].position.z - _wall.transform.position.z;
+                return delta >= 0f ? 1f : -1f;
+            }
+        }
+
         private void Start()
         {
             if (_bootstrap == null || _bootstrap.Session == null)

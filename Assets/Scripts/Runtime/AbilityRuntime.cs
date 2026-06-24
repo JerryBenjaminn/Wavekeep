@@ -78,6 +78,26 @@ namespace Wavekeep.Runtime
             ComputeStats(context.Upgrades, context.Consumables, context.EquippedModifiers,
                 out float damage, out float cooldown, out float range);
 
+            // Task 31 (Permafrost Eruption): an ability can deal a FRACTION of the caster's current basic
+            // damage instead of its own base. context.BasicDamage already includes the basic's modifiers.
+            if (Definition.DamageScalesWithBasicFraction > 0f)
+            {
+                damage = context.BasicDamage * Definition.DamageScalesWithBasicFraction;
+            }
+
+            int maxTargets = ResolveMaxTargets(context.Upgrades); // Task 31 (Wider Burst); 0 = unlimited
+
+            // Task 31 (Pass 2): a zone-payload ability (Frost Zone) places a PERSISTENT zone on cast that
+            // handles slow / Zone Pulse / Absolute Zero over its lifetime — instead of an instant AoE. Falls
+            // through to the legacy cast-time behaviour only when no zone system is wired (older scenes).
+            if (Definition.AppliesZonePayload && context.Zones != null)
+            {
+                SpawnFrostZone(context);
+                _cooldownTimer = cooldown;
+                _cooldownDuration = cooldown;
+                return;
+            }
+
             // Task 23: crit is the FINAL multiplicative step in the damage pipeline — a per-cast roll on
             // the fully-modified damage. Rolled here (at execution), NOT in ComputeStats, so deterministic
             // previews (GetEffectiveDamage / ResolveStats) never randomly crit. Defaults to no-op (0% chance).
@@ -87,13 +107,13 @@ namespace Wavekeep.Runtime
             switch (Definition.TargetingType)
             {
                 case AbilityTargetingType.AreaOfEffect:
-                    hitSomething = ExecuteAreaOfEffect(context, range, damage);
+                    hitSomething = ExecuteAreaOfEffect(context, range, damage, maxTargets);
                     break;
                 case AbilityTargetingType.TargetedAreaOfEffect:
                     // Task 20: `range` here is the resolved BLAST radius (ComputeStats bases it on
                     // AoeRadius for this mode, so all radius modifiers/tag rules hit the blast). The cast
                     // distance to find a target is the raw SO Range field.
-                    hitSomething = ExecuteTargetedAreaOfEffect(context, Definition.Range, range, damage);
+                    hitSomething = ExecuteTargetedAreaOfEffect(context, Definition.Range, range, damage, maxTargets);
                     break;
                 default: // SingleTarget
                     hitSomething = ExecuteSingleTarget(context, range, damage);
@@ -137,7 +157,7 @@ namespace Wavekeep.Runtime
             return true;
         }
 
-        private bool ExecuteAreaOfEffect(AbilityExecutionContext context, float radius, float damage)
+        private bool ExecuteAreaOfEffect(AbilityExecutionContext context, float radius, float damage, int maxTargets)
         {
             // Snapshot in-range targets first; applying damage can remove enemies from the live list.
             _aoeBuffer.Clear();
@@ -156,6 +176,7 @@ namespace Wavekeep.Runtime
             }
 
             if (_aoeBuffer.Count == 0) return false;
+            LimitTargets(context.CasterPosition, maxTargets); // Task 31 (Wider Burst) — nearest N when capped
 
             // Task 08: show the radius indicator with the ACTUAL radius used for the overlap test, at
             // the caster centre — only when the AoE actually connects (mirrors single-target firing on
@@ -175,7 +196,7 @@ namespace Wavekeep.Runtime
         // — a bolt that explodes on impact, so everything clustered around the aim point is caught, not a
         // blast around the caster. A general mode any future ability can use, not a Frost-Warden special.
         private bool ExecuteTargetedAreaOfEffect(AbilityExecutionContext context, float castDistance,
-            float blastRadius, float damage)
+            float blastRadius, float damage, int maxTargets)
         {
             EnemyRuntime nearest = null;
             float bestSqr = castDistance * castDistance;
@@ -199,6 +220,15 @@ namespace Wavekeep.Runtime
             // The impact point is the aim target's position; the blast is centred there, NOT on the caster.
             Vector3 impact = nearest.Transform.position;
 
+            // Task 31 (Pass 2): Frozen Ground — a basic hit leaves a slowing ice patch at the impact point
+            // (once per cast, not per target). Pure CC: slow only, no pulse/growth.
+            if (_role == AbilityRole.Basic && context.Zones != null && context.Upgrades != null &&
+                context.Upgrades.TryGetFrozenGround(out float fgRadius, out float fgDuration, out float fgSlow))
+            {
+                // Frozen Ground stays a circular patch at the impact (Task 33 only changed Frost Zone's shape).
+                context.Zones.Spawn(GroundZone.Circle(impact, fgRadius, fgDuration, fgSlow, 0.5f));
+            }
+
             // Snapshot in-range targets first; applying damage can remove enemies from the live list.
             _aoeBuffer.Clear();
             float blastSqr = blastRadius * blastRadius;
@@ -211,6 +241,8 @@ namespace Wavekeep.Runtime
                     _aoeBuffer.Add(enemy);
                 }
             }
+
+            LimitTargets(impact, maxTargets); // Task 31 (Wider Burst) — keep nearest N to the impact when capped
 
             // Visual: a bolt from the caster to the impact, then the blast ring at the impact point using
             // the ACTUAL radius used for the overlap test (so feedback matches where damage really landed).
@@ -230,11 +262,98 @@ namespace Wavekeep.Runtime
         // resolved enemy), so ordering damage first is safe.
         private void OnHit(EnemyRuntime target, AbilityExecutionContext context, float damage)
         {
-            if (damage > 0f) target.TakeDamage(damage);
+            if (damage > 0f)
+            {
+                // Task 31 (Shattering Impact): bonus damage against a target ALREADY impaired by Slow/Freeze/
+                // Frost — applied to THIS hit, never as a separate tick. Checked before frost from this hit is
+                // applied, so it keys off the target's pre-existing CC.
+                float finalDamage = damage;
+                if (context.Upgrades != null && target.IsImpaired)
+                {
+                    float bonus = context.Upgrades.BonusDamageVsImpaired();
+                    if (bonus > 0f) finalDamage *= 1f + bonus;
+                }
+                target.TakeDamage(finalDamage);
+            }
 
-            ApplyZonePayload(target, context);          // Task 19: ultimate Slow + DoT zone
+            ApplyZonePayload(target, context);          // Task 19: ultimate Slow zone (DoT removed in Task 31)
             ApplyFrostStack(target, context);           // Task 19: basic Frost stacking
             ApplyHeldStatusEffects(target, context.Upgrades); // Task 11: held status-upgrade payloads
+            ApplyBaselineStatus(target);                // Task 31: ability's own status (apex freeze)
+            ApplyHardFreeze(target, context);           // Task 31: basic chance-to-hard-freeze
+        }
+
+        // Task 31 (Wider Burst): when an AoE is capped at maxTargets, keep only the nearest N to the blast
+        // centre. 0 = unlimited. Operates on the already-collected _aoeBuffer.
+        private void LimitTargets(Vector3 center, int maxTargets)
+        {
+            if (maxTargets <= 0 || _aoeBuffer.Count <= maxTargets) return;
+            _aoeBuffer.Sort((a, b) =>
+                (a.Transform.position - center).sqrMagnitude.CompareTo(
+                (b.Transform.position - center).sqrMagnitude));
+            _aoeBuffer.RemoveRange(maxTargets, _aoeBuffer.Count - maxTargets);
+        }
+
+        // Task 33: place the persistent Frost Zone as a FULL-WIDTH band in front of the wall — independent
+        // of the caster's position. Slow + duration come from ResolveZonePayload (Deepening Frost sets slow;
+        // Lingering Chill adds duration); Zone Pulse + Absolute Zero (duration extension) come from held
+        // upgrades. The band depth is the ability's AoeRadius; X is unconstrained (full arena width).
+        private void SpawnFrostZone(AbilityExecutionContext context)
+        {
+            ResolveZonePayload(context.Upgrades, context.Consumables, out float slow, out float duration, out _);
+            float depth = Definition.AoeRadius > 0f ? Definition.AoeRadius : 6f;
+
+            // Band of `depth` extending from the defended line (wall) toward the spawn side.
+            float wallZ = context.DefendedLineZ;
+            float sign = context.ApproachDirectionZ >= 0f ? 1f : -1f;
+            float minZ = Mathf.Min(wallZ, wallZ + sign * depth);
+            float maxZ = Mathf.Max(wallZ, wallZ + sign * depth);
+
+            float pulseInterval = 0f, pulseFraction = 0f;
+            float extendPerDeath = 0f, capBonus = 0f;
+            if (context.Upgrades != null)
+            {
+                context.Upgrades.TryGetZonePulse(out pulseInterval, out pulseFraction);
+                context.Upgrades.TryGetZoneDurationExtend(out extendPerDeath, out capBonus);
+            }
+            // Absolute Zero cap: remaining duration may extend only up to the cast duration + cap headroom.
+            float maxDuration = extendPerDeath > 0f ? duration + capBonus : duration;
+
+            context.Zones.Spawn(GroundZone.Box(
+                minZ, maxZ, duration, maxDuration, slow, 0.5f, pulseInterval, pulseFraction, extendPerDeath));
+
+            Debug.Log($"[AbilityRuntime] {Definition.AbilityName}: Frost Zone (full-width band " +
+                      $"z=[{minZ:0.#},{maxZ:0.#}], slow={slow:0.##}, dur={duration:0.#}s, capDur={maxDuration:0.#}s).");
+        }
+
+        // Task 31: base AoE target cap + the basic-role Wider Burst modifier. 0 = unlimited.
+        private int ResolveMaxTargets(UpgradeInventory upgrades)
+        {
+            float cap = Definition.MaxTargets;
+            if (upgrades != null && _role == AbilityRole.Basic)
+                cap = upgrades.ResolveModifier(UpgradeModifierTarget.BasicMaxTargets, cap);
+            int rounded = Mathf.RoundToInt(cap);
+            return rounded < 0 ? 0 : rounded;
+        }
+
+        // Task 31: the ability's OWN status on hit (no held upgrade) — used by apex abilities such as
+        // Remorseless Winter's freeze. No-op on a target the damage just killed (ApplyStatusEffect guards it).
+        private void ApplyBaselineStatus(EnemyRuntime target)
+        {
+            if (!Definition.AppliesBaselineStatus || Definition.BaselineStatusDuration <= 0f || target == null) return;
+            target.ApplyStatusEffect(
+                Definition.BaselineStatusType, Definition.BaselineStatusMagnitude, Definition.BaselineStatusDuration);
+        }
+
+        // Task 31 (Hard Freeze): a basic hit has a held-upgrade chance to fully freeze (hard stun) the target.
+        private void ApplyHardFreeze(EnemyRuntime target, AbilityExecutionContext context)
+        {
+            if (_role != AbilityRole.Basic || context.Upgrades == null || target == null) return;
+            if (!context.Upgrades.TryGetHardFreeze(out float chance, out float duration)) return;
+            if (duration > 0f && Random.value < chance)
+            {
+                target.ApplyStatusEffect(StatusEffectType.Freeze, 0f, duration);
+            }
         }
 
         // Task 19: apply/refresh the Frost stack on a hit, resolving the effective config from the SO

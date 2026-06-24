@@ -46,6 +46,8 @@ namespace Wavekeep.UI
             public TMP_Text NameText;
             public TMP_Text InfoText;
             public Button ObtainButton;
+            public TMP_Text BadgeText;   // Task 32: "BASIC" / "ULTIMATE"
+            public Image BadgeImage;     // Task 32: per-skill colour chip behind the badge text
         }
 
         private EventBus _events;
@@ -103,27 +105,44 @@ namespace Wavekeep.UI
 
         private CardSlot CreateSlot()
         {
-            // Card: a vertical stack of [ name ][ info ][ Obtain button ].
+            // Task 32: larger card (legibility over fitting many on screen) — a vertical stack of
+            // [ skill badge ][ name ][ description ][ Obtain button ].
             var cardGo = new GameObject("Card", typeof(RectTransform), typeof(Image), typeof(VerticalLayoutGroup));
             cardGo.transform.SetParent(_cardContainer, false);
-            ((RectTransform)cardGo.transform).sizeDelta = new Vector2(220f, 300f);
+            ((RectTransform)cardGo.transform).sizeDelta = new Vector2(340f, 440f);
             cardGo.GetComponent<Image>().color = new Color(0.15f, 0.15f, 0.2f, 0.95f);
             var vlg = cardGo.GetComponent<VerticalLayoutGroup>();
-            vlg.padding = new RectOffset(12, 12, 12, 12);
-            vlg.spacing = 10f;
+            vlg.padding = new RectOffset(16, 16, 16, 16);
+            vlg.spacing = 12f;
             vlg.childAlignment = TextAnchor.UpperCenter;
-            vlg.childControlWidth = true;
-            vlg.childControlHeight = false;
+            vlg.childControlWidth = true;   // children take the card's inner width → description wraps correctly
+            // Control height too, so each child gets its LayoutElement/preferred height and the layout stacks
+            // them in sequence — otherwise (childControlHeight=false) heights collapse and the Obtain button
+            // overlaps the description text.
+            vlg.childControlHeight = true;
             vlg.childForceExpandWidth = true;
             vlg.childForceExpandHeight = false;
 
-            var nameText = CreateText(cardGo.transform, "Name", 24f, FontStyles.Bold, 40f);
-            var infoText = CreateText(cardGo.transform, "Info", 18f, FontStyles.Normal, 180f);
+            // Skill badge (top): coloured chip with BASIC/ULTIMATE (colour + text set in PopulateSlot).
+            var badgeGo = new GameObject("Badge", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            badgeGo.transform.SetParent(cardGo.transform, false);
+            badgeGo.GetComponent<LayoutElement>().minHeight = 32f;
+            var badgeImage = badgeGo.GetComponent<Image>();
+            badgeImage.color = Color.gray;
+            var badgeText = CreateText(badgeGo.transform, "BadgeLabel", 16f, FontStyles.Bold, 0f);
+            badgeText.alignment = TextAlignmentOptions.Center;
+            var bdRt = badgeText.rectTransform;
+            bdRt.anchorMin = Vector2.zero; bdRt.anchorMax = Vector2.one;
+            bdRt.offsetMin = Vector2.zero; bdRt.offsetMax = Vector2.zero;
+
+            var nameText = CreateText(cardGo.transform, "Name", 26f, FontStyles.Bold, 44f);
+            var infoText = CreateText(cardGo.transform, "Info", 19f, FontStyles.Normal, 240f);
+            infoText.alignment = TextAlignmentOptions.Top;
 
             // Obtain button.
             var buttonGo = new GameObject("Obtain", typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
             buttonGo.transform.SetParent(cardGo.transform, false);
-            buttonGo.GetComponent<LayoutElement>().minHeight = 48f;
+            buttonGo.GetComponent<LayoutElement>().minHeight = 52f;
             var button = buttonGo.GetComponent<Button>();
 
             var buttonLabel = CreateText(buttonGo.transform, "Label", 22f, FontStyles.Normal, 0f);
@@ -141,7 +160,9 @@ namespace Wavekeep.UI
                 Root = cardGo,
                 NameText = nameText,
                 InfoText = infoText,
-                ObtainButton = button
+                ObtainButton = button,
+                BadgeText = badgeText,
+                BadgeImage = badgeImage
             };
         }
 
@@ -249,8 +270,24 @@ namespace Wavekeep.UI
             slot.NameText.text = line.LineName;
             slot.InfoText.text = BuildInfo(line);
 
+            // Task 32: skill-source badge so the player can pattern-match Basic vs Ultimate at a glance.
+            var (badgeLabel, badgeColor) = SkillBadge(line.Skill);
+            slot.BadgeText.text = badgeLabel;
+            slot.BadgeImage.color = badgeColor;
+
             slot.ObtainButton.onClick.RemoveAllListeners();
             slot.ObtainButton.onClick.AddListener(() => OnObtain(line));
+        }
+
+        // Task 32: consistent label + colour per skill so investing in the same skill looks the same each draw.
+        private static (string label, Color color) SkillBadge(AbilityRole skill)
+        {
+            switch (skill)
+            {
+                case AbilityRole.Ultimate: return ("ULTIMATE", new Color(0.55f, 0.30f, 0.78f, 1f)); // purple
+                case AbilityRole.Apex: return ("APEX", new Color(0.85f, 0.55f, 0.20f, 1f));          // amber (future)
+                default: return ("BASIC", new Color(0.20f, 0.50f, 0.70f, 1f));                        // teal
+            }
         }
 
         // Draw up to _cardsPerLevelUp DISTINCT not-yet-maxed lines from the active hero, via a partial

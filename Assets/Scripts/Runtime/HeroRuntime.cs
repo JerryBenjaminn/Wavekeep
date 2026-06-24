@@ -62,6 +62,11 @@ namespace Wavekeep.Runtime
         // player input, alongside (but separate from) Basic/Ultimate.
         private readonly List<IAbility> _apexAbilities = new List<IAbility>();
 
+        // Task 31 (Pass 2): persistent ground/zone effects (Frost Zone, Frozen Ground patches). Owned here
+        // (per-run, no static singleton); abilities spawn into it via the execution context, and it is
+        // ticked below each frame — frozen with the rest of gameplay while paused.
+        private readonly GroundZoneManager _zones = new GroundZoneManager();
+
         /// <summary>Task 24: the hero's live total Luck (hero base + summed equipped-gear Luck + in-run
         /// potion bonus), clamped to 0–100. Delegates to the run's <see cref="LuckState"/>, which is the
         /// single numeric source of truth the shop/loot rolls reweight against — so the stat panel, the
@@ -132,6 +137,10 @@ namespace Wavekeep.Runtime
         public IReadOnlyList<UpgradeLineDefinitionSO> UpgradeLines =>
             Definition != null ? Definition.UpgradeLines : null;
 
+        /// <summary>Task 32: the currently-UNLOCKED apex abilities (live runtime instances), for the
+        /// cooldown HUD to read directly. Empty until an apex unlocks; grows as more unlock.</summary>
+        public IReadOnlyList<IAbility> ApexAbilities => _apexAbilities;
+
         /// <summary>Current tier of a line (0 = not yet picked, 1–3). Unknown lines read 0.</summary>
         public int GetLineTier(UpgradeLineDefinitionSO line) =>
             line != null && _lineTiers.TryGetValue(line, out int tier) ? tier : 0;
@@ -151,13 +160,22 @@ namespace Wavekeep.Runtime
             int current = _lineTiers[line];
             if (current >= line.TierCount) return false; // already maxed
 
+            // Task 31 REPLACE semantics: a line holds only its CURRENT tier's effect in the UpgradeInventory,
+            // so the designer-authored per-tier values are ABSOLUTE (Tier 3 = "+50%", not +15%+30%+50%).
+            // Swap the previous tier's effect out before adding the new one.
+            if (current >= 1)
+            {
+                var prevTier = line.TierAt(current);
+                if (prevTier != null && prevTier.Effect != null) _upgrades?.Remove(prevTier.Effect);
+            }
+
             int next = current + 1;
             _lineTiers[line] = next;
 
             var tier = line.TierAt(next);
             if (tier != null && tier.Effect != null)
             {
-                // Feed the existing resolution engine — identical to a pre-migration upgrade pick.
+                // Feed the existing resolution engine — same pipeline AbilityRuntime already reads.
                 _upgrades?.Add(tier.Effect);
             }
             Debug.Log($"[HeroRuntime] Line '{line.LineName}' → Tier {next}/{line.TierCount}.");
@@ -211,9 +229,17 @@ namespace Wavekeep.Runtime
             // per-frame consumer of these modifiers, so it owns their tick (Task 06).
             _consumables?.Tick(Time.deltaTime);
 
+            // Task 31: surface the basic's current effective damage so apex/other abilities can scale off it
+            // (e.g. Permafrost Eruption = 50% of basic). Resolved through the same pipeline as the stat panel.
+            float basicDamage = BasicStats?.Damage ?? 0f;
+
+            // Task 31 (Pass 2): advance persistent ground/zones with the live enemy list + basic damage.
+            _zones.Tick(Time.deltaTime, _waveSpawner.ActiveEnemies, basicDamage);
+
             var context = new AbilityExecutionContext(
                 transform.position, _waveSpawner.ActiveEnemies, _upgrades, _consumables,
-                _equippedModifiers, _feedback);
+                _equippedModifiers, _feedback, basicDamage, _zones,
+                _waveSpawner.DefendedLineZ, _waveSpawner.ApproachDirectionZ); // Task 33: full-width Frost Zone band
 
             if (Basic != null)
             {

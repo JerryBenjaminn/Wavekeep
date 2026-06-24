@@ -18,6 +18,13 @@ MonoBehaviour:
   _baseCooldown: 35
   _range: 100
   _targetingType: 1
+  _aoeRadius: 6
+  _maxTargets: 0
+  _appliesBaselineStatus: 0
+  _baselineStatusType: 0
+  _baselineStatusMagnitude: 0
+  _baselineStatusDuration: 0
+  _damageScalesWithBasicFraction: 0
   _upgradeLevels: []
   _tagInteractionRules:
   - _matchTag: 3
@@ -32,5 +39,5 @@ MonoBehaviour:
   _frostTriggerFreezeDuration: 1.5
   _appliesZonePayload: 1
   _zoneSlowMagnitude: 0.25
-  _zoneDotDamagePerSecond: 4
+  _zoneDotDamagePerSecond: 0
   _zoneDuration: 6

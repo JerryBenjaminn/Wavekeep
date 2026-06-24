@@ -19,6 +19,12 @@ MonoBehaviour:
   _range: 28
   _targetingType: 2
   _aoeRadius: 2.5
+  _maxTargets: 3
+  _appliesBaselineStatus: 0
+  _baselineStatusType: 0
+  _baselineStatusMagnitude: 0
+  _baselineStatusDuration: 0
+  _damageScalesWithBasicFraction: 0
   _upgradeLevels: []
   _tagInteractionRules:
   - _matchTag: 0

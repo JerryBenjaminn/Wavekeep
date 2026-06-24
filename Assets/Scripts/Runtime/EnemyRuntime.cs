@@ -277,6 +277,25 @@ namespace Wavekeep.Runtime
             return false;
         }
 
+        /// <summary>Task 31 (Shattering Impact): true if the enemy is currently affected by any Slow or
+        /// Freeze status, OR carries any stacking (Frost) stacks — i.e. its movement is impaired by CC.</summary>
+        public bool IsImpaired
+        {
+            get
+            {
+                for (int i = 0; i < _statusEffects.Count; i++)
+                {
+                    var t = _statusEffects[i].Type;
+                    if (t == StatusEffectType.Slow || t == StatusEffectType.Freeze) return true;
+                }
+                for (int i = 0; i < _stackingEffects.Count; i++)
+                {
+                    if (_stackingEffects[i].Stacks > 0) return true;
+                }
+                return false;
+            }
+        }
+
         /// <summary>Current stack count of a stacking effect (Task 19), or 0 if none active.</summary>
         public int GetStackCount(StackingEffectType type)
         {

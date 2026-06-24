@@ -27,13 +27,30 @@ namespace Wavekeep.Abilities
         public readonly IReadOnlyList<StatModifier> EquippedModifiers;
         public readonly IAbilityFeedback Feedback;
 
+        /// <summary>Task 31: the caster's CURRENT effective basic-ability damage, so abilities that scale
+        /// off it (e.g. Permafrost Eruption = 50% of basic) read one consistent value. 0 when unknown.</summary>
+        public readonly float BasicDamage;
+
+        /// <summary>Task 31 (Pass 2): sink for persistent ground/zone effects (Frost Zone, Frozen Ground).
+        /// Abilities spawn zones into it; HeroRuntime owns + ticks it. Null when no zone system is wired.</summary>
+        public readonly GroundZoneManager Zones;
+
+        /// <summary>Task 33: the defended line's Z (wall position on the approach axis) and the sign pointing
+        /// from it toward the spawn side, so a full-width zone can be placed in front of the wall.</summary>
+        public readonly float DefendedLineZ;
+        public readonly float ApproachDirectionZ;
+
         public AbilityExecutionContext(
             Vector3 casterPosition,
             IReadOnlyList<EnemyRuntime> enemies,
             UpgradeInventory upgrades,
             ConsumableInventory consumables,
             IReadOnlyList<StatModifier> equippedModifiers = null,
-            IAbilityFeedback feedback = null)
+            IAbilityFeedback feedback = null,
+            float basicDamage = 0f,
+            GroundZoneManager zones = null,
+            float defendedLineZ = 0f,
+            float approachDirectionZ = 1f)
         {
             CasterPosition = casterPosition;
             Enemies = enemies;
@@ -41,6 +58,10 @@ namespace Wavekeep.Abilities
             Consumables = consumables;
             EquippedModifiers = equippedModifiers;
             Feedback = feedback;
+            BasicDamage = basicDamage;
+            Zones = zones;
+            DefendedLineZ = defendedLineZ;
+            ApproachDirectionZ = approachDirectionZ;
         }
     }
 }

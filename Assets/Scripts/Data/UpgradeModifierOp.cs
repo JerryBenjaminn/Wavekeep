@@ -8,6 +8,10 @@ namespace Wavekeep.Data
     public enum UpgradeModifierOp
     {
         Add,
-        Multiply
+        Multiply,
+
+        /// <summary>Task 31: OVERRIDE the parameter with the value (the last held Set wins). Used where a
+        /// tier replaces a base value rather than stacking — e.g. Deepening Frost setting the zone slow %.</summary>
+        Set
     }
 }

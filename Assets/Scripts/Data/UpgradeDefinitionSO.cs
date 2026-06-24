@@ -38,6 +38,37 @@ namespace Wavekeep.Data
         [SerializeField] private UpgradeEffectType _effectType = UpgradeEffectType.FlatDamageBonus;
         [SerializeField] private float _effectValue;
 
+        [Header("Shattering Impact (Task 31 — bonus damage vs slowed/frozen targets, on the initial hit)")]
+        [Tooltip("Extra fraction of damage dealt to a target already affected by Slow/Freeze (or Frost stacks). " +
+                 "0 = none. Applied to the initial hit only — NOT a separate tick/DoT.")]
+        [SerializeField, Min(0f)] private float _bonusDamageVsImpaired;
+
+        [Header("Hard Freeze (Task 31 — chance to fully stun on basic hit)")]
+        [Tooltip("Chance [0..1] that a hit fully freezes (hard stun) the target instead of only slowing it.")]
+        [SerializeField, Range(0f, 1f)] private float _hardFreezeChance;
+        [Tooltip("Stun (Freeze) duration in seconds when Hard Freeze procs.")]
+        [SerializeField, Min(0f)] private float _hardFreezeDuration;
+
+        [Header("Frozen Ground (Task 31 Pass 2 — ice patch spawned at a basic hit's impact)")]
+        [Tooltip("Patch radius (m). 0 = this upgrade doesn't spawn a patch.")]
+        [SerializeField, Min(0f)] private float _frozenGroundRadius;
+        [SerializeField, Min(0f)] private float _frozenGroundDuration;
+        [Tooltip("Slow fraction [0..1] applied to enemies standing in the patch.")]
+        [SerializeField, Range(0f, 1f)] private float _frozenGroundSlow;
+
+        [Header("Zone Pulse (Task 31 Pass 2 — Frost Zone area-tied damage pulse)")]
+        [Tooltip("Seconds between pulses. 0 = no pulse.")]
+        [SerializeField, Min(0f)] private float _zonePulseInterval;
+        [Tooltip("Per-pulse damage as a fraction of the caster's current basic damage.")]
+        [SerializeField, Min(0f)] private float _zonePulseBasicFraction;
+
+        [Header("Absolute Zero (Task 33 — Frost Zone duration extends on a death inside it)")]
+        [Tooltip("Seconds added to Frost Zone's remaining duration per enemy death inside it. 0 = no extension.")]
+        [SerializeField, Min(0f)] private float _zoneDurationExtendPerDeath;
+        [Tooltip("Hard-cap headroom: remaining duration can't exceed (zone's cast duration + this). Prevents " +
+                 "runaway uptime. Placeholder 3s.")]
+        [SerializeField, Min(0f)] private float _zoneDurationExtendCapBonus = 3f;
+
         [Header("Status Effect on Hit (Task 11 — applied by abilities flagged AppliesStatusEffects)")]
         [Tooltip("If true, holding this upgrade makes status-delivering ability hits apply the effect below.")]
         [SerializeField] private bool _appliesStatusEffect;
@@ -73,6 +104,26 @@ namespace Wavekeep.Data
         public StatusEffectType StatusEffectType => _statusEffectType;
         public float StatusMagnitude => _statusMagnitude;
         public float StatusDuration => _statusDuration;
+
+        // Shattering Impact (Task 31): bonus fraction vs already-impaired targets, applied to the hit itself.
+        public float BonusDamageVsImpaired => _bonusDamageVsImpaired;
+
+        // Hard Freeze (Task 31): chance-based hard stun on hit.
+        public float HardFreezeChance => _hardFreezeChance;
+        public float HardFreezeDuration => _hardFreezeDuration;
+
+        // Frozen Ground (Task 31 Pass 2): basic-hit ice patch.
+        public float FrozenGroundRadius => _frozenGroundRadius;
+        public float FrozenGroundDuration => _frozenGroundDuration;
+        public float FrozenGroundSlow => _frozenGroundSlow;
+
+        // Zone Pulse (Task 31 Pass 2): Frost Zone area pulse.
+        public float ZonePulseInterval => _zonePulseInterval;
+        public float ZonePulseBasicFraction => _zonePulseBasicFraction;
+
+        // Absolute Zero (Task 33): Frost Zone duration extension on death inside.
+        public float ZoneDurationExtendPerDeath => _zoneDurationExtendPerDeath;
+        public float ZoneDurationExtendCapBonus => _zoneDurationExtendCapBonus;
 
         public bool HasTag(UpgradeTag tag) => _tags.Contains(tag);
     }

@@ -21,7 +21,14 @@ MonoBehaviour:
   _basicAbility: {fileID: 11400000, guid: c06234b7fa219e740a43200b5dd38cbd, type: 2}
   _ultimateAbility: {fileID: 11400000, guid: b0dad0b96f631b448a6263e7a839381b, type: 2}
   _upgradeLines:
-  - {fileID: 11400000, guid: b05b26e327a5d424ab59a379be5747a0, type: 2}
-  - {fileID: 11400000, guid: 7d276b80cc21a7744ac922b42c86a850, type: 2}
+  - {fileID: 11400000, guid: b3bbfa81eb9db5049a9602ba7be28551, type: 2}
+  - {fileID: 11400000, guid: 7f9719f8ed757824a809d84a5ac33c8e, type: 2}
+  - {fileID: 11400000, guid: 7ab596868a3e3b24c80fbbdd507bbe95, type: 2}
+  - {fileID: 11400000, guid: 287c7f82036885e4bacbc707c1e90786, type: 2}
+  - {fileID: 11400000, guid: 819bffaecce2d7545aab1d7b0dbee5aa, type: 2}
+  - {fileID: 11400000, guid: d0f976b286735ed4d8600a408fca946f, type: 2}
+  - {fileID: 11400000, guid: 745bee51bbf52df4c9a963710b8bcedf, type: 2}
+  - {fileID: 11400000, guid: 0ffc3ca435e429e4cb068c1ae96cccfa, type: 2}
   _apexTalents:
-  - {fileID: 11400000, guid: f31b532cfe9a4ad4692b5b16f1feea0a, type: 2}
+  - {fileID: 11400000, guid: 3acc5d086b54e424c83842f05b706acc, type: 2}
+  - {fileID: 11400000, guid: b36411f827c50fd46859190a6eb73bb7, type: 2}

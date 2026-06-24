@@ -1110,6 +1110,100 @@ Transform:
   m_Children: []
   m_Father: {fileID: 123028214}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &702720294
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 702720295}
+  - component: {fileID: 702720298}
+  - component: {fileID: 702720297}
+  - component: {fileID: 702720296}
+  m_Layer: 0
+  m_Name: ApexCooldownBars
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &702720295
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 702720294}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1284513007}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0}
+  m_AnchorMax: {x: 0.5, y: 0}
+  m_AnchoredPosition: {x: 0, y: 80}
+  m_SizeDelta: {x: 380, y: 0}
+  m_Pivot: {x: 0.5, y: 0}
+--- !u!114 &702720296
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 702720294}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ee30471459404534b8c32cc767d4497c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.UI.ApexCooldownDisplay
+  _container: {fileID: 702720295}
+  _barSprite: {fileID: 10905, guid: 0000000000000000f000000000000000, type: 0}
+  _chargingColor: {r: 0.85, g: 0.55, b: 0.2, a: 1}
+  _readyColor: {r: 1, g: 0.82, b: 0.35, a: 1}
+--- !u!114 &702720297
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 702720294}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3245ec927659c4140ac4f8d17403cc18, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.ContentSizeFitter
+  m_HorizontalFit: 0
+  m_VerticalFit: 2
+--- !u!114 &702720298
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 702720294}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 59f8146938fff824cb5fd77236b75775, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.VerticalLayoutGroup
+  m_Padding:
+    m_Left: 0
+    m_Right: 0
+    m_Top: 0
+    m_Bottom: 0
+  m_ChildAlignment: 7
+  m_Spacing: 4
+  m_ChildForceExpandWidth: 1
+  m_ChildForceExpandHeight: 0
+  m_ChildControlWidth: 1
+  m_ChildControlHeight: 0
+  m_ChildScaleWidth: 0
+  m_ChildScaleHeight: 0
+  m_ReverseArrangement: 0
 --- !u!1 &709952438
 GameObject:
   m_ObjectHideFlags: 0
@@ -2549,7 +2643,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 760, y: 320}
+  m_SizeDelta: {x: 1120, y: 470}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1115581059
 MonoBehaviour:
@@ -3012,6 +3106,7 @@ RectTransform:
   - {fileID: 1023650821}
   - {fileID: 709952439}
   - {fileID: 1765520048}
+  - {fileID: 702720295}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -4768,15 +4863,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.UI.LevelUpCardPicker
   _bootstrap: {fileID: 1169181627}
-  _upgradePool:
-  - {fileID: 11400000, guid: 5936bd742299c9e4aa761c153691adcd, type: 2}
-  - {fileID: 11400000, guid: f6691484ee2398f43b6b823e7a38dd1f, type: 2}
-  - {fileID: 11400000, guid: f0997266e8a33254a82fa1eb35f940b9, type: 2}
-  - {fileID: 11400000, guid: e02386517a3103047bdc7396f68a1171, type: 2}
-  - {fileID: 11400000, guid: 5e52ef53ffe8f0e45922bd6cf9d799e0, type: 2}
-  - {fileID: 11400000, guid: 1167309c38ce18c4c9b161ae8ffba59b, type: 2}
-  - {fileID: 11400000, guid: 978983ebfcf401746ae69b63b96642bc, type: 2}
-  - {fileID: 11400000, guid: 0c7c857d60978aa47a88a13deaab4def, type: 2}
   _cardsPerLevelUp: 3
   _panel: {fileID: 1018146924}
   _cardContainer: {fileID: 1115581058}

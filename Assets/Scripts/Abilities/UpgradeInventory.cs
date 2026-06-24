@@ -33,6 +33,14 @@ namespace Wavekeep.Abilities
             if (opposite != UpgradeBranch.Neutral) _lockedBranches.Add(opposite);
         }
 
+        /// <summary>Task 31: remove a single held instance of an upgrade (used by the upgrade-line REPLACE
+        /// semantics — a line swaps its previous tier's effect for the new tier's). Branch locks, once set,
+        /// are intentionally NOT released. Returns false if it wasn't held.</summary>
+        public bool Remove(UpgradeDefinitionSO upgrade)
+        {
+            return upgrade != null && _upgrades.Remove(upgrade);
+        }
+
         /// <summary>True if any held upgrade carries <paramref name="tag"/>.</summary>
         public bool HasTag(UpgradeTag tag)
         {
@@ -64,7 +72,12 @@ namespace Wavekeep.Abilities
                 {
                     var mod = mods[m];
                     if (mod == null || mod.Target != target) continue;
-                    value = mod.Op == UpgradeModifierOp.Multiply ? value * mod.Value : value + mod.Value;
+                    switch (mod.Op)
+                    {
+                        case UpgradeModifierOp.Multiply: value *= mod.Value; break;
+                        case UpgradeModifierOp.Set: value = mod.Value; break; // Task 31: last Set wins (held order)
+                        default: value += mod.Value; break;                   // Add
+                    }
                 }
             }
             return value;
@@ -103,6 +116,90 @@ namespace Wavekeep.Abilities
             }
             stackThreshold = 0;
             duration = 0f;
+            return false;
+        }
+
+        /// <summary>Task 31 (Shattering Impact): the strongest held bonus-damage-vs-impaired fraction (0 if
+        /// none). Max rather than sum, since upgrade-line REPLACE semantics holds one tier per line.</summary>
+        public float BonusDamageVsImpaired()
+        {
+            float best = 0f;
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.BonusDamageVsImpaired > best) best = u.BonusDamageVsImpaired;
+            }
+            return best;
+        }
+
+        /// <summary>Task 31 (Hard Freeze): the strongest held hard-freeze chance + its stun duration, if any.</summary>
+        public bool TryGetHardFreeze(out float chance, out float duration)
+        {
+            chance = 0f;
+            duration = 0f;
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u == null || u.HardFreezeChance <= 0f) continue;
+                if (u.HardFreezeChance > chance)
+                {
+                    chance = u.HardFreezeChance;
+                    duration = u.HardFreezeDuration;
+                }
+            }
+            return chance > 0f;
+        }
+
+        /// <summary>Task 31 Pass 2 (Frozen Ground): the held basic ice-patch params, if any.</summary>
+        public bool TryGetFrozenGround(out float radius, out float duration, out float slow)
+        {
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.FrozenGroundRadius > 0f)
+                {
+                    radius = u.FrozenGroundRadius;
+                    duration = u.FrozenGroundDuration;
+                    slow = u.FrozenGroundSlow;
+                    return true;
+                }
+            }
+            radius = duration = slow = 0f;
+            return false;
+        }
+
+        /// <summary>Task 31 Pass 2 (Zone Pulse): the held Frost Zone pulse params, if any.</summary>
+        public bool TryGetZonePulse(out float interval, out float basicFraction)
+        {
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.ZonePulseInterval > 0f && u.ZonePulseBasicFraction > 0f)
+                {
+                    interval = u.ZonePulseInterval;
+                    basicFraction = u.ZonePulseBasicFraction;
+                    return true;
+                }
+            }
+            interval = basicFraction = 0f;
+            return false;
+        }
+
+        /// <summary>Task 33 (Absolute Zero): the held Frost Zone duration-extension params, if any —
+        /// seconds added per death inside, plus the cap headroom over the zone's cast duration.</summary>
+        public bool TryGetZoneDurationExtend(out float perDeath, out float capBonus)
+        {
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.ZoneDurationExtendPerDeath > 0f)
+                {
+                    perDeath = u.ZoneDurationExtendPerDeath;
+                    capBonus = u.ZoneDurationExtendCapBonus;
+                    return true;
+                }
+            }
+            perDeath = capBonus = 0f;
             return false;
         }
 
