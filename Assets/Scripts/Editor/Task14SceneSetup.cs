@@ -34,12 +34,6 @@ namespace Wavekeep.EditorTools
         private const string GameplayScenePath = "Assets/Scenes/SampleScene.unity";
         private const string CatalogPath = "Assets/Data/Gear/GearCatalog.asset";
 
-        private static readonly string[] HeroPaths =
-        {
-            "Assets/Data/Heroes/Hero_BoltStriker.asset",
-            "Assets/Data/Heroes/Hero_FrostWarden.asset",
-        };
-
         [MenuItem("Wavekeep/Setup Task 14 (Hub Scene)")]
         public static void SetupScene()
         {
@@ -53,10 +47,9 @@ namespace Wavekeep.EditorTools
                                ". Run 'Wavekeep/Setup Task 12 (Gear Core)' first.");
                 return;
             }
-            bool anyHero = false;
-            foreach (var path in HeroPaths)
-                if (AssetDatabase.LoadAssetAtPath<HeroDefinitionSO>(path) != null) { anyHero = true; break; }
-            if (!anyHero)
+            // Task 37: discover ALL hero assets in the project rather than a hardcoded path list, so a newly
+            // authored hero is picked up by both this setup and the runtime team-select screen with no edits.
+            if (AssetDatabase.FindAssets("t:HeroDefinitionSO").Length == 0)
             {
                 Debug.LogError("[Task14SceneSetup] No hero assets found. Run 'Wavekeep/Setup Task 05 (Heroes)' first.");
                 return;
@@ -74,12 +67,7 @@ namespace Wavekeep.EditorTools
 
             // --- Reload the asset references NOW (post-NewScene) so they wire as live, non-null refs. ---
             var catalog = AssetDatabase.LoadAssetAtPath<GearCatalogSO>(CatalogPath);
-            var roster = new List<HeroDefinitionSO>();
-            foreach (var path in HeroPaths)
-            {
-                var hero = AssetDatabase.LoadAssetAtPath<HeroDefinitionSO>(path);
-                if (hero != null) roster.Add(hero);
-            }
+            var roster = LoadAllHeroes();
 
             // Camera + AudioListener (ScreenSpaceOverlay UI renders without one, but a scene wants a camera).
             var camGo = new GameObject("Main Camera");
@@ -142,7 +130,7 @@ namespace Wavekeep.EditorTools
             ((RectTransform)left).offsetMin = new Vector2(40f, 110f);
             ((RectTransform)left).offsetMax = new Vector2(-20f, -110f);
 
-            CreateColumnHeader(left, "HEROES", 1f);
+            CreateColumnHeader(left, "TEAM  (✓ = in run · name = edit gear)", 1f);
             var heroContainer = CreateVerticalContainer("HeroButtons", left,
                 new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -44f), new Vector2(0f, 64f), 8f);
 
@@ -168,6 +156,12 @@ namespace Wavekeep.EditorTools
             var srt = (RectTransform)startBtn.transform;
             srt.anchorMin = new Vector2(0.5f, 0f); srt.anchorMax = new Vector2(0.5f, 0f); srt.pivot = new Vector2(0.5f, 0f);
             srt.anchoredPosition = new Vector2(0f, 28f);
+
+            // Task 37: team-status / "select at least one hero" feedback, just above Start Run.
+            var feedback = CreateText(root, "", 22f, TextAlignmentOptions.Center);
+            var frt = feedback.rectTransform;
+            frt.anchorMin = new Vector2(0.5f, 0f); frt.anchorMax = new Vector2(0.5f, 0f); frt.pivot = new Vector2(0.5f, 0f);
+            frt.anchoredPosition = new Vector2(0f, 100f); frt.sizeDelta = new Vector2(560f, 32f);
 
             // === Equip picker modal (hidden by HubController on Start) ===
             var pickerPanel = NewRect("EquipPickerPanel", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
@@ -201,6 +195,7 @@ namespace Wavekeep.EditorTools
             so.FindProperty("_slotContainer").objectReferenceValue = slotContainer;
             so.FindProperty("_inventoryContainer").objectReferenceValue = inventoryContainer;
             so.FindProperty("_startRunButton").objectReferenceValue = startBtn;
+            so.FindProperty("_startFeedbackLabel").objectReferenceValue = feedback;
             so.FindProperty("_equipPickerPanel").objectReferenceValue = pickerPanel.gameObject;
             so.FindProperty("_equipPickerTitle").objectReferenceValue = pickerTitle;
             so.FindProperty("_equipPickerContainer").objectReferenceValue = pickerContainer;
@@ -340,6 +335,20 @@ namespace Wavekeep.EditorTools
             var lrt = tmp.rectTransform;
             lrt.anchorMin = Vector2.zero; lrt.anchorMax = Vector2.one; lrt.offsetMin = Vector2.zero; lrt.offsetMax = Vector2.zero;
             return go.GetComponent<Button>();
+        }
+
+        /// <summary>Task 37: every <see cref="HeroDefinitionSO"/> in the project, name-sorted for a stable
+        /// roster order. Adding a hero asset grows the Hub roster (and team-select list) automatically.</summary>
+        private static List<HeroDefinitionSO> LoadAllHeroes()
+        {
+            var list = new List<HeroDefinitionSO>();
+            foreach (var guid in AssetDatabase.FindAssets("t:HeroDefinitionSO"))
+            {
+                var hero = AssetDatabase.LoadAssetAtPath<HeroDefinitionSO>(AssetDatabase.GUIDToAssetPath(guid));
+                if (hero != null) list.Add(hero);
+            }
+            list.Sort((a, b) => string.CompareOrdinal(a.HeroName, b.HeroName));
+            return list;
         }
 
         private static void SetBuildScenes()

@@ -20,10 +20,11 @@ namespace Wavekeep.UI
     /// initialises its <see cref="HeroRuntime"/>, and starts the Task 02 wave run (which is configured
     /// not to auto-start, so the run waits for the player's choice).
     ///
-    /// Task 14: the Hub now owns hero selection. If a <see cref="RunLaunchContext"/> carries a hero
-    /// (the normal launch path), this panel is skipped and that hero auto-starts — so the player never
-    /// picks twice. The in-scene panel survives only as a DEV fallback for opening the gameplay scene
-    /// standalone (no Hub), keeping Task 05 testable in isolation.
+    /// Task 14/37: the Hub now owns hero selection. If a <see cref="RunLaunchContext"/> carries a team
+    /// (the normal launch path — one OR more heroes chosen in the Hub's team-select screen), this panel is
+    /// skipped and that whole team auto-starts, so the player never picks twice. The in-scene
+    /// <see cref="_debugTeam"/> and dev panel survive only as fallbacks for opening the gameplay scene
+    /// standalone (no Hub), keeping Task 05/36 testable in isolation.
     /// </summary>
     [AddComponentMenu("Wavekeep/UI/Hero Select Controller")]
     public sealed class HeroSelectController : MonoBehaviour
@@ -36,10 +37,11 @@ namespace Wavekeep.UI
         [Header("Roster (add a HeroDefinitionSO here to add a hero — no code needed)")]
         [SerializeField] private List<HeroDefinitionSO> _heroRoster = new List<HeroDefinitionSO>();
 
-        [Header("Debug Team (Task 36 — temporary dual-hero entry point)")]
-        [Tooltip("If non-empty, the run starts immediately with ALL these heroes active together (skipping " +
-                 "single-hero select / launch context). The proper Hub team-select UI is a later task; this " +
-                 "is the 'hardcoded/debug entry point' Task 36 assumes (Frost Warden + Bolt Striker).")]
+        [Header("Debug Team (Task 36 — standalone dev fallback only)")]
+        [Tooltip("DEV FALLBACK ONLY (Task 37): used when the gameplay scene is opened standalone with NO Hub " +
+                 "launch context. The real entry point is now the Hub's team-select screen, whose chosen team " +
+                 "rides in via RunLaunchContext and takes priority over this list. Handy for testing the " +
+                 "dual-hero runtime without going through the Hub (e.g. Frost Warden + Bolt Striker).")]
         [SerializeField] private List<HeroDefinitionSO> _debugTeam = new List<HeroDefinitionSO>();
         [Tooltip("Lateral spacing (m) between spawned team members so they don't overlap at the near edge.")]
         [SerializeField, Min(0f)] private float _teamSpacing = 3f;
@@ -54,41 +56,37 @@ namespace Wavekeep.UI
 
         private void Start()
         {
-            // Task 36: dual-hero debug entry point takes priority — start the whole hardcoded team at once.
+            // Task 37: Hub-launched run is the real entry point — auto-start the TEAM chosen in the Hub
+            // (one or more heroes), skipping the panel. Takes priority over the dev debug team so a Hub
+            // launch always honors the player's selection.
+            var launch = Object.FindFirstObjectByType<RunLaunchContext>();
+            if (launch != null && launch.SelectedHeroes != null && launch.SelectedHeroes.Count > 0)
+            {
+                if (_selectPanel != null) _selectPanel.SetActive(false);
+                // Copy out of the cross-scene carrier so the deferred start is unaffected by later edits.
+                StartCoroutine(AutoStartTeamNextFrame(new List<HeroDefinitionSO>(launch.SelectedHeroes)));
+                return;
+            }
+
+            // Task 36 dev fallback: gameplay scene opened standalone (no Hub) — start the hardcoded team.
             if (_debugTeam != null && _debugTeam.Count > 0)
             {
                 if (_selectPanel != null) _selectPanel.SetActive(false);
-                StartCoroutine(AutoStartTeamNextFrame());
+                StartCoroutine(AutoStartTeamNextFrame(_debugTeam));
                 return;
             }
 
-            // Task 14: Hub-launched run — auto-start the hero chosen in the Hub, skipping the panel.
-            var launch = Object.FindFirstObjectByType<RunLaunchContext>();
-            if (launch != null && launch.SelectedHero != null)
-            {
-                if (_selectPanel != null) _selectPanel.SetActive(false);
-                StartCoroutine(AutoStartNextFrame(launch.SelectedHero));
-                return;
-            }
-
-            // Standalone (no Hub): show the dev-fallback hero-select panel.
+            // Standalone with no debug team either: show the dev-fallback hero-select panel.
             BuildButtons();
         }
 
         // Defer one frame so every component's Start() (notably WaveSpawner's) has run before we
-        // instantiate the hero and call StartRun — avoids Start-ordering NREs that the original
+        // instantiate the heroes and call StartRun — avoids Start-ordering NREs that the original
         // button-click flow never hit (the click always came after all Starts).
-        private IEnumerator AutoStartNextFrame(HeroDefinitionSO hero)
+        private IEnumerator AutoStartTeamNextFrame(IReadOnlyList<HeroDefinitionSO> team)
         {
             yield return null;
-            OnHeroChosen(hero);
-        }
-
-        // Task 36: same one-frame defer, but starts the whole team together.
-        private IEnumerator AutoStartTeamNextFrame()
-        {
-            yield return null;
-            StartTeam(_debugTeam);
+            StartTeam(team);
         }
 
         private void BuildButtons()
@@ -133,8 +131,9 @@ namespace Wavekeep.UI
             go.GetComponent<Button>().onClick.AddListener(() => OnHeroChosen(hero));
         }
 
-        // Single-hero path (Hub launch / dev panel) — delegates to the team path with a one-hero team so
-        // spawn/registration/run-start logic lives in exactly one place (Task 36).
+        // Dev-panel single-hero click — delegates to the team path with a one-hero team so spawn/
+        // registration/run-start logic lives in exactly one place (Task 36). The Hub launch path now
+        // carries a full team via RunLaunchContext (Task 37) and does not route through here.
         private void OnHeroChosen(HeroDefinitionSO hero)
         {
             StartTeam(new List<HeroDefinitionSO> { hero });

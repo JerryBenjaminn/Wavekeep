@@ -19,9 +19,17 @@ namespace Wavekeep.UI
     /// replace-not-destroy and persist to disk — no parallel mutation path. The Hub reads inventory via
     /// <see cref="GearManager.Inventory"/> and loadouts via <see cref="GearManager.GetLoadout(HeroDefinitionSO)"/>.
     ///
-    /// Flow (documented decision): the Hub ABSORBS hero selection. "Start Run" stores the chosen hero on
-    /// a <see cref="RunLaunchContext"/> and loads the gameplay scene, which auto-starts that hero — the
-    /// player never picks twice. The chosen loadout reaches gameplay via the existing disk save.
+    /// Flow (documented decision): the Hub ABSORBS hero selection. "Start Run" stores the chosen TEAM on
+    /// a <see cref="RunLaunchContext"/> and loads the gameplay scene, which auto-starts that team — the
+    /// player never picks twice. The chosen loadouts reach gameplay via the existing disk save.
+    ///
+    /// Task 37 — TEAM SELECTION: each hero row carries a checkbox-style toggle marking whether that hero
+    /// joins the next run; the run launches with exactly the toggled set (one or more). Which heroes EXIST
+    /// and which are toggled lives in a <see cref="TeamSelectionModel"/> the UI reads — the UI never
+    /// hardcodes a fixed number of slots, so a new hero asset added to <see cref="_heroRoster"/> appears
+    /// automatically. A minimum of one hero is required to start; the future per-progression slot CAP plugs
+    /// into <see cref="TeamSelectionModel.CanSelect"/> (see that type) without reworking this screen.
+    /// Selecting a hero (its name button) for loadout EDITING is independent of toggling it into the team.
     /// </summary>
     [AddComponentMenu("Wavekeep/UI/Hub Controller")]
     public sealed class HubController : MonoBehaviour
@@ -37,6 +45,9 @@ namespace Wavekeep.UI
         [SerializeField] private RectTransform _slotContainer;
         [SerializeField] private RectTransform _inventoryContainer;
         [SerializeField] private Button _startRunButton;
+        [Tooltip("Task 37: feedback line under Start Run — shows the current team count, or a clear message " +
+                 "when zero heroes are selected (run start is blocked). Optional; logging still happens if unwired.")]
+        [SerializeField] private TMP_Text _startFeedbackLabel;
 
         [Header("Equip picker (modal)")]
         [SerializeField] private GameObject _equipPickerPanel;
@@ -58,6 +69,10 @@ namespace Wavekeep.UI
 
         private GearManager _gear;
         private HeroDefinitionSO _activeHero;
+
+        // Task 37: which heroes exist + which are toggled into the next run. The UI reads this rather than
+        // hardcoding slots, so new heroes appear automatically and a future slot cap plugs into the model.
+        private TeamSelectionModel _teamSelection;
 
         // Task 25: the item currently shown in the detail panel (null = panel closed). Clicking this same
         // item again toggles the panel closed; clicking a different item re-targets the panel.
@@ -82,6 +97,12 @@ namespace Wavekeep.UI
 
             _gear = _bootstrap.Session.GearManager;
 
+            // Task 37: the selectable roster + current team toggles. Seed with the first hero selected so a
+            // fresh Hub can start a run immediately (and the player can still deselect to see the ≥1 message).
+            _teamSelection = new TeamSelectionModel(_heroRoster);
+            if (_teamSelection.Available.Count > 0)
+                _teamSelection.SetSelected(_teamSelection.Available[0], true);
+
             BuildHeroButtons();
             if (_startRunButton != null) _startRunButton.onClick.AddListener(OnStartRun);
             if (_equipPickerCloseButton != null) _equipPickerCloseButton.onClick.AddListener(ClosePicker);
@@ -100,20 +121,80 @@ namespace Wavekeep.UI
                 if (_heroRoster[i] != null) { SelectHero(_heroRoster[i]); break; }
             }
             RefreshInventory();
+            UpdateStartFeedback();
         }
 
         // --- Hero selection -----------------------------------------------------------------------
 
+        // Task 37: one row per AVAILABLE hero (iterated from the TeamSelectionModel, never a fixed count) —
+        // [team toggle][icon][name button]. The toggle marks team membership; the name button selects the
+        // hero for loadout editing (independent concepts). Rebuilt on each toggle so the checkboxes redraw.
         private void BuildHeroButtons()
         {
-            if (_heroButtonContainer == null) return;
-            for (int i = 0; i < _heroRoster.Count; i++)
+            if (_heroButtonContainer == null || _teamSelection == null) return;
+            ClearChildren(_heroButtonContainer);
+
+            var heroes = _teamSelection.Available;
+            for (int i = 0; i < heroes.Count; i++)
             {
-                var hero = _heroRoster[i];
+                var hero = heroes[i];
                 if (hero == null) continue;
                 var captured = hero;
-                CreateButton(_heroButtonContainer, hero.HeroName, hero.Tint, Color.black,
-                    new Vector2(200f, 48f), () => SelectHero(captured));
+
+                var row = CreateRow(_heroButtonContainer, new Vector2(360f, 52f));
+
+                // Checkbox-style team toggle (green/checked when in the team).
+                bool inTeam = _teamSelection.IsSelected(hero);
+                CreateButton(row.transform, inTeam ? "✓" : "", // ✓ when selected
+                    inTeam ? new Color(0.20f, 0.55f, 0.25f) : new Color(0.28f, 0.28f, 0.34f),
+                    Color.white, new Vector2(44f, 44f), () => OnToggleTeam(captured));
+
+                // Hero icon (placeholder tint when no sprite is authored — same pattern as the gear panel).
+                BuildHeroIcon(row.transform, hero);
+
+                // Name button — selects this hero for loadout editing.
+                CreateButton(row.transform, hero.HeroName, hero.Tint, Color.black,
+                    new Vector2(220f, 44f), () => SelectHero(captured));
+            }
+        }
+
+        private void BuildHeroIcon(Transform parent, HeroDefinitionSO hero)
+        {
+            var go = new GameObject("Icon", typeof(RectTransform), typeof(Image));
+            go.transform.SetParent(parent, false);
+            ((RectTransform)go.transform).sizeDelta = new Vector2(44f, 44f);
+            var img = go.GetComponent<Image>();
+            if (hero.Icon != null) { img.sprite = hero.Icon; img.color = Color.white; }
+            else img.color = hero.Tint; // no artwork yet → tint placeholder so heroes still read distinct
+        }
+
+        // Task 37: flip team membership, redraw the checkboxes, and refresh the start-availability message.
+        private void OnToggleTeam(HeroDefinitionSO hero)
+        {
+            if (_teamSelection == null) return;
+            _teamSelection.Toggle(hero);
+            BuildHeroButtons();
+            UpdateStartFeedback();
+        }
+
+        // Task 37: reflect current team size in the feedback line + gate the Start button so a zero-hero run
+        // can't even be clicked (OnStartRun re-checks too, so the rule holds even if this label is unwired).
+        private void UpdateStartFeedback()
+        {
+            int count = _teamSelection != null ? _teamSelection.SelectedCount : 0;
+            bool canStart = _teamSelection != null && _teamSelection.CanStartRun;
+
+            if (_startRunButton != null) _startRunButton.interactable = canStart;
+
+            if (_startFeedbackLabel == null) return;
+            if (canStart)
+            {
+                _startFeedbackLabel.text = $"<color=#9FE0A0>Team: {count} hero{(count == 1 ? "" : "es")} selected</color>";
+            }
+            else
+            {
+                _startFeedbackLabel.text =
+                    $"<color=#E0A04C>Select at least {TeamSelectionModel.MinSelectableHeroes} hero to start a run.</color>";
             }
         }
 
@@ -500,14 +581,21 @@ namespace Wavekeep.UI
 
         private void OnStartRun()
         {
-            if (_activeHero == null)
+            // Task 37: launch the TOGGLED TEAM, not the loadout-editing hero. Enforce the ≥1 minimum here
+            // too (not just via the disabled button) so a zero-hero run can never start — reviewer-blocking.
+            if (_teamSelection == null || !_teamSelection.CanStartRun)
             {
-                Debug.LogWarning("[HubController] No hero selected; pick a hero before starting a run.");
+                Debug.LogWarning("[HubController] Cannot start: select at least " +
+                                 $"{TeamSelectionModel.MinSelectableHeroes} hero first.");
+                UpdateStartFeedback();
                 return;
             }
 
-            // Carry the chosen hero across the scene load; the gameplay scene auto-starts it (no second pick).
-            RunLaunchContext.GetOrCreate().SetHero(_activeHero);
+            var team = _teamSelection.GetSelectedTeam();
+
+            // Carry the chosen team across the scene load; the gameplay scene auto-starts them (no second pick).
+            RunLaunchContext.GetOrCreate().SetTeam(team);
+            Debug.Log($"[HubController] Starting run with {team.Count} hero(es).");
             SceneManager.LoadScene(_gameplaySceneName);
         }
 
