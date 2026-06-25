@@ -103,6 +103,11 @@ namespace Wavekeep.Runtime
         // passive combo reuses it without further EnemyRuntime changes. 0 = not primed.
         private float _primedRemaining;
 
+        // Task 44: per-enemy Frost VFX driver (Slow vs. Freeze overlay shader). Lives on the pooled
+        // GameObject so it persists across reuse; EnemyRuntime only reads its own status state and pushes
+        // the resulting visual tier each tick. Null only if the GameObject can't host one (never in practice).
+        private FrostVfxController _frostVfx;
+
         public EnemyDefinitionSO Definition { get; private set; }
         public GameObject GameObject { get; private set; }
         public Transform Transform { get; private set; }
@@ -161,6 +166,16 @@ namespace Wavekeep.Runtime
             MoveSpeed = definition.MoveSpeed;
             Armor = definition.Armor * statMultiplier;       // Task 34: scales like HP
             MagicResist = definition.MagicResist * statMultiplier;
+
+            // Task 44: ensure a Frost VFX driver exists on this pooled GameObject (added once, reused after),
+            // and reset it to a clean state so a previously-frozen enemy doesn't spawn back showing frost.
+            if (_frostVfx == null)
+            {
+                _frostVfx = pooledInstance.GetComponent<FrostVfxController>();
+                if (_frostVfx == null) _frostVfx = pooledInstance.AddComponent<FrostVfxController>();
+            }
+            _frostVfx.EnsureInitialized();
+            _frostVfx.ResetImmediate();
         }
 
         /// <summary>Advance status effects, then movement or wall-attack by <paramref name="deltaTime"/> seconds.</summary>
@@ -176,6 +191,7 @@ namespace Wavekeep.Runtime
             TickArmorReductions(deltaTime); // Task 34: expire temporary armor debuffs
             TickVulnerabilities(deltaTime); // Task 35: expire vulnerability debuffs
             TickPrime(deltaTime);           // Task 38: expire the combo prime window
+            UpdateFrostVfx(deltaTime);      // Task 44: drive the Slow/Freeze overlay shader (also while attacking)
 
             if (_isAttacking)
             {
@@ -468,6 +484,57 @@ namespace Wavekeep.Runtime
         private void TickPrime(float deltaTime)
         {
             if (_primedRemaining > 0f) _primedRemaining -= deltaTime;
+        }
+
+        // Task 44: map this enemy's current Frost status state to a discrete VFX tier and push it to the
+        // overlay shader driver. Freeze (a hard movement stop) dominates and shows the strong tier; otherwise
+        // any active Slow status OR lingering Frost stacks show the subtle mist tier, scaled by how impaired
+        // the enemy is so a near-frozen enemy reads stronger than a single stack. Reading only this enemy's
+        // own state keeps every enemy's VFX independent (no shared parameter).
+        private void UpdateFrostVfx(float deltaTime)
+        {
+            if (_frostVfx == null) return;
+
+            var tier = FrostVfxController.FrostTier.None;
+            float intensity = 0f;
+
+            bool frozen = false;
+            float slowFraction = 0f; // strongest active Slow magnitude [0..1]
+            for (int i = 0; i < _statusEffects.Count; i++)
+            {
+                if (_statusEffects[i].Type == StatusEffectType.Freeze) { frozen = true; break; }
+                if (_statusEffects[i].Type == StatusEffectType.Slow)
+                    slowFraction = Mathf.Max(slowFraction, _statusEffects[i].Magnitude);
+            }
+
+            if (frozen)
+            {
+                tier = FrostVfxController.FrostTier.Freeze;
+                intensity = 1f;
+            }
+            else
+            {
+                // Normalise stacks against their own max so the mist deepens as the enemy nears a Freeze.
+                float stackRatio = 0f;
+                for (int i = 0; i < _stackingEffects.Count; i++)
+                {
+                    var s = _stackingEffects[i];
+                    if (s.Stacks > 0 && s.MaxStacks > 0)
+                        stackRatio = Mathf.Max(stackRatio, (float)s.Stacks / s.MaxStacks);
+                }
+
+                // A Slow status fraction (e.g. 0.25) is mapped onto the same 0..1 mist scale.
+                float slowRatio = Mathf.Clamp01(slowFraction * 2f);
+                float t = Mathf.Max(stackRatio, slowRatio);
+                if (t > 0f)
+                {
+                    tier = FrostVfxController.FrostTier.Slow;
+                    intensity = Mathf.Lerp(0.35f, 1f, t); // keep even one stack visible; shader keeps it subtle
+                }
+            }
+
+            _frostVfx.SetTarget(tier, intensity);
+            _frostVfx.TickVisual(deltaTime);
         }
 
         // Task 19: decay each stacking effect by one stack per DecayInterval of NOT being refreshed.
