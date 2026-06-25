@@ -14,6 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.ApexTalentDefinitionSO
   _hero: {fileID: 11400000, guid: 86703b95547c99a48bdc6f7112d270f5, type: 2}
   _apexName: Thunderstorm
+  _description: An automatically-firing apex ability, unlocked by maxing all of its
+    required upgrade lines.
   _requiredLines:
   - {fileID: 11400000, guid: 7a599d5e8d23a2b428b1a24344536ae7, type: 2}
   - {fileID: 11400000, guid: f2b0e6699ea8caf48a70ae6b6b5fbcab, type: 2}

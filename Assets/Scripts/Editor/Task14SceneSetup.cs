@@ -104,6 +104,10 @@ namespace Wavekeep.EditorTools
             // never opened. Chaining it in means every Hub rebuild restores the panel + its wiring in one pass.
             Task25SceneSetup.BuildAndWire(hub, canvas);
 
+            // Task 43: same chaining lesson — re-apply the Codex panel + OPEN CODEX button so a Hub rebuild
+            // never silently drops it. No-ops if the Task 43 catalog asset doesn't exist yet.
+            Task43CodexSetup.BuildAndWireForHubRebuild(canvas, bootstrap);
+
             // --- Save the scene + register build order (Hub first). ---
             EnsureFolder("Assets", "Scenes");
             EditorSceneManager.SaveScene(scene, HubScenePath);

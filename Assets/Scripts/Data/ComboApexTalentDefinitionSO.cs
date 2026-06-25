@@ -27,6 +27,8 @@ namespace Wavekeep.Data
     public sealed class ComboApexTalentDefinitionSO : ScriptableObject
     {
         [SerializeField] private string _comboName;
+        [Tooltip("Task 43: player-facing flavour/effect text shown in the Codex once this combo is discovered.")]
+        [SerializeField, TextArea] private string _description;
         [SerializeField] private Sprite _icon;
 
         [Tooltip("How this combo takes effect once both referenced apexes are unlocked. Frozen Lightning = Passive.")]
@@ -49,6 +51,9 @@ namespace Wavekeep.Data
         [SerializeField, Min(1f)] private float _consumeDamageMultiplier = 2.5f;
 
         public string ComboName => _comboName;
+
+        /// <summary>Task 43: Codex flavour/effect text (may be empty for older assets).</summary>
+        public string Description => _description;
         public Sprite Icon => _icon;
 
         /// <summary>Passive vs. Active (Task 38). Only Passive is implemented this task.</summary>

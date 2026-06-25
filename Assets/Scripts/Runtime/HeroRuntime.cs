@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Wavekeep.Abilities;
 using Wavekeep.Core;
+using Wavekeep.Core.Events;
 using Wavekeep.Data;
 using Wavekeep.Economy;
 using Wavekeep.Gear;
@@ -47,6 +48,7 @@ namespace Wavekeep.Runtime
         public AbilityStats? UltimateStats => Ultimate?.ResolveStats(_upgrades, _consumables, _equippedModifiers);
 
         private WaveSpawner _waveSpawner;
+        private EventBus _events; // Task 43: publish ApexUnlockedEvent so the discovery manager can record/notify
         private UpgradeInventory _upgrades;
         private ConsumableInventory _consumables;
         private ComboApexState _comboApex; // Task 38: cross-hero combo resolver (shared run-scoped service)
@@ -92,6 +94,7 @@ namespace Wavekeep.Runtime
         {
             Definition = definition;
             _waveSpawner = waveSpawner;
+            _events = session.Events; // Task 43: announce apex unlocks for the discovery/Codex system
             _upgrades = session.UpgradeInventory;
             _consumables = session.ConsumableInventory;
             _comboApex = session.ComboApex; // Task 38: same resolver for every hero; reads the shared registry
@@ -217,6 +220,12 @@ namespace Wavekeep.Runtime
                 if (!AllLinesMaxed(apex.RequiredLines)) continue;
 
                 _unlockedApexes.Add(apex); // mark unlocked even if mis-authored, so we don't re-warn each tier
+
+                // Task 43: announce the unlock (BEFORE the ability null-check below, so a mis-authored apex
+                // still counts as discovered). _unlockedApexes already contains it, so the discovery manager's
+                // combo re-scan sees this hero's apex as live when deciding whether a cross-hero combo unlocked.
+                _events?.Publish(new ApexUnlockedEvent(apex));
+
                 if (apex.Ability == null)
                 {
                     Debug.LogWarning($"[HeroRuntime] Apex '{apex.ApexName}' unlocked but has no ability assigned.");

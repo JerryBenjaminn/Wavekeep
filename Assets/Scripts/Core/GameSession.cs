@@ -3,6 +3,7 @@ using Wavekeep.Economy;
 using Wavekeep.Gear;
 using Wavekeep.Input;
 using Wavekeep.Pooling;
+using Wavekeep.Progression;
 
 namespace Wavekeep.Core
 {
@@ -64,6 +65,18 @@ namespace Wavekeep.Core
         /// holds an empty combo list when none are configured for the scene.</summary>
         public ComboApexState ComboApex { get; }
 
+        /// <summary>Task 42: PERSISTENT hero-slot unlock progression. Disk-backed like <see cref="GearManager"/>,
+        /// so it survives runs; raised when a run clears a wave milestone (15/30/50). The Hub team-selection
+        /// panel gates how many heroes can be brought into a run against
+        /// <see cref="HeroSlotUnlockManager.MaxUnlockedHeroSlots"/>.</summary>
+        public HeroSlotUnlockManager HeroSlotUnlocks { get; }
+
+        /// <summary>Task 43: PERSISTENT apex/combo-apex discovery state (the Codex). Disk-backed like
+        /// <see cref="GearManager"/>/<see cref="HeroSlotUnlocks"/>; records the first-ever unlock of each
+        /// talent and announces it via <see cref="Core.Events.TalentDiscoveredEvent"/>. The Hub Codex reads
+        /// it to show discovered talents in full and undiscovered ones as "???".</summary>
+        public TalentDiscoveryManager TalentDiscovery { get; }
+
         // Task 02 note: WaveSpawner is a scene MonoBehaviour that *consumes* this session
         // (pulls Events + EnemyPool from it) rather than being held here, so Core has no
         // dependency on the Waves layer. Dependency flow still originates from GameSession (§3.5).
@@ -82,7 +95,9 @@ namespace Wavekeep.Core
             LootService lootService,
             LuckState luckState,
             HeroRegistry heroes,
-            ComboApexState comboApex)
+            ComboApexState comboApex,
+            HeroSlotUnlockManager heroSlotUnlocks,
+            TalentDiscoveryManager talentDiscovery)
         {
             Events = eventBus;
             EnemyPool = enemyPool;
@@ -98,6 +113,8 @@ namespace Wavekeep.Core
             LuckState = luckState;
             Heroes = heroes;
             ComboApex = comboApex;
+            HeroSlotUnlocks = heroSlotUnlocks;
+            TalentDiscovery = talentDiscovery;
         }
 
         /// <summary>Release all session-scoped state. Call when the run/scene ends.</summary>
@@ -108,6 +125,8 @@ namespace Wavekeep.Core
             XPManager?.Dispose();
             LootService?.Dispose();
             LuckState?.Dispose();
+            HeroSlotUnlocks?.Dispose(); // Task 42: unsubscribe wave/run listeners (§3.5 lifecycle)
+            TalentDiscovery?.Dispose(); // Task 43: unsubscribe apex-unlocked listener (§3.5 lifecycle)
             Heroes?.Clear(); // Task 36: drop hero references so none leak across a scene reload (§3.5)
             Events.UnsubscribeAll();
             EnemyPool.Clear();

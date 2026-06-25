@@ -14,6 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.ApexTalentDefinitionSO
   _hero: {fileID: 11400000, guid: 86703b95547c99a48bdc6f7112d270f5, type: 2}
   _apexName: Lethal Surge
+  _description: An automatically-firing apex ability, unlocked by maxing all of its
+    required upgrade lines.
   _requiredLines:
   - {fileID: 11400000, guid: d80a3ed6722ad404a8417dcf21a24ea3, type: 2}
   - {fileID: 11400000, guid: cb528ecd4c062a34783c341b8871a506, type: 2}

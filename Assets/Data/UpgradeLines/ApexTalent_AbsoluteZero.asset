@@ -14,6 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.ApexTalentDefinitionSO
   _hero: {fileID: 11400000, guid: 4b9f77b40606f9d4c82693927fbb4c6a, type: 2}
   _apexName: Absolute Zero
+  _description: An automatically-firing apex ability, unlocked by maxing all of its
+    required upgrade lines.
   _requiredLines:
   - {fileID: 11400000, guid: b05b26e327a5d424ab59a379be5747a0, type: 2}
   - {fileID: 11400000, guid: 7d276b80cc21a7744ac922b42c86a850, type: 2}

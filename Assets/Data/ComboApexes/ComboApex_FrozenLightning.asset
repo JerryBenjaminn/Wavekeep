@@ -13,6 +13,8 @@ MonoBehaviour:
   m_Name: ComboApex_FrozenLightning
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.ComboApexTalentDefinitionSO
   _comboName: Frozen Lightning
+  _description: "Cross-hero synergy: Remorseless Winter primes struck enemies; Lethal
+    Surge consumes the prime for \xD72.5 amplified damage."
   _icon: {fileID: 0}
   _triggerType: 0
   _primingApex: {fileID: 11400000, guid: 3acc5d086b54e424c83842f05b706acc, type: 2}

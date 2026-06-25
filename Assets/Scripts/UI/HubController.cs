@@ -97,9 +97,14 @@ namespace Wavekeep.UI
 
             _gear = _bootstrap.Session.GearManager;
 
-            // Task 37: the selectable roster + current team toggles. Seed with the first hero selected so a
-            // fresh Hub can start a run immediately (and the player can still deselect to see the ≥1 message).
-            _teamSelection = new TeamSelectionModel(_heroRoster);
+            // Task 37 + 42: the selectable roster + current team toggles, now gated by the PERSISTENT
+            // hero-slot unlock ceiling. The cap (and per-slot wave requirements for locked rows) come from the
+            // disk-backed HeroSlotUnlockManager — rebuilt on this scene load, so a slot unlocked in the last
+            // run is reflected here with no app restart. Seed slot 1 (always unlocked) so a fresh Hub can start
+            // a run immediately (and the player can still deselect to see the ≥1 message).
+            var unlocks = _bootstrap.Session.HeroSlotUnlocks;
+            int maxSlots = unlocks != null ? unlocks.MaxUnlockedHeroSlots : TeamSelectionModel.MinSelectableHeroes;
+            _teamSelection = new TeamSelectionModel(_heroRoster, maxSlots, BuildUnlockMilestones(unlocks));
             if (_teamSelection.Available.Count > 0)
                 _teamSelection.SetSelected(_teamSelection.Available[0], true);
 
@@ -141,21 +146,52 @@ namespace Wavekeep.UI
                 if (hero == null) continue;
                 var captured = hero;
 
-                var row = CreateRow(_heroButtonContainer, new Vector2(360f, 52f));
+                var row = CreateRow(_heroButtonContainer, new Vector2(560f, 52f));
 
-                // Checkbox-style team toggle (green/checked when in the team).
+                // Task 42: a hero "beyond the unlocked slot count" stays visible but locked. Its toggle is
+                // disabled and a "Reach wave N to unlock" label replaces the team checkbox interaction.
+                bool unlocked = _teamSelection.IsUnlocked(hero);
+
                 bool inTeam = _teamSelection.IsSelected(hero);
-                CreateButton(row.transform, inTeam ? "✓" : "", // ✓ when selected
-                    inTeam ? new Color(0.20f, 0.55f, 0.25f) : new Color(0.28f, 0.28f, 0.34f),
+                var toggle = CreateButton(row.transform, !unlocked ? "-" : (inTeam ? "✓" : ""),
+                    !unlocked ? new Color(0.22f, 0.16f, 0.16f)
+                              : (inTeam ? new Color(0.20f, 0.55f, 0.25f) : new Color(0.28f, 0.28f, 0.34f)),
                     Color.white, new Vector2(44f, 44f), () => OnToggleTeam(captured));
+                toggle.interactable = unlocked; // locked slots can't be toggled into the team
 
                 // Hero icon (placeholder tint when no sprite is authored — same pattern as the gear panel).
                 BuildHeroIcon(row.transform, hero);
 
-                // Name button — selects this hero for loadout editing.
-                CreateButton(row.transform, hero.HeroName, hero.Tint, Color.black,
-                    new Vector2(220f, 44f), () => SelectHero(captured));
+                // Name button — selects this hero for loadout editing (allowed even while team-locked, so the
+                // player can still inspect/prep that hero's gear for when it unlocks).
+                CreateButton(row.transform, hero.HeroName, unlocked ? hero.Tint : new Color(0.45f, 0.45f, 0.50f),
+                    Color.black, new Vector2(200f, 44f), () => SelectHero(captured));
+
+                // Locked rows show their goal; unlocked rows leave the trailing space empty.
+                if (!unlocked)
+                {
+                    int wave = _teamSelection.UnlockWaveRequirement(hero);
+                    string reqText = wave > 0
+                        ? $"<color=#E0A04C>[Locked] Reach wave {wave} to unlock</color>"
+                        : "<color=#E0A04C>[Locked]</color>";
+                    var lbl = CreateText(row.transform, reqText, 16f, TextAlignmentOptions.Left);
+                    ((RectTransform)lbl.transform).sizeDelta = new Vector2(230f, 44f);
+                }
             }
+        }
+
+        // Task 42: build the per-extra-slot wave-requirement array the TeamSelectionModel expects (index 0 →
+        // slot 2). Reads the persistent manager's per-slot thresholds so the Hub never hardcodes 15/30/50.
+        private static int[] BuildUnlockMilestones(Wavekeep.Progression.HeroSlotUnlockManager unlocks)
+        {
+            if (unlocks == null) return System.Array.Empty<int>();
+            int extraSlots = unlocks.MaxPossibleHeroSlots - 1;
+            if (extraSlots <= 0) return System.Array.Empty<int>();
+
+            var milestones = new int[extraSlots];
+            for (int i = 0; i < extraSlots; i++)
+                milestones[i] = unlocks.WaveToUnlockSlot(i + 2); // index 0 → slot 2
+            return milestones;
         }
 
         private void BuildHeroIcon(Transform parent, HeroDefinitionSO hero)
@@ -189,7 +225,10 @@ namespace Wavekeep.UI
             if (_startFeedbackLabel == null) return;
             if (canStart)
             {
-                _startFeedbackLabel.text = $"<color=#9FE0A0>Team: {count} hero{(count == 1 ? "" : "es")} selected</color>";
+                // Task 42: show the current team size against the unlocked cap so the goal is always visible.
+                int cap = _teamSelection.MaxSelectableHeroes;
+                _startFeedbackLabel.text =
+                    $"<color=#9FE0A0>Team: {count}/{cap} hero{(cap == 1 ? "" : "es")} selected</color>";
             }
             else
             {

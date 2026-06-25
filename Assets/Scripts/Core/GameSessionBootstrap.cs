@@ -7,6 +7,7 @@ using Wavekeep.Economy;
 using Wavekeep.Gear;
 using Wavekeep.Input;
 using Wavekeep.Pooling;
+using Wavekeep.Progression;
 
 namespace Wavekeep.Core
 {
@@ -56,6 +57,12 @@ namespace Wavekeep.Core
                  "combos (older scenes still work).")]
         [SerializeField] private List<ComboApexTalentDefinitionSO> _comboApexes = new List<ComboApexTalentDefinitionSO>();
 
+        [Header("Hero Slot Unlocks (Task 42 — persistent meta-progression)")]
+        [Tooltip("Wave a single run must CLEAR to permanently unlock each extra hero slot beyond slot 1: " +
+                 "element 0 → slot 2, element 1 → slot 3, element 2 → slot 4. Ascending. Slot 1 is always " +
+                 "unlocked. Tunable here, not hardcoded in the manager.")]
+        [SerializeField] private int[] _heroSlotWaveMilestones = { 15, 30, 50 };
+
         /// <summary>The assembled session for this scene. Available after Awake.</summary>
         public GameSession Session { get; private set; }
 
@@ -101,10 +108,22 @@ namespace Wavekeep.Core
             // unlocks live) plus the scene-configured combo list — empty when none are wired.
             var comboApex = new ComboApexState(_comboApexes, heroes);
 
+            // Task 42: persistent hero-slot unlocks. Disk-backed like gear (its own file), reloaded on each
+            // scene build so a slot unlocked in a run is visible the moment the Hub rebuilds. Subscribes to
+            // WaveCompleted/RunEnded to evaluate milestones — inert in the Hub scene where neither fires.
+            var unlockPath = Path.Combine(Application.persistentDataPath, HeroSlotUnlockManager.DefaultSaveFileName);
+            var heroSlotUnlocks = new HeroSlotUnlockManager(eventBus, unlockPath, _heroSlotWaveMilestones);
+
+            // Task 43: persistent apex/combo-apex discovery (Codex). Disk-backed (own file), reloaded on each
+            // scene build so the Hub Codex sees fresh discoveries. Subscribes to ApexUnlockedEvent and reads the
+            // combo resolver to credit cross-hero combos — inert in the Hub scene (no apex unlocks fire there).
+            var discoveryPath = Path.Combine(Application.persistentDataPath, TalentDiscoveryManager.DefaultSaveFileName);
+            var talentDiscovery = new TalentDiscoveryManager(eventBus, comboApex, discoveryPath);
+
             Session = new GameSession(
                 eventBus, enemyPool, interactionInput, currencyManager, xpManager,
                 upgradeInventory, consumableInventory, pauseState, rerollManager, gearManager, lootService,
-                luckState, heroes, comboApex);
+                luckState, heroes, comboApex, heroSlotUnlocks, talentDiscovery);
         }
 
         private void OnDestroy()

@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7469a3520058937468e876767a7c2d9b, type: 3}
+  m_Name: TalentCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.TalentCatalogSO
+  _apexTalents:
+  - {fileID: 11400000, guid: f31b532cfe9a4ad4692b5b16f1feea0a, type: 2}
+  - {fileID: 11400000, guid: 1be05e8e79b4be54ab765c7d8915c6ce, type: 2}
+  - {fileID: 11400000, guid: b36411f827c50fd46859190a6eb73bb7, type: 2}
+  - {fileID: 11400000, guid: 3acc5d086b54e424c83842f05b706acc, type: 2}
+  - {fileID: 11400000, guid: 23eeada09a2bdab4cad1c09e49606fa2, type: 2}
+  _comboApexes:
+  - {fileID: 11400000, guid: 5638afb45edcc1743ba85a1808adad28, type: 2}

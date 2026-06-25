@@ -899,6 +899,59 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
+--- !u!1 &434755249
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 434755250}
+  - component: {fileID: 434755251}
+  m_Layer: 0
+  m_Name: FirstDiscoveryNotification
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &434755250
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 434755249}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1284513007}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: 0, y: -120}
+  m_SizeDelta: {x: 600, y: 120}
+  m_Pivot: {x: 0.5, y: 1}
+--- !u!114 &434755251
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 434755249}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3bad59b803d153648b3461d03ea845b1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.UI.FirstDiscoveryNotificationDisplay
+  _container: {fileID: 434755250}
+  _bannerSprite: {fileID: 10905, guid: 0000000000000000f000000000000000, type: 0}
+  _bootstrap: {fileID: 1169181627}
+  _displaySeconds: 4
+  _bannerColor: {r: 0.45, g: 0.3, b: 0.7, a: 0.95}
 --- !u!1 &584442305
 GameObject:
   m_ObjectHideFlags: 0
@@ -2672,6 +2725,7 @@ MonoBehaviour:
   _tierWeightingConfig: {fileID: 11400000, guid: 74bc6455a0fd8fb42a77f407086b6dc6, type: 2}
   _comboApexes:
   - {fileID: 11400000, guid: 5638afb45edcc1743ba85a1808adad28, type: 2}
+  _heroSlotWaveMilestones: 0f0000001e00000032000000
 --- !u!4 &1169181628
 Transform:
   m_ObjectHideFlags: 0
@@ -2933,6 +2987,7 @@ RectTransform:
   - {fileID: 1857935508}
   - {fileID: 1643795697}
   - {fileID: 2128081127}
+  - {fileID: 434755250}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}

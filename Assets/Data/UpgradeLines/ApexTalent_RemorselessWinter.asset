@@ -14,6 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.ApexTalentDefinitionSO
   _hero: {fileID: 11400000, guid: 4b9f77b40606f9d4c82693927fbb4c6a, type: 2}
   _apexName: Remorseless Winter
+  _description: An automatically-firing apex ability, unlocked by maxing all of its
+    required upgrade lines.
   _requiredLines:
   - {fileID: 11400000, guid: b3bbfa81eb9db5049a9602ba7be28551, type: 2}
   - {fileID: 11400000, guid: 819bffaecce2d7545aab1d7b0dbee5aa, type: 2}

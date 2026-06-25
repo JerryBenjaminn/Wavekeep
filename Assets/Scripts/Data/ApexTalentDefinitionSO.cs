@@ -16,6 +16,8 @@ namespace Wavekeep.Data
         [Tooltip("The hero that can unlock this apex.")]
         [SerializeField] private HeroDefinitionSO _hero;
         [SerializeField] private string _apexName;
+        [Tooltip("Task 43: player-facing flavour/effect text shown in the Codex once this apex is discovered.")]
+        [SerializeField, TextArea] private string _description;
         [Tooltip("Every one of these lines must be at its max tier for the apex to unlock (two or more).")]
         [SerializeField] private List<UpgradeLineDefinitionSO> _requiredLines = new List<UpgradeLineDefinitionSO>();
         [Tooltip("The apex's own ability — a NEW IAbility instance with its own cooldown (reuses the " +
@@ -24,6 +26,9 @@ namespace Wavekeep.Data
 
         public HeroDefinitionSO Hero => _hero;
         public string ApexName => _apexName;
+
+        /// <summary>Task 43: Codex flavour/effect text (may be empty for older assets).</summary>
+        public string Description => _description;
         public IReadOnlyList<UpgradeLineDefinitionSO> RequiredLines => _requiredLines;
         public AbilityDefinitionSO Ability => _ability;
     }

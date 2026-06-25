@@ -75,6 +75,32 @@ namespace Wavekeep.Core.Events
         public HeroSelectedEvent(HeroDefinitionSO hero) => Hero = hero;
     }
 
+    /// <summary>Task 43: published by <c>HeroRuntime</c> the moment a single-hero apex talent first unlocks
+    /// during a run (its required lines all hit max tier). Carries the unlocked
+    /// <see cref="ApexTalentDefinitionSO"/> (read-only). The discovery manager listens to record first-ever
+    /// discoveries and to re-evaluate cross-hero combo unlocks. NOT a per-frame signal — fires once per apex
+    /// per run.</summary>
+    public readonly struct ApexUnlockedEvent
+    {
+        public readonly ApexTalentDefinitionSO Apex;
+        public ApexUnlockedEvent(ApexTalentDefinitionSO apex) => Apex = apex;
+    }
+
+    /// <summary>Task 43: published when an apex or combo apex is discovered for the FIRST time ever (it was
+    /// not already in the persistent discovered set). Drives the distinct first-discovery notification — it is
+    /// NOT republished on later unlocks of an already-discovered talent. Carries the talent's display name and
+    /// whether it is a combo apex, so the banner can word itself ("New Combo Discovered!" vs apex).</summary>
+    public readonly struct TalentDiscoveredEvent
+    {
+        public readonly string TalentName;
+        public readonly bool IsCombo;
+        public TalentDiscoveredEvent(string talentName, bool isCombo)
+        {
+            TalentName = talentName;
+            IsCombo = isCombo;
+        }
+    }
+
     /// <summary>Published when the active hero gains an XP level.</summary>
     public readonly struct XPLevelUpEvent
     {
