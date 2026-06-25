@@ -106,6 +106,22 @@ namespace Wavekeep.Runtime
             _ringTimer = _flashDuration;
         }
 
+        // Task 45: frost-styled ability VFX is rendered by FrostVfxPresenter, not this generic diagnostic
+        // beam/ring presenter — these are no-ops here so both can coexist on the hero via the composite sink.
+        public void OnRangedImpactBurst(Vector3 from, Vector3 to, float burstRadius) { }
+        public void OnGroundPatch(Vector3 center, float radius, float duration) { }
+        public Wavekeep.Abilities.IZoneVisual BeginZone(float bandMinZ, float bandMaxZ) => null;
+
+        // Task 46: Bolt Striker electrical VFX is rendered by LightningVfxPresenter — no-ops here.
+        public void OnLightningStrike(Vector3 from, Vector3 to, Wavekeep.Abilities.LightningStrikeFlags flags) { }
+        public void OnChainJump(Vector3 from, Vector3 to) { }
+        public void OnArmorBreak(Transform target, float duration) { }
+        public void OnVulnerability(Transform target, float duration) { }
+
+        // Task 47: apex / combo apex VFX is rendered by ApexVfxPresenter — no-ops here.
+        public void OnApexImpact(Vector3 center, float radius, Wavekeep.Abilities.ApexVfxStyle style) { }
+        public void OnComboFrozenLightning(Vector3 center) { }
+
         private void Update()
         {
             // Uses normal deltaTime; the project pauses via PauseState (not timeScale), so a frozen run

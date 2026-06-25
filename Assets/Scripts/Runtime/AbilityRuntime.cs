@@ -35,6 +35,12 @@ namespace Wavekeep.Runtime
         // Task 35: reusable buffer for Chain Lightning jump-target collection (same no-alloc rationale).
         private readonly List<EnemyRuntime> _chainBuffer = new List<EnemyRuntime>();
 
+        // Task 46: per-hit proc flags, written by the payload helpers during a single OnHit and read by the
+        // lightning-VFX call right after, so a strike's flash reflects what ACTUALLY procced on that hit
+        // (Overcharge spike / Execute) without changing OnHit's signature or adding a parallel path.
+        private bool _lastHitSpike;
+        private bool _lastHitExecute;
+
         public AbilityDefinitionSO Definition { get; }
         public int CurrentLevel { get; private set; } = 1;
         public bool IsReady => _cooldownTimer <= 0f;
@@ -104,7 +110,7 @@ namespace Wavekeep.Runtime
             // Task 23: crit is the FINAL multiplicative step in the damage pipeline — a per-cast roll on
             // the fully-modified damage. Rolled here (at execution), NOT in ComputeStats, so deterministic
             // previews (GetEffectiveDamage / ResolveStats) never randomly crit. Defaults to no-op (0% chance).
-            damage = RollCrit(damage, context.Consumables, context.Upgrades);
+            damage = RollCrit(damage, context.Consumables, context.Upgrades, out bool critted);
 
             bool hitSomething;
             switch (Definition.TargetingType)
@@ -119,7 +125,7 @@ namespace Wavekeep.Runtime
                     hitSomething = ExecuteTargetedAreaOfEffect(context, Definition.Range, range, damage, maxTargets);
                     break;
                 default: // SingleTarget
-                    hitSomething = ExecuteSingleTarget(context, range, damage);
+                    hitSomething = ExecuteSingleTarget(context, range, damage, critted);
                     break;
             }
 
@@ -132,7 +138,7 @@ namespace Wavekeep.Runtime
             }
         }
 
-        private bool ExecuteSingleTarget(AbilityExecutionContext context, float range, float damage)
+        private bool ExecuteSingleTarget(AbilityExecutionContext context, float range, float damage, bool critted)
         {
             EnemyRuntime nearest = null;
             float bestSqr = range * range;
@@ -153,6 +159,13 @@ namespace Wavekeep.Runtime
 
             if (nearest == null) return false;
 
+            // Task 47: an apex talent gets ONE high-impact effect per cast (and the shared weight treatment),
+            // not the per-hit Basic/Ultimate visuals — so suppress the basic-tier beam/lightning here.
+            // Task 46: otherwise route to the lightning presenter when the data flag says so (Bolt Striker);
+            // keep the diagnostic beam for anything else. No ability identity is hardcoded.
+            bool apex = _role == AbilityRole.Apex;
+            bool lightning = !apex && Definition.VfxStyle == AbilityVfxStyle.Lightning;
+
             // Task 35: a single-target cast can strike its target multiple times (Multi-Strike upgrade on the
             // ultimate, or an ability-baked _hitCount like Thunderstorm). Each strike is a full OnHit so the
             // per-hit payloads (Execute, Overload, etc.) resolve per strike. 1 hit = the pre-Task-35 behaviour.
@@ -161,12 +174,24 @@ namespace Wavekeep.Runtime
             for (int i = 0; i < hits; i++)
             {
                 OnHit(nearest, context, perHitDamage);
+
+                // Task 46: one lightning flash PER actual strike (so Multi-Strike's hit count is visible),
+                // styled by what really procced on this hit (crit/spike/execute) and the role (ultimate =
+                // heavier). Fired inside the loop so a target that dies mid-burst doesn't draw phantom hits.
+                if (lightning)
+                    context.Feedback?.OnLightningStrike(context.CasterPosition, nearest.Transform.position,
+                        BuildLightningFlags(critted));
+
                 if (!nearest.IsAlive) break; // target died mid-burst — stop wasting strikes on it
             }
 
-            // Task 08: fire the visual from the SAME resolved target used for damage (not a separate
+            // Task 47: one high-impact apex effect at the resolved target (clearly exceeding Basic/Ultimate).
+            // Task 08: otherwise fire the visual from the SAME resolved target used for damage (not a separate
             // targeting pass), so the indicator can never disagree with where damage actually landed.
-            context.Feedback?.OnSingleTargetHit(context.CasterPosition, nearest.Transform.position);
+            if (apex)
+                context.Feedback?.OnApexImpact(nearest.Transform.position, ApexVisualRadius(), ResolveApexStyle());
+            else if (!lightning)
+                context.Feedback?.OnSingleTargetHit(context.CasterPosition, nearest.Transform.position);
 
             // Task 35 (Chain Lightning / Thunderstorm): the bolt jumps to nearby OTHER enemies for a fraction
             // of the per-hit damage. Single-/double-jump only (nearest N) — NOT an AoE; it is pure damage, so
@@ -176,6 +201,35 @@ namespace Wavekeep.Runtime
                 ChainJumps(nearest, context, perHitDamage * chainFraction, jumps);
 
             return true;
+        }
+
+        // Task 46: assemble the lightning-strike style for the strike just resolved, from state the runtime
+        // already computed: role (ultimate = heavier), the per-cast crit roll, and this hit's Overcharge-spike
+        // / Execute procs. Presentation-free — the presenter maps these flags to thickness/colour/scale.
+        private LightningStrikeFlags BuildLightningFlags(bool critted)
+        {
+            var flags = LightningStrikeFlags.None;
+            if (_role == AbilityRole.Ultimate) flags |= LightningStrikeFlags.Ultimate;
+            if (critted) flags |= LightningStrikeFlags.Crit;
+            if (_lastHitSpike) flags |= LightningStrikeFlags.Spike;
+            if (_lastHitExecute) flags |= LightningStrikeFlags.Execute;
+            return flags;
+        }
+
+        // Task 47: visual spread radius for a single-target apex effect (nova/storm/execute). The gameplay is
+        // single-target; this only sizes the VFX bigger than a Basic/Ultimate burst.
+        private float ApexVisualRadius() => Mathf.Max(3.5f, Definition.AoeRadius);
+
+        // Task 47: pick the apex VFX from the apex's existing data — palette from AbilityVfxStyle, shape from
+        // targeting + the finisher (ConsumesStaticCharge) flag. No ability identity is hardcoded.
+        private ApexVfxStyle ResolveApexStyle()
+        {
+            bool frost = Definition.VfxStyle == AbilityVfxStyle.Frost;
+            if (Definition.TargetingType == AbilityTargetingType.AreaOfEffect)
+                return frost ? ApexVfxStyle.FrostShockwave : ApexVfxStyle.LightningStorm;
+            if (Definition.ConsumesStaticCharge)
+                return ApexVfxStyle.LightningExecute; // Lethal Surge — the finisher
+            return frost ? ApexVfxStyle.FrostNova : ApexVfxStyle.LightningStorm;
         }
 
         private bool ExecuteAreaOfEffect(AbilityExecutionContext context, float radius, float damage, int maxTargets)
@@ -199,10 +253,13 @@ namespace Wavekeep.Runtime
             if (_aoeBuffer.Count == 0) return false;
             LimitTargets(context.CasterPosition, maxTargets); // Task 31 (Wider Burst) — nearest N when capped
 
-            // Task 08: show the radius indicator with the ACTUAL radius used for the overlap test, at
-            // the caster centre — only when the AoE actually connects (mirrors single-target firing on
-            // a hit), so an auto-firing AoE basic with no targets in range doesn't spam the ring.
-            context.Feedback?.OnAreaOfEffect(context.CasterPosition, radius);
+            // Task 47: an AoE apex (Permafrost Eruption) shows a radius-filling shockwave so its area reads at a
+            // glance; otherwise (Task 08) show the diagnostic ring. Both use the ACTUAL radius from the overlap
+            // test, only when the AoE actually connects.
+            if (_role == AbilityRole.Apex)
+                context.Feedback?.OnApexImpact(context.CasterPosition, radius, ResolveApexStyle());
+            else
+                context.Feedback?.OnAreaOfEffect(context.CasterPosition, radius);
 
             for (int i = 0; i < _aoeBuffer.Count; i++)
             {
@@ -248,6 +305,9 @@ namespace Wavekeep.Runtime
             {
                 // Frozen Ground stays a circular patch at the impact (Task 33 only changed Frost Zone's shape).
                 context.Zones.Spawn(GroundZone.Circle(impact, fgRadius, fgDuration, fgSlow, 0.5f));
+                // Task 45: a persistent ice-patch decal for the patch's actual radius/duration (distinct from
+                // the one-shot impact burst below).
+                context.Feedback?.OnGroundPatch(impact, fgRadius, fgDuration);
             }
 
             // Snapshot in-range targets first; applying damage can remove enemies from the live list.
@@ -265,10 +325,19 @@ namespace Wavekeep.Runtime
 
             LimitTargets(impact, maxTargets); // Task 31 (Wider Burst) — keep nearest N to the impact when capped
 
-            // Visual: a bolt from the caster to the impact, then the blast ring at the impact point using
-            // the ACTUAL radius used for the overlap test (so feedback matches where damage really landed).
-            context.Feedback?.OnSingleTargetHit(context.CasterPosition, impact);
-            context.Feedback?.OnAreaOfEffect(impact, blastRadius);
+            // Visual: the frost basic (data-flagged AppliesFrostStack) shows a travelling ice projectile +
+            // crystallization burst sized to the ACTUAL blast radius (so Wider Burst grows it); any other
+            // TargetedAoE keeps the generic diagnostic beam + ring. Both use the real impact + radius, so
+            // feedback can never disagree with where damage landed.
+            if (Definition.AppliesFrostStack)
+            {
+                context.Feedback?.OnRangedImpactBurst(context.CasterPosition, impact, blastRadius);
+            }
+            else
+            {
+                context.Feedback?.OnSingleTargetHit(context.CasterPosition, impact);
+                context.Feedback?.OnAreaOfEffect(impact, blastRadius);
+            }
 
             for (int i = 0; i < _aoeBuffer.Count; i++)
             {
@@ -283,6 +352,11 @@ namespace Wavekeep.Runtime
         // resolved enemy), so ordering damage first is safe.
         private void OnHit(EnemyRuntime target, AbilityExecutionContext context, float damage)
         {
+            // Task 46: clear the per-hit proc flags so they reflect ONLY what happens during this hit
+            // (read by the lightning-VFX call right after OnHit returns).
+            _lastHitSpike = false;
+            _lastHitExecute = false;
+
             if (damage > 0f)
             {
                 // Task 31 (Shattering Impact): bonus damage against a target ALREADY impaired by Slow/Freeze/
@@ -388,11 +462,17 @@ namespace Wavekeep.Runtime
                 _chainBuffer.RemoveRange(jumps, _chainBuffer.Count - jumps);
             }
 
+            // Task 47: an apex (Thunderstorm) renders its own storm in OnApexImpact, so don't draw per-jump
+            // basic-tier bolts here. Task 46: the basic's Chain Lightning draws a distinct bolt per actual jump.
+            bool apex = _role == AbilityRole.Apex;
+            bool lightning = Definition.VfxStyle == AbilityVfxStyle.Lightning;
             for (int i = 0; i < _chainBuffer.Count; i++)
             {
                 var jump = _chainBuffer[i];
                 DealDamage(jump, context, chainDamage); // pure damage — no Static Charge/spike/piercing re-trigger
-                context.Feedback?.OnSingleTargetHit(originPos, jump.Transform.position);
+                if (apex) continue; // storm visual handles apex chain feedback
+                if (lightning) context.Feedback?.OnChainJump(originPos, jump.Transform.position);
+                else context.Feedback?.OnSingleTargetHit(originPos, jump.Transform.position);
             }
             _chainBuffer.Clear();
         }
@@ -420,6 +500,7 @@ namespace Wavekeep.Runtime
             {
                 Debug.Log($"[AbilityRuntime] {Definition.AbilityName} OVERCHARGE SPIKE +{bonus * 100f:0}%!");
                 damage *= 1f + bonus;
+                _lastHitSpike = true; // Task 46: flag this hit for the more-intense spike flash
             }
             return damage;
         }
@@ -430,7 +511,10 @@ namespace Wavekeep.Runtime
             if (_role != AbilityRole.Ultimate || context.Upgrades == null || target == null) return damage;
             if (!context.Upgrades.TryGetExecute(out float threshold, out float bonus)) return damage;
             if (target.MaxHealth > 0f && target.CurrentHealth / target.MaxHealth < threshold)
+            {
                 damage *= 1f + bonus;
+                _lastHitExecute = true; // Task 46: flag this hit for the distinct Execute flash
+            }
             return damage;
         }
 
@@ -467,6 +551,8 @@ namespace Wavekeep.Runtime
             if (multiplier <= 1f || !target.IsPrimed) return damage;
             if (!target.ConsumePrime()) return damage; // someone else consumed it this frame — no double-dip
             Debug.Log($"[AbilityRuntime] FROZEN LIGHTNING! {Definition.AbilityName} consumes a primed target ×{multiplier:0.##}.");
+            // Task 47: fire the combo VFX at the EXACT consume moment (frost-blue freeze → gold strike), not a timer.
+            context.Feedback?.OnComboFrozenLightning(target.Transform.position);
             return damage * multiplier;
         }
 
@@ -487,7 +573,11 @@ namespace Wavekeep.Runtime
         {
             if (_role != AbilityRole.Basic || context.Upgrades == null || target == null) return;
             if (context.Upgrades.TryGetPiercingBolt(out float amount, out float duration))
+            {
                 target.ApplyArmorReduction(amount, duration);
+                // Task 46: gold fracture-line debuff indicator on the target for the ACTUAL debuff duration.
+                context.Feedback?.OnArmorBreak(target.Transform, duration);
+            }
         }
 
         // Task 35 (Overload — Ultimate): apply the generic incoming-damage vulnerability (separate from the
@@ -496,7 +586,11 @@ namespace Wavekeep.Runtime
         {
             if (_role != AbilityRole.Ultimate || context.Upgrades == null || target == null) return;
             if (context.Upgrades.TryGetOverload(out float bonus, out float duration))
+            {
                 target.ApplyVulnerability(bonus, duration);
+                // Task 46: pulsing gold ring debuff indicator — distinct from Piercing Bolt's fracture lines.
+                context.Feedback?.OnVulnerability(target.Transform, duration);
+            }
         }
 
         // Task 31 (Wider Burst): when an AoE is capped at maxTargets, keep only the nearest N to the blast
@@ -535,8 +629,13 @@ namespace Wavekeep.Runtime
             // Absolute Zero cap: remaining duration may extend only up to the cast duration + cap headroom.
             float maxDuration = extendPerDeath > 0f ? duration + capBonus : duration;
 
+            // Task 45: persistent band visual (activation flash + ambient mist + pulse flashes). The handle is
+            // owned by the zone, so the band's lifetime matches the real zone (including Absolute Zero
+            // extension) and pulses flash on the zone's ACTUAL pulse cadence — no parallel timer.
+            var zoneVisual = context.Feedback?.BeginZone(minZ, maxZ);
+
             context.Zones.Spawn(GroundZone.Box(
-                minZ, maxZ, duration, maxDuration, slow, 0.5f, pulseInterval, pulseFraction, extendPerDeath));
+                minZ, maxZ, duration, maxDuration, slow, 0.5f, pulseInterval, pulseFraction, extendPerDeath, zoneVisual));
 
             Debug.Log($"[AbilityRuntime] {Definition.AbilityName}: Frost Zone (full-width band " +
                       $"z=[{minZ:0.#},{maxZ:0.#}], slow={slow:0.##}, dur={duration:0.#}s, capDur={maxDuration:0.#}s).");
@@ -700,8 +799,9 @@ namespace Wavekeep.Runtime
         // Task 23: roll the final crit step. Reads crit chance/damage from the consumable aggregates and
         // (Task 35) the held-upgrade crit-chance bonus (Overcharge) — both feed the SAME single roll, never
         // a parallel crit path. No-op at 0% chance.
-        private float RollCrit(float damage, ConsumableInventory consumables, UpgradeInventory upgrades)
+        private float RollCrit(float damage, ConsumableInventory consumables, UpgradeInventory upgrades, out bool didCrit)
         {
+            didCrit = false;
             if (damage <= 0f) return damage;
 
             float chance = consumables != null ? consumables.TotalCritChance() : 0f;
@@ -714,6 +814,7 @@ namespace Wavekeep.Runtime
                 float critDamageBonus = consumables != null ? consumables.TotalCritDamageBonus() : 0f;
                 float critted = damage * (1f + critDamageBonus);
                 Debug.Log($"[AbilityRuntime] {Definition.AbilityName} CRIT! {damage:0.#} → {critted:0.#}");
+                didCrit = true;
                 return critted;
             }
             return damage;

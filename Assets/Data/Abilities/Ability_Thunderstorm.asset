@@ -47,3 +47,4 @@ MonoBehaviour:
   _zoneSlowMagnitude: 0
   _zoneDotDamagePerSecond: 0
   _zoneDuration: 0
+  _vfxStyle: 1

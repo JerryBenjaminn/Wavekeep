@@ -27,6 +27,12 @@ namespace Wavekeep.Runtime
             }
         }
 
-        public void Clear() => _zones.Clear();
+        public void Clear()
+        {
+            // Task 45: dispose any persistent zone visuals before dropping the zones, so a band can't outlive
+            // its run (e.g. on run-end teardown) and bleed into the next run.
+            for (int i = 0; i < _zones.Count; i++) _zones[i].DisposeVisual();
+            _zones.Clear();
+        }
     }
 }

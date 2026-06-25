@@ -119,7 +119,30 @@ namespace Wavekeep.Runtime
             {
                 presenter = gameObject.AddComponent<AbilityIndicatorPresenter>();
             }
-            _feedback = presenter;
+
+            // Task 45: also add the frost ability-VFX presenter and fan feedback to BOTH via a composite —
+            // the generic presenter draws the diagnostic beam/ring, the frost presenter draws the projectile/
+            // burst/zone effects. Each reacts only to the calls it implements, so no double-draw, no parallel
+            // trigger path. Inert (no allocation) for heroes whose abilities never call the frost methods.
+            if (!TryGetComponent(out FrostVfxPresenter frostPresenter))
+            {
+                frostPresenter = gameObject.AddComponent<FrostVfxPresenter>();
+            }
+
+            // Task 46: Bolt Striker's electrical VFX presenter joins the same composite. Inert (no allocation)
+            // for heroes whose abilities never call the lightning methods (gated by AbilityVfxStyle.Lightning).
+            if (!TryGetComponent(out LightningVfxPresenter lightningPresenter))
+            {
+                lightningPresenter = gameObject.AddComponent<LightningVfxPresenter>();
+            }
+
+            // Task 47: high-impact apex / combo-apex VFX presenter joins the composite too. Inert until an
+            // apex fires (OnApexImpact) or Frozen Lightning resolves (OnComboFrozenLightning).
+            if (!TryGetComponent(out ApexVfxPresenter apexPresenter))
+            {
+                apexPresenter = gameObject.AddComponent<ApexVfxPresenter>();
+            }
+            _feedback = new CompositeAbilityFeedback(presenter, frostPresenter, lightningPresenter, apexPresenter);
 
             Basic = definition.BasicAbility != null
                 ? new AbilityRuntime(definition.BasicAbility, AbilityRole.Basic) : null;

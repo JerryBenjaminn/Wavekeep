@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Wavekeep.Abilities;
 using Wavekeep.Data;
 
 namespace Wavekeep.Runtime
@@ -43,6 +44,12 @@ namespace Wavekeep.Runtime
         private float _pulseTimer;
         private readonly float _durationExtendPerDeath; // Absolute Zero (Task 33); 0 = none
 
+        // Task 45: optional persistent visual for this zone (Frost Zone band). The zone OWNS its handle so
+        // the visual's pulse rhythm + teardown are driven by the SAME object that runs the gameplay — pulses
+        // flash on the real damage ticks, and the band disappears exactly when the zone expires.
+        private readonly IZoneVisual _visual;
+        private bool _visualDisposed;
+
         private readonly HashSet<EnemyRuntime> _insideLastTick = new HashSet<EnemyRuntime>();
         private readonly List<EnemyRuntime> _inside = new List<EnemyRuntime>();
 
@@ -51,8 +58,10 @@ namespace Wavekeep.Runtime
         private GroundZone(
             Shape shape, Vector3 center, float radius, float bandMinZ, float bandMaxZ,
             float duration, float maxDuration, float slowMagnitude, float slowRefresh,
-            float pulseInterval, float pulseFraction, float durationExtendPerDeath)
+            float pulseInterval, float pulseFraction, float durationExtendPerDeath,
+            IZoneVisual visual = null)
         {
+            _visual = visual;
             _shape = shape;
             _center = center;
             float r = Mathf.Max(0f, radius);
@@ -82,10 +91,10 @@ namespace Wavekeep.Runtime
         /// <paramref name="bandMaxZ"/>]. Covers the whole arena width across a fixed depth in front of the wall.</summary>
         public static GroundZone Box(
             float bandMinZ, float bandMaxZ, float duration, float maxDuration, float slowMagnitude, float slowRefresh,
-            float pulseInterval, float pulseFraction, float durationExtendPerDeath)
+            float pulseInterval, float pulseFraction, float durationExtendPerDeath, IZoneVisual visual = null)
         {
             return new GroundZone(Shape.Box, Vector3.zero, 0f, bandMinZ, bandMaxZ, duration, maxDuration,
-                slowMagnitude, slowRefresh, pulseInterval, pulseFraction, durationExtendPerDeath);
+                slowMagnitude, slowRefresh, pulseInterval, pulseFraction, durationExtendPerDeath, visual);
         }
 
         private bool IsInside(Vector3 pos)
@@ -129,6 +138,7 @@ namespace Wavekeep.Runtime
                     float dmg = _pulseFraction * basicDamage;
                     for (int i = 0; i < _inside.Count; i++)
                         if (_inside[i].IsAlive) _inside[i].TakeDamage(dmg);
+                    _visual?.Pulse(); // Task 45: flash the band on the SAME tick damage actually lands
                 }
             }
 
@@ -146,6 +156,18 @@ namespace Wavekeep.Runtime
             // Remember this tick's inside set for next-tick death detection.
             _insideLastTick.Clear();
             for (int i = 0; i < _inside.Count; i++) _insideLastTick.Add(_inside[i]);
+
+            // Task 45: tear the visual down the moment the zone expires (the manager drops it this same frame).
+            if (_remaining <= 0f) DisposeVisual();
+        }
+
+        /// <summary>Task 45: dispose the zone's visual handle exactly once (on natural expiry, or when the
+        /// manager is cleared on run teardown) so the band never lingers past the zone's life.</summary>
+        public void DisposeVisual()
+        {
+            if (_visualDisposed) return;
+            _visualDisposed = true;
+            _visual?.Dispose();
         }
     }
 }

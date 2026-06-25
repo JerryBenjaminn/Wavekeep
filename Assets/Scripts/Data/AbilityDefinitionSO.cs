@@ -111,6 +111,11 @@ namespace Wavekeep.Data
         [Tooltip("Seconds the zone's Slow + DoT last on affected enemies.")]
         [SerializeField, Min(0f)] private float _zoneDuration;
 
+        [Header("VFX (Task 46 — visual treatment only, no gameplay effect)")]
+        [Tooltip("Selects which VFX presenter styles this ability's hits. Default = generic beam/ring; " +
+                 "Lightning = gold electrical bolts/flashes (Bolt Striker). Frost uses its payload flags above.")]
+        [SerializeField] private AbilityVfxStyle _vfxStyle = AbilityVfxStyle.Default;
+
         public string AbilityName => _abilityName;
         public Sprite Icon => _icon;
         public float BaseDamage => _baseDamage;
@@ -164,6 +169,9 @@ namespace Wavekeep.Data
         public float ZoneSlowMagnitude => _zoneSlowMagnitude;
         public float ZoneDotDamagePerSecond => _zoneDotDamagePerSecond;
         public float ZoneDuration => _zoneDuration;
+
+        /// <summary>Task 46: visual treatment selector for the VFX layer (no gameplay effect).</summary>
+        public AbilityVfxStyle VfxStyle => _vfxStyle;
 
         /// <summary>Highest level this ability defines (at least 1, even with no explicit entries).</summary>
         public int MaxLevel => Mathf.Max(1, _upgradeLevels.Count);
