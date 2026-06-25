@@ -301,6 +301,7 @@ namespace Wavekeep.Runtime
                 finalDamage = ApplyOverchargeSpike(context, finalDamage);             // Basic: independent spike roll
                 finalDamage = ApplyExecuteBonus(target, context, finalDamage);        // Ultimate: vs low-HP targets
                 finalDamage = ApplyApexFinisherBonuses(target, context, finalDamage); // Apex: Lethal Surge
+                finalDamage = ApplyComboConsume(target, context, finalDamage);        // Task 38: Frozen Lightning amp
 
                 DealDamage(target, context, finalDamage);
             }
@@ -309,6 +310,7 @@ namespace Wavekeep.Runtime
             ApplyFrostStack(target, context);           // Task 19: basic Frost stacking
             ApplyHeldStatusEffects(target, context.Upgrades); // Task 11: held status-upgrade payloads
             ApplyBaselineStatus(target);                // Task 31: ability's own status (apex freeze)
+            ApplyComboPrime(target, context);           // Task 38: Frozen Lightning prime (after the freeze lands)
             ApplyHardFreeze(target, context);           // Task 31: basic chance-to-hard-freeze
             ApplyPiercingBolt(target, context);         // Task 35: basic temporary Armor reduction (Task 34 mechanism)
             ApplyOverload(target, context);             // Task 35: ultimate generic vulnerability
@@ -451,6 +453,32 @@ namespace Wavekeep.Runtime
                 damage *= 1f + Definition.LowHpExecuteBonus;
             }
             return damage;
+        }
+
+        // Task 38 (Frozen Lightning — passive combo CONSUME): if THIS ability is the consuming apex of an
+        // unlocked passive combo (Lethal Surge) AND the target is currently primed, multiply this hit's damage
+        // by the combo's multiplier and consume the prime. Applied AFTER the ability's own finisher bonuses
+        // (Static Charge / Execute), so it amplifies the fully-resolved damage exactly as specified. Generic —
+        // keyed off the run's ComboApexState by AbilityDefinitionSO, never on the Bolt Striker specifically.
+        private float ApplyComboConsume(EnemyRuntime target, AbilityExecutionContext context, float damage)
+        {
+            if (target == null || context.ComboApex == null) return damage;
+            if (!context.ComboApex.TryGetConsumeMultiplier(Definition, out float multiplier)) return damage;
+            if (multiplier <= 1f || !target.IsPrimed) return damage;
+            if (!target.ConsumePrime()) return damage; // someone else consumed it this frame — no double-dip
+            Debug.Log($"[AbilityRuntime] FROZEN LIGHTNING! {Definition.AbilityName} consumes a primed target ×{multiplier:0.##}.");
+            return damage * multiplier;
+        }
+
+        // Task 38 (Frozen Lightning — passive combo PRIME): if THIS ability is the priming apex of an unlocked
+        // passive combo (Remorseless Winter), mark the just-hit target primed for the combo's window. Called in
+        // the on-hit payload phase right after the baseline freeze lands, so a freeze and its prime always go
+        // together. No-op on a just-killed target (ApplyPrime guards a resolved enemy).
+        private void ApplyComboPrime(EnemyRuntime target, AbilityExecutionContext context)
+        {
+            if (target == null || context.ComboApex == null) return;
+            if (context.ComboApex.TryGetPrimeWindow(Definition, out float window))
+                target.ApplyPrime(window);
         }
 
         // Task 35 (Piercing Bolt — Basic): apply Task 34's generic temporary Armor reduction to the target,

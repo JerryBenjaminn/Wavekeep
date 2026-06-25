@@ -6,6 +6,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using Wavekeep.Core;
 using Wavekeep.UI;
+using Wavekeep.Waves;
 
 namespace Wavekeep.EditorTools
 {
@@ -46,10 +47,16 @@ namespace Wavekeep.EditorTools
             // Idempotent re-run.
             DestroyIfExists("CurrencyText");
             DestroyIfExists("LevelXpText");
+            DestroyIfExists("WaveText");
             DestroyIfExists("EconomyDebugHud");
 
             var currencyText = CreateText(canvas.transform, "CurrencyText", "Currency: 0", new Vector2(20f, -20f));
             var levelXpText = CreateText(canvas.transform, "LevelXpText", "Lv. 1 — 0/15 XP", new Vector2(20f, -64f));
+            // Task 41: always-on wave readout, stacked directly under XP/Currency in the same top-left group.
+            var waveText = CreateText(canvas.transform, "WaveText", "Wave: —", new Vector2(20f, -108f));
+
+            // Task 41: the wave label reads the live wave from the scene's WaveSpawner.
+            var waveSpawner = Object.FindFirstObjectByType<WaveSpawner>();
 
             var hudGo = new GameObject("EconomyDebugHud", typeof(RectTransform));
             hudGo.transform.SetParent(canvas.transform, false);
@@ -59,6 +66,8 @@ namespace Wavekeep.EditorTools
             so.FindProperty("_bootstrap").objectReferenceValue = bootstrap;
             so.FindProperty("_currencyText").objectReferenceValue = currencyText;
             so.FindProperty("_levelXpText").objectReferenceValue = levelXpText;
+            so.FindProperty("_waveText").objectReferenceValue = waveText;
+            so.FindProperty("_waveSpawner").objectReferenceValue = waveSpawner;
             so.ApplyModifiedPropertiesWithoutUndo();
 
             EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());

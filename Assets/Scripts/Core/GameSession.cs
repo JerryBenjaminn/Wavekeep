@@ -58,6 +58,12 @@ namespace Wavekeep.Core
         /// scene-wide lookup or static singleton (§3.5).</summary>
         public HeroRegistry Heroes { get; }
 
+        /// <summary>Task 38: per-run resolver for cross-hero combo apexes (e.g. Frozen Lightning). Queries the
+        /// <see cref="Heroes"/> registry to decide which combos are unlocked, and is read by the ability
+        /// runtime (through the execution context) to prime/consume passive-combo targets. Never null —
+        /// holds an empty combo list when none are configured for the scene.</summary>
+        public ComboApexState ComboApex { get; }
+
         // Task 02 note: WaveSpawner is a scene MonoBehaviour that *consumes* this session
         // (pulls Events + EnemyPool from it) rather than being held here, so Core has no
         // dependency on the Waves layer. Dependency flow still originates from GameSession (§3.5).
@@ -75,7 +81,8 @@ namespace Wavekeep.Core
             GearManager gearManager,
             LootService lootService,
             LuckState luckState,
-            HeroRegistry heroes)
+            HeroRegistry heroes,
+            ComboApexState comboApex)
         {
             Events = eventBus;
             EnemyPool = enemyPool;
@@ -90,6 +97,7 @@ namespace Wavekeep.Core
             LootService = lootService;
             LuckState = luckState;
             Heroes = heroes;
+            ComboApex = comboApex;
         }
 
         /// <summary>Release all session-scoped state. Call when the run/scene ends.</summary>

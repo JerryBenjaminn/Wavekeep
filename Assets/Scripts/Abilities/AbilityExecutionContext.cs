@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Wavekeep.Core;
 using Wavekeep.Data;
 using Wavekeep.Economy;
 using Wavekeep.Runtime;
@@ -44,6 +45,11 @@ namespace Wavekeep.Abilities
         /// abilities — the basic builds it, the Lethal Surge apex consumes it. Null when no hero owns one.</summary>
         public readonly HeroCombatState CombatState;
 
+        /// <summary>Task 38: the run's cross-hero combo apex resolver (Frozen Lightning). Lets the ability
+        /// runtime prime a hit target (priming apex) or amplify against a primed one (consuming apex), only
+        /// while the combo is unlocked. Null when no combo system is wired (older scenes).</summary>
+        public readonly ComboApexState ComboApex;
+
         public AbilityExecutionContext(
             Vector3 casterPosition,
             IReadOnlyList<EnemyRuntime> enemies,
@@ -55,7 +61,8 @@ namespace Wavekeep.Abilities
             GroundZoneManager zones = null,
             float defendedLineZ = 0f,
             float approachDirectionZ = 1f,
-            HeroCombatState combatState = null)
+            HeroCombatState combatState = null,
+            ComboApexState comboApex = null)
         {
             CasterPosition = casterPosition;
             Enemies = enemies;
@@ -68,6 +75,7 @@ namespace Wavekeep.Abilities
             DefendedLineZ = defendedLineZ;
             ApproachDirectionZ = approachDirectionZ;
             CombatState = combatState;
+            ComboApex = comboApex;
         }
     }
 }

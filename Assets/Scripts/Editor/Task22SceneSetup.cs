@@ -47,35 +47,77 @@ namespace Wavekeep.EditorTools
 
             DestroyIfExists(RootName); // idempotent re-run
 
-            // Root: an always-active holder for the controller (its Update reads the toggle key).
+            // Root: an always-active holder for the controller (its Update reads the toggle key). It must
+            // STRETCH to fill the Canvas (Task 40 fix): the panel below now uses vertical-stretch anchoring,
+            // whose resolved height is relative to THIS parent. A default RectTransform is zero-sized, so the
+            // panel would resolve to height ≈ −120 (invisible — "won't open"). Filling the canvas gives the
+            // panel the full screen height to stretch against. (The old fixed-size panel didn't depend on this.)
             var rootGo = new GameObject(RootName, typeof(RectTransform));
             rootGo.transform.SetParent(canvas.transform, false);
+            var rootRt = (RectTransform)rootGo.transform;
+            rootRt.anchorMin = Vector2.zero;
+            rootRt.anchorMax = Vector2.one;
+            rootRt.offsetMin = Vector2.zero;
+            rootRt.offsetMax = Vector2.zero;
 
-            // Panel: the toggled, visible container (dark translucent), anchored top-left below the HUD.
+            // Task 40: the toggled dark panel now sits on the RIGHT edge, vertically centred and stretched to
+            // (screen height − margins), instead of a fixed top-left box. Right-anchored with vertical stretch
+            // so it scales with any landscape resolution (§3.6) and never collides with the bottom-centre HUD
+            // (ultimate bars / apex indicators) on the left/centre.
             var panelGo = new GameObject("Panel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             panelGo.transform.SetParent(rootGo.transform, false);
             var panelRt = (RectTransform)panelGo.transform;
-            panelRt.anchorMin = new Vector2(0f, 1f);
-            panelRt.anchorMax = new Vector2(0f, 1f);
-            panelRt.pivot = new Vector2(0f, 1f);
-            panelRt.sizeDelta = new Vector2(470f, 660f);
-            panelRt.anchoredPosition = new Vector2(16f, -110f);
+            panelRt.anchorMin = new Vector2(1f, 0f);      // right edge, vertical stretch
+            panelRt.anchorMax = new Vector2(1f, 1f);
+            panelRt.pivot = new Vector2(1f, 0.5f);
+            panelRt.sizeDelta = new Vector2(440f, -120f); // 440 wide; height = screen height − 120 (60 top/bottom)
+            panelRt.anchoredPosition = new Vector2(-16f, 0f); // 16px gap from the right edge, centred vertically
             panelGo.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.78f);
 
-            // Content text: padded, top-left aligned, wraps.
-            var textGo = new GameObject("Content", typeof(RectTransform));
-            textGo.transform.SetParent(panelGo.transform, false);
+            // Task 40: a scroll view fills the panel so the (now two heroes' worth of) stats can never clip —
+            // content taller than the panel scrolls instead of running off-screen. Mirrors the Hub's list pattern.
+            var scrollGo = new GameObject("Scroll", typeof(RectTransform), typeof(ScrollRect), typeof(Image), typeof(RectMask2D));
+            scrollGo.transform.SetParent(panelGo.transform, false);
+            var scrollRt = (RectTransform)scrollGo.transform;
+            scrollRt.anchorMin = Vector2.zero;
+            scrollRt.anchorMax = Vector2.one;
+            scrollRt.offsetMin = new Vector2(6f, 6f);
+            scrollRt.offsetMax = new Vector2(-6f, -6f);
+            scrollGo.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0f); // transparent viewport (panel is the dark bg)
+
+            // Content: a vertical layout + size fitter that grows with the text, so the scroll range tracks it.
+            var contentGo = new GameObject("Content", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+            contentGo.transform.SetParent(scrollGo.transform, false);
+            var contentRt = (RectTransform)contentGo.transform;
+            contentRt.anchorMin = new Vector2(0f, 1f);
+            contentRt.anchorMax = new Vector2(1f, 1f);
+            contentRt.pivot = new Vector2(0.5f, 1f);
+            contentRt.anchoredPosition = Vector2.zero;
+            contentRt.sizeDelta = Vector2.zero;
+            var vlg = contentGo.GetComponent<VerticalLayoutGroup>();
+            vlg.padding = new RectOffset(14, 14, 14, 14);
+            vlg.childAlignment = TextAnchor.UpperLeft;
+            vlg.childControlWidth = true; vlg.childControlHeight = true;        // size the TMP to its preferred height
+            vlg.childForceExpandWidth = true; vlg.childForceExpandHeight = false;
+            contentGo.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            // Content text: top-left aligned, wraps to the content width; height driven by the layout above.
+            var textGo = new GameObject("Text", typeof(RectTransform));
+            textGo.transform.SetParent(contentGo.transform, false);
             var text = textGo.AddComponent<TextMeshProUGUI>();
             text.text = "RUN STATS";
-            text.fontSize = 18f;
+            text.fontSize = 16f; // slightly smaller so two heroes' blocks read densely within 440px width
             text.color = Color.white;
-            text.alignment = TextAlignmentOptions.TopLeft;
+            text.alignment = TextAlignmentOptions.TopLeft; // TMP wraps to the content width by default
             if (TMP_Settings.defaultFontAsset != null) text.font = TMP_Settings.defaultFontAsset;
-            var textRt = text.rectTransform;
-            textRt.anchorMin = Vector2.zero;
-            textRt.anchorMax = Vector2.one;
-            textRt.offsetMin = new Vector2(14f, 14f);
-            textRt.offsetMax = new Vector2(-14f, -14f);
+
+            var scroll = scrollGo.GetComponent<ScrollRect>();
+            scroll.content = contentRt;
+            scroll.viewport = scrollRt;
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 24f;
 
             var controller = rootGo.AddComponent<StatPanelController>();
             var so = new SerializedObject(controller);

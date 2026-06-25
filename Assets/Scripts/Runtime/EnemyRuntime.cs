@@ -96,6 +96,13 @@ namespace Wavekeep.Runtime
 
         private readonly List<ActiveVulnerability> _vulnerabilities = new List<ActiveVulnerability>();
 
+        // Task 38 (Frozen Lightning): generic cross-hero "combo prime" marker — a single timed window set by a
+        // PASSIVE combo apex's priming hit (Remorseless Winter's freeze) and read+cleared by the consuming apex
+        // (Lethal Surge) for an amplified hit. Kept as one generic timer (same per-entry-expiry rationale as the
+        // status/armor/vulnerability machines above), NOT a Frozen-Lightning-specific flag, so any future
+        // passive combo reuses it without further EnemyRuntime changes. 0 = not primed.
+        private float _primedRemaining;
+
         public EnemyDefinitionSO Definition { get; private set; }
         public GameObject GameObject { get; private set; }
         public Transform Transform { get; private set; }
@@ -146,6 +153,7 @@ namespace Wavekeep.Runtime
             _stackingEffects.Clear(); // reset stacking-effect state on pooled reuse (Task 19)
             _armorReductions.Clear(); // reset temporary armor debuffs on pooled reuse (Task 34)
             _vulnerabilities.Clear(); // reset vulnerability debuffs on pooled reuse (Task 35)
+            _primedRemaining = 0f;    // reset combo prime on pooled reuse (Task 38)
 
             MaxHealth = definition.MaxHealth * statMultiplier;
             CurrentHealth = MaxHealth;
@@ -167,6 +175,7 @@ namespace Wavekeep.Runtime
             TickStackingEffects(deltaTime); // Task 19: stack decay (never lethal, so no resolve check needed)
             TickArmorReductions(deltaTime); // Task 34: expire temporary armor debuffs
             TickVulnerabilities(deltaTime); // Task 35: expire vulnerability debuffs
+            TickPrime(deltaTime);           // Task 38: expire the combo prime window
 
             if (_isAttacking)
             {
@@ -429,6 +438,36 @@ namespace Wavekeep.Runtime
                 if (v.RemainingDuration <= 0f) _vulnerabilities.RemoveAt(i);
                 else _vulnerabilities[i] = v;
             }
+        }
+
+        /// <summary>Task 38 (Frozen Lightning): true while this enemy is "primed" by a passive combo apex's
+        /// priming hit (see <see cref="ApplyPrime"/>). The consuming apex reads this to decide whether to
+        /// amplify, then clears it via <see cref="ConsumePrime"/>.</summary>
+        public bool IsPrimed => _primedRemaining > 0f;
+
+        /// <summary>Task 38 (Frozen Lightning): mark this enemy primed for <paramref name="duration"/> seconds.
+        /// Set by a passive combo apex's priming hit (Remorseless Winter's freeze). Generic — not keyed to a
+        /// specific combo. Extends (never shortens) an existing prime so a re-prime can't cut the window short.</summary>
+        public void ApplyPrime(float duration)
+        {
+            if (_isResolved || duration <= 0f) return;
+            if (duration > _primedRemaining) _primedRemaining = duration;
+        }
+
+        /// <summary>Task 38 (Frozen Lightning): consume the prime if active — returns true exactly once per
+        /// prime, then clears it (so the consuming apex amplifies a primed target only once until it is
+        /// re-primed). Returns false when not primed.</summary>
+        public bool ConsumePrime()
+        {
+            if (_primedRemaining <= 0f) return false;
+            _primedRemaining = 0f;
+            return true;
+        }
+
+        // Task 38: count down the combo prime window; it simply lapses if the consuming apex never lands in time.
+        private void TickPrime(float deltaTime)
+        {
+            if (_primedRemaining > 0f) _primedRemaining -= deltaTime;
         }
 
         // Task 19: decay each stacking effect by one stack per DecayInterval of NOT being refreshed.

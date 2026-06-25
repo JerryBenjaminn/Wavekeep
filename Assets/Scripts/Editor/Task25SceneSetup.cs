@@ -20,6 +20,13 @@ namespace Wavekeep.EditorTools
     ///
     /// Run "Wavekeep/Setup Task 25 (Gear Detail Panel)" AFTER the Task 14 setup. Idempotent — re-running
     /// rebuilds the panel in place. Editor-only.
+    ///
+    /// Task 39 (regression fix): the panel build is also chained into <see cref="Task14SceneSetup"/> via
+    /// <see cref="BuildAndWire"/>, so a base-Hub rebuild always re-applies it. Previously the Hub setup and
+    /// this panel setup were independent: re-running the Hub setup (e.g. for the Task 37 team selector)
+    /// rebuilt Hub.unity from an empty scene and silently dropped this additive panel, leaving
+    /// HubController's seven _detail* references null — so clicking an item ran the handler but
+    /// <c>ShowDetail()</c> returned immediately at its <c>_detailPanel == null</c> guard and nothing opened.
     /// </summary>
     public static class Task25SceneSetup
     {
@@ -41,18 +48,37 @@ namespace Wavekeep.EditorTools
 
             var hub = Object.FindFirstObjectByType<HubController>();
             var canvas = Object.FindFirstObjectByType<Canvas>();
+            if (!BuildAndWire(hub, canvas)) return;
+
+            EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+            EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
+            Debug.Log("[Task25SceneSetup] Gear detail panel added + wired into HubController and saved. Press " +
+                      "Play from the Hub: click an inventory item or an equipped slot to inspect it, hover a stat " +
+                      "row for its tooltip, and use Equip/Unequip. Click the same item again to close the panel.");
+        }
+
+        /// <summary>
+        /// Builds (or rebuilds) the gear detail panel under the Hub's HubRoot and wires it into
+        /// <paramref name="hub"/>, operating on the CURRENTLY-OPEN scene (no open/save of its own). Idempotent.
+        /// Returns false (with a logged error) if the expected Hub layout isn't present.
+        ///
+        /// Task 39: shared by this setup's menu AND <see cref="Task14SceneSetup"/>, so the base Hub build and
+        /// this panel can never drift apart again — every Hub rebuild re-applies the panel in one pass.
+        /// </summary>
+        public static bool BuildAndWire(HubController hub, Canvas canvas)
+        {
             if (hub == null || canvas == null)
             {
                 Debug.LogError("[Task25SceneSetup] HubController or Canvas missing in the Hub scene. " +
                                "Re-run 'Wavekeep/Setup Task 14 (Hub Scene)'.");
-                return;
+                return false;
             }
 
             var hubRoot = canvas.transform.Find("HubRoot") as RectTransform;
             if (hubRoot == null)
             {
                 Debug.LogError("[Task25SceneSetup] 'HubRoot' not found under the Canvas; Hub scene layout changed.");
-                return;
+                return false;
             }
 
             // Make room: pull the inventory column's right edge in by the panel width + a small gap.
@@ -72,12 +98,7 @@ namespace Wavekeep.EditorTools
             if (existing != null) Object.DestroyImmediate(existing.gameObject);
 
             BuildDetailPanel(hubRoot, hub);
-
-            EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
-            EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());
-            Debug.Log("[Task25SceneSetup] Gear detail panel added + wired into HubController and saved. Press " +
-                      "Play from the Hub: click an inventory item or an equipped slot to inspect it, hover a stat " +
-                      "row for its tooltip, and use Equip/Unequip. Click the same item again to close the panel.");
+            return true;
         }
 
         private static void BuildDetailPanel(RectTransform hubRoot, HubController hub)

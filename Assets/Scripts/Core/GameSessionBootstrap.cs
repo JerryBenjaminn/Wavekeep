@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using Wavekeep.Abilities;
@@ -49,6 +50,12 @@ namespace Wavekeep.Core
                  "(flat odds) and Luck still tracks/clamps correctly — so older scenes keep working.")]
         [SerializeField] private TierWeightingConfigSO _tierWeightingConfig;
 
+        [Header("Combo Apexes (Task 38 — cross-hero passive synergies)")]
+        [Tooltip("Cross-hero combo apexes available this run (e.g. Frozen Lightning). Each lights up only once " +
+                 "BOTH of its referenced single-hero apexes are unlocked across the active heroes. Empty = no " +
+                 "combos (older scenes still work).")]
+        [SerializeField] private List<ComboApexTalentDefinitionSO> _comboApexes = new List<ComboApexTalentDefinitionSO>();
+
         /// <summary>The assembled session for this scene. Available after Awake.</summary>
         public GameSession Session { get; private set; }
 
@@ -90,10 +97,14 @@ namespace Wavekeep.Core
             // Task 36: empty hero registry; the spawn flow registers each active hero into it at run start.
             var heroes = new HeroRegistry();
 
+            // Task 38: cross-hero combo apex resolver. Reads the just-built hero registry (so it sees apex
+            // unlocks live) plus the scene-configured combo list — empty when none are wired.
+            var comboApex = new ComboApexState(_comboApexes, heroes);
+
             Session = new GameSession(
                 eventBus, enemyPool, interactionInput, currencyManager, xpManager,
                 upgradeInventory, consumableInventory, pauseState, rerollManager, gearManager, lootService,
-                luckState, heroes);
+                luckState, heroes, comboApex);
         }
 
         private void OnDestroy()

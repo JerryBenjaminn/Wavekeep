@@ -49,6 +49,7 @@ namespace Wavekeep.Runtime
         private WaveSpawner _waveSpawner;
         private UpgradeInventory _upgrades;
         private ConsumableInventory _consumables;
+        private ComboApexState _comboApex; // Task 38: cross-hero combo resolver (shared run-scoped service)
         private PauseState _pause;
         private IAbilityFeedback _feedback;
         private IReadOnlyList<StatModifier> _equippedModifiers;
@@ -93,6 +94,7 @@ namespace Wavekeep.Runtime
             _waveSpawner = waveSpawner;
             _upgrades = session.UpgradeInventory;
             _consumables = session.ConsumableInventory;
+            _comboApex = session.ComboApex; // Task 38: same resolver for every hero; reads the shared registry
             _pause = session.PauseState;
 
             // Task 12: this hero's equipped gear/artifact modifiers (a live view of the loadout's
@@ -153,6 +155,12 @@ namespace Wavekeep.Runtime
         /// <summary>Task 32: the currently-UNLOCKED apex abilities (live runtime instances), for the
         /// cooldown HUD to read directly. Empty until an apex unlocks; grows as more unlock.</summary>
         public IReadOnlyList<IAbility> ApexAbilities => _apexAbilities;
+
+        /// <summary>Task 38: true if the given single-hero apex is currently unlocked on this hero. The
+        /// cross-hero combo resolver (<c>ComboApexState</c>) queries this across active heroes to decide
+        /// whether a combo apex (e.g. Frozen Lightning) is live.</summary>
+        public bool IsApexUnlocked(ApexTalentDefinitionSO apex) =>
+            apex != null && _unlockedApexes.Contains(apex);
 
         /// <summary>Current tier of a line (0 = not yet picked, 1–3). Unknown lines read 0.</summary>
         public int GetLineTier(UpgradeLineDefinitionSO line) =>
@@ -290,7 +298,8 @@ namespace Wavekeep.Runtime
                 transform.position, _waveSpawner.ActiveEnemies, _upgrades, _consumables,
                 _equippedModifiers, _feedback, basicDamage, _zones,
                 _waveSpawner.DefendedLineZ, _waveSpawner.ApproachDirectionZ, // Task 33: full-width Frost Zone band
-                _combatState); // Task 35: shared Static Charge combo
+                _combatState, // Task 35: shared Static Charge combo
+                _comboApex);  // Task 38: cross-hero combo apex resolver (Frozen Lightning prime/consume)
         }
 
         /// <summary>Task 36: cast this hero's Ultimate on explicit player command (used by

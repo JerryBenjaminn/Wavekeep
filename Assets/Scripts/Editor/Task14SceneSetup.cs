@@ -98,6 +98,12 @@ namespace Wavekeep.EditorTools
 
             var hub = BuildHubUi(canvas, bootstrap, roster);
 
+            // Task 39 (regression fix): re-apply the Task 25 gear detail panel as part of the SAME build.
+            // The panel is an additive setup; building the Hub from an empty scene here (e.g. when the Task 37
+            // team selector was added) used to drop it, leaving HubController's _detail* refs null so the panel
+            // never opened. Chaining it in means every Hub rebuild restores the panel + its wiring in one pass.
+            Task25SceneSetup.BuildAndWire(hub, canvas);
+
             // --- Save the scene + register build order (Hub first). ---
             EnsureFolder("Assets", "Scenes");
             EditorSceneManager.SaveScene(scene, HubScenePath);
@@ -131,16 +137,22 @@ namespace Wavekeep.EditorTools
             ((RectTransform)left).offsetMax = new Vector2(-20f, -110f);
 
             CreateColumnHeader(left, "TEAM  (✓ = in run · name = edit gear)", 1f);
-            var heroContainer = CreateVerticalContainer("HeroButtons", left,
-                new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -44f), new Vector2(0f, 64f), 8f);
+
+            // Task 40 (overlap fix): the team list is now a FIXED-HEIGHT scroll band rather than a free-growing
+            // container. It previously grew downward with the roster and overran the "Editing:" label below it
+            // (with two heroes the second row rendered on top of the label). Bounding the list keeps every
+            // section beneath it at a fixed, non-overlapping position for ANY hero count — the list scrolls if
+            // it is taller than the band. Sections use a consistent 16px gap so the column reads evenly.
+            var heroContainer = CreateScrollView("HeroScroll", left,
+                new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -236f), new Vector2(0f, -48f));
 
             var selectedLabel = CreateText(left, "Editing: —", 24f, TextAlignmentOptions.Left);
             var slrt = selectedLabel.rectTransform;
             slrt.anchorMin = new Vector2(0f, 1f); slrt.anchorMax = new Vector2(1f, 1f); slrt.pivot = new Vector2(0f, 1f);
-            slrt.anchoredPosition = new Vector2(0f, -120f); slrt.sizeDelta = new Vector2(0f, 32f);
+            slrt.anchoredPosition = new Vector2(0f, -252f); slrt.sizeDelta = new Vector2(0f, 32f);
 
             var slotContainer = CreateVerticalContainer("SlotContainer", left,
-                new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -160f), new Vector2(0f, 320f), 6f);
+                new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -300f), new Vector2(0f, 320f), 6f);
 
             // === RIGHT COLUMN: scrollable inventory list ===
             var right = NewRect("RightColumn", root, new Vector2(0.5f, 0f), new Vector2(1f, 1f), Vector2.zero, Vector2.zero);
