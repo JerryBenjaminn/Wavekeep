@@ -69,6 +69,33 @@ namespace Wavekeep.Runtime
 
         private readonly List<ActiveStackingEffect> _stackingEffects = new List<ActiveStackingEffect>();
 
+        // Task 34: temporary Armor-reduction debuffs. Same generic state-machine pattern as the status /
+        // stacking lists (one list + one tick loop), NOT a one-off special case (CLAUDE.md §3.8). Each
+        // entry lowers effective Armor by Amount until its duration lapses; entries are stackable-by-design
+        // (the list sums them), affecting Physical damage from ALL sources while active. MagicResist is not
+        // reducible yet — only Piercing Bolt (a future task) consumes this, and it targets Physical defence.
+        private struct ActiveArmorReduction
+        {
+            public float Amount;
+            public float RemainingDuration;
+        }
+
+        private readonly List<ActiveArmorReduction> _armorReductions = new List<ActiveArmorReduction>();
+
+        // Task 35 (Overload): generic incoming-damage VULNERABILITY debuffs. Deliberately DISTINCT from the
+        // Task 34 Armor reduction above — they operate at different pipeline stages: Armor reduction lowers
+        // the diminishing-returns mitigation FACTOR (computed in AbilityRuntime before TakeDamage), whereas a
+        // vulnerability is a flat multiplier applied to the final damage INSIDE TakeDamage, so it amplifies
+        // damage from ALL sources (any hero's abilities, Burn ticks, …) after mitigation. Same generic,
+        // stackable-by-design state-machine pattern (sum the bonuses) — not a one-off special case.
+        private struct ActiveVulnerability
+        {
+            public float BonusFraction;
+            public float RemainingDuration;
+        }
+
+        private readonly List<ActiveVulnerability> _vulnerabilities = new List<ActiveVulnerability>();
+
         public EnemyDefinitionSO Definition { get; private set; }
         public GameObject GameObject { get; private set; }
         public Transform Transform { get; private set; }
@@ -78,6 +105,12 @@ namespace Wavekeep.Runtime
         public float CurrentHealth { get; private set; }
         public float MoveSpeed { get; private set; }
         public float ContactDamage { get; private set; }
+
+        // Task 34: defensive stats, scaled by the same wave/difficulty multiplier as HP/contact damage.
+        // Armor mitigates Physical damage, MagicResist mitigates Magical damage (see EffectiveArmor /
+        // the mitigation step in AbilityRuntime). 0 = no mitigation (full damage), preserving old behaviour.
+        public float Armor { get; private set; }
+        public float MagicResist { get; private set; }
 
         public bool IsAlive => !_isResolved && CurrentHealth > 0f;
 
@@ -111,11 +144,15 @@ namespace Wavekeep.Runtime
             _lootTable = lootTable; // Task 13: resolved per spawn (regular def table / wave boss table)
             _statusEffects.Clear(); // reset per-run status state on pooled reuse (Task 11)
             _stackingEffects.Clear(); // reset stacking-effect state on pooled reuse (Task 19)
+            _armorReductions.Clear(); // reset temporary armor debuffs on pooled reuse (Task 34)
+            _vulnerabilities.Clear(); // reset vulnerability debuffs on pooled reuse (Task 35)
 
             MaxHealth = definition.MaxHealth * statMultiplier;
             CurrentHealth = MaxHealth;
             ContactDamage = definition.ContactDamage * statMultiplier;
             MoveSpeed = definition.MoveSpeed;
+            Armor = definition.Armor * statMultiplier;       // Task 34: scales like HP
+            MagicResist = definition.MagicResist * statMultiplier;
         }
 
         /// <summary>Advance status effects, then movement or wall-attack by <paramref name="deltaTime"/> seconds.</summary>
@@ -128,6 +165,8 @@ namespace Wavekeep.Runtime
             TickStatusEffects(deltaTime);
             if (_isResolved || _wall == null) return;
             TickStackingEffects(deltaTime); // Task 19: stack decay (never lethal, so no resolve check needed)
+            TickArmorReductions(deltaTime); // Task 34: expire temporary armor debuffs
+            TickVulnerabilities(deltaTime); // Task 35: expire vulnerability debuffs
 
             if (_isAttacking)
             {
@@ -304,6 +343,94 @@ namespace Wavekeep.Runtime
             return 0;
         }
 
+        /// <summary>Task 34: the enemy's Armor after any active temporary reductions, clamped at 0. This is
+        /// what the Physical mitigation step reads, so an armor debuff lowers damage from EVERY Physical
+        /// source while active, not just whoever applied it. MagicResist has no debuff path yet.</summary>
+        public float EffectiveArmor
+        {
+            get
+            {
+                float reduction = 0f;
+                for (int i = 0; i < _armorReductions.Count; i++)
+                    reduction += _armorReductions[i].Amount;
+                return Mathf.Max(0f, Armor - reduction);
+            }
+        }
+
+        /// <summary>Task 34: apply a temporary, time-limited reduction to this enemy's effective Armor.
+        /// Generic and stackable-by-design (each call adds an independent entry that the list sums), built
+        /// on the same per-entry-duration pattern as the status/stacking machines rather than a special
+        /// case. No ability grants this yet — it exists so a future Bolt Striker line (Piercing Bolt) can
+        /// call it without further EnemyRuntime changes.</summary>
+        public void ApplyArmorReduction(float amount, float duration)
+        {
+            if (_isResolved || amount <= 0f || duration <= 0f) return;
+
+            _armorReductions.Add(new ActiveArmorReduction
+            {
+                Amount = amount,
+                RemainingDuration = duration
+            });
+
+            Debug.Log($"[EnemyRuntime] Armor -{amount:0.#} for {duration:0.#}s on '{Definition.EnemyName}' (effective {EffectiveArmor:0.#}).");
+        }
+
+        // Task 34: advance each armor-reduction debuff's timer and drop the expired ones (reverting Armor).
+        private void TickArmorReductions(float deltaTime)
+        {
+            for (int i = _armorReductions.Count - 1; i >= 0; i--)
+            {
+                var r = _armorReductions[i];
+                r.RemainingDuration -= deltaTime;
+                if (r.RemainingDuration <= 0f) _armorReductions.RemoveAt(i);
+                else _armorReductions[i] = r;
+            }
+        }
+
+        /// <summary>Task 35 (Overload): the multiplier applied to ALL incoming damage (1 + summed active
+        /// vulnerability fractions). 1 when none active. Read inside <see cref="TakeDamage"/>, so it amplifies
+        /// every source after mitigation — the documented distinction from Armor reduction (which lowers the
+        /// mitigation factor instead). See <see cref="ApplyVulnerability"/>.</summary>
+        public float IncomingDamageMultiplier
+        {
+            get
+            {
+                float bonus = 0f;
+                for (int i = 0; i < _vulnerabilities.Count; i++)
+                    bonus += _vulnerabilities[i].BonusFraction;
+                return 1f + bonus;
+            }
+        }
+
+        /// <summary>Task 35 (Overload): apply a temporary generic incoming-damage vulnerability — the target
+        /// takes <paramref name="bonusFraction"/> extra damage from ALL sources for <paramref name="duration"/>
+        /// seconds. Generic and stackable-by-design (the list sums), following the same per-entry pattern as
+        /// Armor reduction, but distinct from it (a post-mitigation damage-taken multiplier, NOT an Armor edit).</summary>
+        public void ApplyVulnerability(float bonusFraction, float duration)
+        {
+            if (_isResolved || bonusFraction <= 0f || duration <= 0f) return;
+
+            _vulnerabilities.Add(new ActiveVulnerability
+            {
+                BonusFraction = bonusFraction,
+                RemainingDuration = duration
+            });
+
+            Debug.Log($"[EnemyRuntime] Vulnerability +{bonusFraction * 100f:0.#}% dmg-taken for {duration:0.#}s on '{Definition.EnemyName}'.");
+        }
+
+        // Task 35: advance each vulnerability debuff's timer and drop the expired ones.
+        private void TickVulnerabilities(float deltaTime)
+        {
+            for (int i = _vulnerabilities.Count - 1; i >= 0; i--)
+            {
+                var v = _vulnerabilities[i];
+                v.RemainingDuration -= deltaTime;
+                if (v.RemainingDuration <= 0f) _vulnerabilities.RemoveAt(i);
+                else _vulnerabilities[i] = v;
+            }
+        }
+
         // Task 19: decay each stacking effect by one stack per DecayInterval of NOT being refreshed.
         // Drop the effect entirely once it decays to zero.
         private void TickStackingEffects(float deltaTime)
@@ -373,11 +500,15 @@ namespace Wavekeep.Runtime
 
         /// <summary>Apply damage. Reaching zero health triggers <see cref="Die"/>. Works in any state
         /// (moving or attacking the wall). Nothing calls this in steady-state Task 02 gameplay except
-        /// the manual debug trigger.</summary>
+        /// the manual debug trigger.
+        ///
+        /// Task 35: the final amount is scaled by <see cref="IncomingDamageMultiplier"/> (Overload
+        /// vulnerability) here — the last stage, so it amplifies EVERY source after ability-side mitigation.</summary>
         public void TakeDamage(float amount)
         {
             if (_isResolved || amount <= 0f) return;
 
+            amount *= IncomingDamageMultiplier; // Task 35: Overload vulnerability (1 when none active)
             CurrentHealth -= amount;
             if (CurrentHealth <= 0f)
             {

@@ -18,6 +18,10 @@ namespace Wavekeep.Data
         FrostFreezeDuration,
 
         /// <summary>Task 31 (Wider Burst): added to the basic AoE's max-targets cap (Add op).</summary>
-        BasicMaxTargets
+        BasicMaxTargets,
+
+        /// <summary>Task 35 (Charged Finisher): scales the Ultimate ability's base damage (Multiply op).
+        /// Resolved only for the Ultimate role so it never leaks onto the Basic.</summary>
+        UltimateDamage
     }
 }

@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b40531314bde4845a89597168de6cad, type: 3}
+  m_Name: UpgradeLine_MultiStrike
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.UpgradeLineDefinitionSO
+  _hero: {fileID: 11400000, guid: 86703b95547c99a48bdc6f7112d270f5, type: 2}
+  _skill: 1
+  _lineName: Multi-Strike
+  _tiers:
+  - _description: "Ultimate hits 2\xD7 at 60% each."
+    _effect: {fileID: 11400000, guid: 35d98dfac4fb61f4c85bda448a39bda6, type: 2}
+  - _description: "Ultimate hits 3\xD7 at 60% each."
+    _effect: {fileID: 11400000, guid: be0a934013582f446a87ea43a9b4eb1b, type: 2}
+  - _description: "Ultimate hits 4\xD7 at 60% each."
+    _effect: {fileID: 11400000, guid: 16a3b2dec4974e9428961b99bfa80800, type: 2}

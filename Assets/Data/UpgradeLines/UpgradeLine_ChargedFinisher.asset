@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b40531314bde4845a89597168de6cad, type: 3}
+  m_Name: UpgradeLine_ChargedFinisher
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.UpgradeLineDefinitionSO
+  _hero: {fileID: 11400000, guid: 86703b95547c99a48bdc6f7112d270f5, type: 2}
+  _skill: 1
+  _lineName: Charged Finisher
+  _tiers:
+  - _description: +15% ultimate base damage.
+    _effect: {fileID: 11400000, guid: 66fc2a64bff874d4d9c8d14fa61be851, type: 2}
+  - _description: +30% ultimate base damage.
+    _effect: {fileID: 11400000, guid: 8e4d4c9063da2794893e19ad90e7e337, type: 2}
+  - _description: +50% ultimate base damage.
+    _effect: {fileID: 11400000, guid: a592a73e9a13da2469eec047e4537ca4, type: 2}

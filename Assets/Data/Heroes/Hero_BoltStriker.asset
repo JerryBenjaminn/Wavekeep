@@ -17,8 +17,18 @@ MonoBehaviour:
   _prefab: {fileID: 1689319375201618287, guid: 856c0d2e31dfdd643981fc9ad1593195, type: 3}
   _tint: {r: 0.3, g: 0.6, b: 1, a: 1}
   _baseHealth: 100
-  _basicAbility: {fileID: 11400000, guid: 63ee157924228344db846845a2767891, type: 2}
-  _ultimateAbility: {fileID: 11400000, guid: d90c52d9d6734f6459e6537542542881, type: 2}
-  _exclusiveUpgrades:
-  - {fileID: 11400000, guid: f4cef29fa98a6784ab7ae308adebeef4, type: 2}
-  - {fileID: 11400000, guid: bf5685cdf091dfd468d01bf08e92be32, type: 2}
+  _baseLuck: 5
+  _basicAbility: {fileID: 11400000, guid: f39047286ad4c6144b02c658a2b614a8, type: 2}
+  _ultimateAbility: {fileID: 11400000, guid: 8e0a6067cb8c1e4458dcfbcbdca7aecc, type: 2}
+  _upgradeLines:
+  - {fileID: 11400000, guid: 7a599d5e8d23a2b428b1a24344536ae7, type: 2}
+  - {fileID: 11400000, guid: d80a3ed6722ad404a8417dcf21a24ea3, type: 2}
+  - {fileID: 11400000, guid: 6cea9f342d88287428328af868e85598, type: 2}
+  - {fileID: 11400000, guid: 27dbbb70481aaff42aa45c237c02e37e, type: 2}
+  - {fileID: 11400000, guid: f2b0e6699ea8caf48a70ae6b6b5fbcab, type: 2}
+  - {fileID: 11400000, guid: cb528ecd4c062a34783c341b8871a506, type: 2}
+  - {fileID: 11400000, guid: afb5dfa5a0fb7ca408886121f5ce6288, type: 2}
+  - {fileID: 11400000, guid: 93bdfed2eb8706641a20b74893d2a4bd, type: 2}
+  _apexTalents:
+  - {fileID: 11400000, guid: 23eeada09a2bdab4cad1c09e49606fa2, type: 2}
+  - {fileID: 11400000, guid: 1be05e8e79b4be54ab765c7d8915c6ce, type: 2}

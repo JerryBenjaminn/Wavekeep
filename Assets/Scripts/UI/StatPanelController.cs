@@ -34,7 +34,6 @@ namespace Wavekeep.UI
         [SerializeField] private Key _toggleKey = Key.Tab;
 
         private GameSession _session;
-        private HeroRuntime _hero;
         private readonly StringBuilder _sb = new StringBuilder(512);
 
         private void Start()
@@ -71,25 +70,31 @@ namespace Wavekeep.UI
 
         private void Refresh()
         {
-            if (_hero == null) _hero = Object.FindFirstObjectByType<HeroRuntime>();
             if (_contentText == null) return;
 
             _sb.Clear();
             _sb.AppendLine("<b>RUN STATS</b>  (Tab to close)");
             _sb.AppendLine();
 
-            if (_hero != null)
+            // Task 36: a block per active hero (the team), read from the session's hero registry.
+            var heroes = _session.Heroes != null ? _session.Heroes.Heroes : null;
+            if (heroes != null && heroes.Count > 0)
             {
-                _sb.Append("<b>Hero:</b> ").AppendLine(_hero.Definition != null ? _hero.Definition.HeroName : "—");
-                // Task 24: live total Luck (hero base + equipped gear + in-run potions), read straight off
-                // HeroRuntime — the same value the shop/loot rolls reweight against (no re-derivation here).
-                _sb.Append("<b>Luck:</b> ").AppendLine(_hero.CurrentLuck.ToString("0"));
-                AppendAbility("Basic", _hero.BasicStats);
-                AppendAbility("Ultimate", _hero.UltimateStats);
+                for (int i = 0; i < heroes.Count; i++)
+                {
+                    var hero = heroes[i];
+                    if (hero == null) continue;
+                    if (i > 0) _sb.AppendLine();
+                    _sb.Append("<b>Hero:</b> ").AppendLine(hero.Definition != null ? hero.Definition.HeroName : "—");
+                    // Task 24: live total Luck, read straight off HeroRuntime (no re-derivation).
+                    _sb.Append("<b>Luck:</b> ").AppendLine(hero.CurrentLuck.ToString("0"));
+                    AppendAbility("Basic", hero.BasicStats);
+                    AppendAbility("Ultimate", hero.UltimateStats);
+                }
             }
             else
             {
-                _sb.AppendLine("<i>No hero spawned yet.</i>");
+                _sb.AppendLine("<i>No heroes spawned yet.</i>");
             }
 
             AppendCrit();

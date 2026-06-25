@@ -18,3 +18,4 @@ MonoBehaviour:
     _count: 15
     _spawnInterval: 0.5
   _statMultiplier: 1.5
+  _bossLootTable: {fileID: 11400000, guid: 4a445aef7a20b4f4382697a5bcd2f5ef, type: 2}

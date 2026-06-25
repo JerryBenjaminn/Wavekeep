@@ -22,6 +22,14 @@ namespace Wavekeep.Data
         [Tooltip("Damage dealt to the defended point on arrival. Stored now; applied in a later task.")]
         [SerializeField] private float _contactDamage = 5f;
 
+        [Header("Defensive Stats (Task 34 — diminishing-returns mitigation; 0 = takes full damage)")]
+        [Tooltip("Reduces Physical damage taken via damageTaken = raw × 100/(100 + Armor). Scales by " +
+                 "wave/difficulty like HP. Placeholder values — real tuning happens later.")]
+        [SerializeField, Min(0f)] private float _armor;
+        [Tooltip("Reduces Magical damage taken via damageTaken = raw × 100/(100 + MagicResist). Scales by " +
+                 "wave/difficulty like HP. Placeholder values — real tuning happens later.")]
+        [SerializeField, Min(0f)] private float _magicResist;
+
         [Header("Loot Yield (consumed by Task 03 — stored here only)")]
         [SerializeField] private int _currencyReward = 1;
         [SerializeField] private int _xpReward = 1;
@@ -36,6 +44,12 @@ namespace Wavekeep.Data
         public float MaxHealth => _maxHealth;
         public float MoveSpeed => _moveSpeed;
         public float ContactDamage => _contactDamage;
+
+        /// <summary>Task 34: base Armor (Physical mitigation). Scaled by the wave/difficulty multiplier at spawn.</summary>
+        public float Armor => _armor;
+
+        /// <summary>Task 34: base Magic Resistance (Magical mitigation). Scaled by the wave/difficulty multiplier at spawn.</summary>
+        public float MagicResist => _magicResist;
         public int CurrencyReward => _currencyReward;
         public int XpReward => _xpReward;
         public LootTableSO LootTable => _lootTable;

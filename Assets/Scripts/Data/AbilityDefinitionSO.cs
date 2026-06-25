@@ -25,6 +25,9 @@ namespace Wavekeep.Data
                  "TargetedAreaOfEffect: max cast distance to find a target (the blast size is AoeRadius).")]
         [SerializeField, Min(0f)] private float _range = 10f;
         [SerializeField] private AbilityTargetingType _targetingType = AbilityTargetingType.SingleTarget;
+        [Tooltip("Task 34: damage school. Physical is mitigated by enemy Armor, Magical by Magic Resistance. " +
+                 "Set explicitly on every ability — Frost Warden's and Bolt Striker's abilities are Magical.")]
+        [SerializeField] private DamageType _damageType = DamageType.Physical;
         [Tooltip("Blast radius at the impact point for TargetedAreaOfEffect (Task 20). Unused by the " +
                  "other targeting types. This is the radius the AoE-tag / radius modifiers actually scale " +
                  "for a targeted impact-AoE.")]
@@ -45,6 +48,32 @@ namespace Wavekeep.Data
         [Tooltip("Task 31: if > 0, this ability's damage is this FRACTION of the caster's current BASIC " +
                  "ability damage (e.g. 0.5 = 50%), instead of BaseDamage. Used by Permafrost Eruption.")]
         [SerializeField, Min(0f)] private float _damageScalesWithBasicFraction;
+
+        [Header("Multi-Hit / Chain (Task 35 — single-target repeated strikes + bolt jumps)")]
+        [Tooltip("Times this ability strikes its single target per cast (Thunderstorm bakes 2). The Ultimate's " +
+                 "Multi-Strike upgrade overrides this at runtime. Min 1.")]
+        [SerializeField, Min(1)] private int _hitCount = 1;
+        [Tooltip("Each strike deals this fraction [0..1] of the resolved damage (1 = full). Multi-Strike's " +
+                 "upgrade overrides this for the Ultimate.")]
+        [SerializeField, Min(0f)] private float _hitDamageFraction = 1f;
+        [Tooltip("Bolt jumps baked into THIS ability (Thunderstorm). The basic's jumps come from the held " +
+                 "Chain Lightning upgrade instead, not here. 0 = no baked chain.")]
+        [SerializeField, Min(0)] private int _chainJumps;
+        [Tooltip("Baked jump damage as a fraction [0..1] of the primary hit's damage.")]
+        [SerializeField, Min(0f)] private float _chainDamageFraction;
+        [Tooltip("Max distance (m) from the primary target to find chain-jump targets. Used by both the " +
+                 "baked chain and the basic's Chain Lightning upgrade.")]
+        [SerializeField, Min(0f)] private float _chainRange = 8f;
+
+        [Header("Apex Finisher Bonuses (Task 35 — Lethal Surge reads run state)")]
+        [Tooltip("If true, this ability adds a damage bonus per CURRENT Static Charge stack and consumes them " +
+                 "(Lethal Surge).")]
+        [SerializeField] private bool _consumesStaticCharge;
+        [Tooltip("Bonus fraction [0..1] added per consumed Static Charge stack.")]
+        [SerializeField, Min(0f)] private float _staticChargeConsumeBonusPerStack;
+        [Tooltip("Additional bonus fraction [0..1] applied if the target is below the held Execute upgrade's " +
+                 "current HP% threshold (Lethal Surge). 0 = none.")]
+        [SerializeField, Min(0f)] private float _lowHpExecuteBonus;
 
         [Header("Upgrade Levels (ordered; level 1 = index 0; values are multipliers on base)")]
         [SerializeField] private List<AbilityUpgradeLevel> _upgradeLevels = new List<AbilityUpgradeLevel>();
@@ -88,6 +117,19 @@ namespace Wavekeep.Data
         public float BaseCooldown => _baseCooldown;
         public float Range => _range;
         public AbilityTargetingType TargetingType => _targetingType;
+
+        /// <summary>Task 34: damage school selecting which enemy defence stat mitigates this ability's hits.</summary>
+        public DamageType DamageType => _damageType;
+
+        // --- Task 35: multi-hit / chain / apex-finisher config ---
+        public int HitCount => _hitCount;
+        public float HitDamageFraction => _hitDamageFraction;
+        public int ChainJumps => _chainJumps;
+        public float ChainDamageFraction => _chainDamageFraction;
+        public float ChainRange => _chainRange;
+        public bool ConsumesStaticCharge => _consumesStaticCharge;
+        public float StaticChargeConsumeBonusPerStack => _staticChargeConsumeBonusPerStack;
+        public float LowHpExecuteBonus => _lowHpExecuteBonus;
 
         /// <summary>Impact blast radius for <see cref="AbilityTargetingType.TargetedAreaOfEffect"/> (Task 20).</summary>
         public float AoeRadius => _aoeRadius;

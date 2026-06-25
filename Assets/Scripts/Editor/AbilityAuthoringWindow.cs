@@ -43,6 +43,7 @@ namespace Wavekeep.EditorTools
         private float _range = 10f;
         private float _aoeRadius = 2.5f;
         private AbilityTargetingType _targetingType = AbilityTargetingType.SingleTarget;
+        private DamageType _damageType = DamageType.Physical; // Task 34: every ability sets this explicitly
         private bool _appliesStatusEffects;
         private readonly List<LevelRow> _levels = new List<LevelRow>();
         private readonly List<RuleRow> _rules = new List<RuleRow>();
@@ -139,6 +140,7 @@ namespace Wavekeep.EditorTools
                 "Acquisition range (SingleTarget), caster blast radius (AreaOfEffect), or max cast " +
                 "distance to find a target (TargetedAreaOfEffect)."), _range);
             _targetingType = (AbilityTargetingType)EditorGUILayout.EnumPopup("Targeting Type", _targetingType);
+            _damageType = (DamageType)EditorGUILayout.EnumPopup("Damage Type", _damageType);
             if (_targetingType == AbilityTargetingType.TargetedAreaOfEffect)
                 _aoeRadius = EditorGUILayout.FloatField(new GUIContent("AoE Radius (impact blast)",
                     "Blast radius centred on the resolved target's position (Task 20)."), _aoeRadius);
@@ -287,6 +289,7 @@ namespace Wavekeep.EditorTools
             _range = _abilityTemplate.Range;
             _aoeRadius = _abilityTemplate.AoeRadius;
             _targetingType = _abilityTemplate.TargetingType;
+            _damageType = _abilityTemplate.DamageType;
             _appliesStatusEffects = _abilityTemplate.AppliesStatusEffects;
 
             _levels.Clear();
@@ -348,6 +351,7 @@ namespace Wavekeep.EditorTools
             so.FindProperty("_range").floatValue = _range;
             so.FindProperty("_aoeRadius").floatValue = _aoeRadius;
             so.FindProperty("_targetingType").enumValueIndex = (int)_targetingType;
+            so.FindProperty("_damageType").enumValueIndex = (int)_damageType;
             so.FindProperty("_appliesStatusEffects").boolValue = _appliesStatusEffects;
 
             var levels = so.FindProperty("_upgradeLevels");

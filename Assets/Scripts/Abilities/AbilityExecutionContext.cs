@@ -40,6 +40,10 @@ namespace Wavekeep.Abilities
         public readonly float DefendedLineZ;
         public readonly float ApproachDirectionZ;
 
+        /// <summary>Task 35: caster-scoped combat state (Static Charge combo) shared across the hero's
+        /// abilities — the basic builds it, the Lethal Surge apex consumes it. Null when no hero owns one.</summary>
+        public readonly HeroCombatState CombatState;
+
         public AbilityExecutionContext(
             Vector3 casterPosition,
             IReadOnlyList<EnemyRuntime> enemies,
@@ -50,7 +54,8 @@ namespace Wavekeep.Abilities
             float basicDamage = 0f,
             GroundZoneManager zones = null,
             float defendedLineZ = 0f,
-            float approachDirectionZ = 1f)
+            float approachDirectionZ = 1f,
+            HeroCombatState combatState = null)
         {
             CasterPosition = casterPosition;
             Enemies = enemies;
@@ -62,6 +67,7 @@ namespace Wavekeep.Abilities
             Zones = zones;
             DefendedLineZ = defendedLineZ;
             ApproachDirectionZ = approachDirectionZ;
+            CombatState = combatState;
         }
     }
 }

@@ -18,6 +18,7 @@ MonoBehaviour:
   _baseCooldown: 8
   _range: 100
   _targetingType: 0
+  _damageType: 1
   _aoeRadius: 0
   _maxTargets: 0
   _appliesBaselineStatus: 1

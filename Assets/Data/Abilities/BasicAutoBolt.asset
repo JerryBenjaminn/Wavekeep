@@ -18,6 +18,7 @@ MonoBehaviour:
   _baseCooldown: 0.5
   _range: 28
   _targetingType: 0
+  _damageType: 1
   _upgradeLevels: []
   _tagInteractionRules:
   - _matchTag: 1

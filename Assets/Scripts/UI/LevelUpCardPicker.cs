@@ -43,6 +43,7 @@ namespace Wavekeep.UI
         private sealed class CardSlot
         {
             public GameObject Root;
+            public TMP_Text HeroText;    // Task 36: which hero this card's line belongs to (hero-coloured)
             public TMP_Text NameText;
             public TMP_Text InfoText;
             public Button ObtainButton;
@@ -50,18 +51,24 @@ namespace Wavekeep.UI
             public Image BadgeImage;     // Task 32: per-skill colour chip behind the badge text
         }
 
+        // Task 36: a draw candidate carries its OWNING hero alongside the line, so a pick is applied to the
+        // right hero's tier state (each hero's lines/apexes stay independent) — never assumed to be one hero.
+        private readonly struct Candidate
+        {
+            public readonly HeroRuntime Hero;
+            public readonly UpgradeLineDefinitionSO Line;
+            public Candidate(HeroRuntime hero, UpgradeLineDefinitionSO line) { Hero = hero; Line = line; }
+        }
+
+        private GameSession _session;
         private EventBus _events;
         private PauseState _pause;
-
-        // Task 29: the live hero, the single source of per-line tier state. Acquired lazily (it is spawned
-        // at runtime by the hero-select flow), mirroring UltimateChargeBar — no static singleton.
-        private HeroRuntime _hero;
 
         private readonly List<CardSlot> _slots = new List<CardSlot>();
 
         // Scratch buffers reused per draw so card selection doesn't allocate each level-up.
-        private readonly List<UpgradeLineDefinitionSO> _eligibleLines = new List<UpgradeLineDefinitionSO>();
-        private readonly List<UpgradeLineDefinitionSO> _currentDraw = new List<UpgradeLineDefinitionSO>();
+        private readonly List<Candidate> _eligible = new List<Candidate>();
+        private readonly List<Candidate> _currentDraw = new List<Candidate>();
 
         private int _pendingPicks;   // queued level-ups still awaiting a card choice
         private bool _isShowing;     // a card screen is currently displayed
@@ -75,9 +82,9 @@ namespace Wavekeep.UI
                 return;
             }
 
-            var session = _bootstrap.Session;
-            _events = session.Events;
-            _pause = session.PauseState;
+            _session = _bootstrap.Session;
+            _events = _session.Events;
+            _pause = _session.PauseState;
 
             BuildSlots();
 
@@ -123,6 +130,11 @@ namespace Wavekeep.UI
             vlg.childForceExpandWidth = true;
             vlg.childForceExpandHeight = false;
 
+            // Task 36: hero label (top) — hero name in the hero's tint, so the player can tell the 4
+            // categories (FW Basic/Ultimate, BS Basic/Ultimate) apart at a glance alongside the skill badge.
+            var heroText = CreateText(cardGo.transform, "Hero", 18f, FontStyles.Bold, 26f);
+            heroText.alignment = TextAlignmentOptions.Center;
+
             // Skill badge (top): coloured chip with BASIC/ULTIMATE (colour + text set in PopulateSlot).
             var badgeGo = new GameObject("Badge", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
             badgeGo.transform.SetParent(cardGo.transform, false);
@@ -158,6 +170,7 @@ namespace Wavekeep.UI
             return new CardSlot
             {
                 Root = cardGo,
+                HeroText = heroText,
                 NameText = nameText,
                 InfoText = infoText,
                 ObtainButton = button,
@@ -197,17 +210,19 @@ namespace Wavekeep.UI
             }
         }
 
-        private void OnObtain(UpgradeLineDefinitionSO chosen)
+        private void OnObtain(Candidate chosen)
         {
             // Ignore stray clicks once the screen is no longer presenting a choice.
             if (!_isShowing) return;
 
-            // Task 29: advance the chosen line one tier via the hero (which feeds UpgradeInventory and
-            // checks apex unlocks). No divergent add path.
-            if (_hero != null && chosen != null)
+            // Task 29/36: advance the chosen line one tier via its OWNING hero (which feeds the run's
+            // UpgradeInventory and checks THAT hero's apex unlocks). Routing to the owner keeps each hero's
+            // line tiers + apex conditions independent.
+            if (chosen.Hero != null && chosen.Line != null)
             {
-                _hero.TryUpgradeLine(chosen);
-                Debug.Log($"[LevelUpCardPicker] Picked line '{chosen.LineName}' → tier {_hero.GetLineTier(chosen)}. " +
+                chosen.Hero.TryUpgradeLine(chosen.Line);
+                Debug.Log($"[LevelUpCardPicker] Picked '{chosen.Hero.Definition.HeroName}' line " +
+                          $"'{chosen.Line.LineName}' → tier {chosen.Hero.GetLineTier(chosen.Line)}. " +
                           $"Pending picks left: {_pendingPicks - 1}.");
             }
 
@@ -235,11 +250,11 @@ namespace Wavekeep.UI
 
         private void ShowCard()
         {
-            DrawLines(_currentDraw);
+            DrawCandidates(_currentDraw);
 
             if (_currentDraw.Count == 0)
             {
-                // No eligible lines (no hero yet, hero has no lines, or all lines maxed) — auto-resolve so
+                // No eligible lines (no heroes yet, none have lines, or all lines maxed) — auto-resolve so
                 // the run never soft-locks.
                 Debug.LogWarning("[LevelUpCardPicker] No eligible upgrade lines to offer; skipping pick.", this);
                 _pendingPicks--;
@@ -265,10 +280,16 @@ namespace Wavekeep.UI
             SetPanelVisible(true);
         }
 
-        private void PopulateSlot(CardSlot slot, UpgradeLineDefinitionSO line)
+        private void PopulateSlot(CardSlot slot, Candidate candidate)
         {
+            var line = candidate.Line;
             slot.NameText.text = line.LineName;
-            slot.InfoText.text = BuildInfo(line);
+            slot.InfoText.text = BuildInfo(candidate);
+
+            // Task 36: hero label in the hero's tint — distinguishes which hero a card upgrades.
+            var heroDef = candidate.Hero != null ? candidate.Hero.Definition : null;
+            slot.HeroText.text = heroDef != null ? heroDef.HeroName.ToUpperInvariant() : "";
+            slot.HeroText.color = heroDef != null ? heroDef.Tint : Color.white;
 
             // Task 32: skill-source badge so the player can pattern-match Basic vs Ultimate at a glance.
             var (badgeLabel, badgeColor) = SkillBadge(line.Skill);
@@ -276,7 +297,7 @@ namespace Wavekeep.UI
             slot.BadgeImage.color = badgeColor;
 
             slot.ObtainButton.onClick.RemoveAllListeners();
-            slot.ObtainButton.onClick.AddListener(() => OnObtain(line));
+            slot.ObtainButton.onClick.AddListener(() => OnObtain(candidate));
         }
 
         // Task 32: consistent label + colour per skill so investing in the same skill looks the same each draw.
@@ -290,40 +311,46 @@ namespace Wavekeep.UI
             }
         }
 
-        // Draw up to _cardsPerLevelUp DISTINCT not-yet-maxed lines from the active hero, via a partial
-        // Fisher–Yates shuffle. Random selection among eligible lines (consistent with the old picker).
-        private void DrawLines(List<UpgradeLineDefinitionSO> result)
+        // Task 36: draw up to _cardsPerLevelUp DISTINCT not-yet-maxed lines from the COMBINED pool of ALL
+        // active heroes (16 lines total for a 2-hero team), via a partial Fisher–Yates shuffle. Pooling every
+        // hero's eligible lines into one flat list before shuffling means the draw can't favour one hero —
+        // each eligible line has equal weight regardless of which hero owns it.
+        private void DrawCandidates(List<Candidate> result)
         {
             result.Clear();
 
-            if (_hero == null) _hero = Object.FindFirstObjectByType<HeroRuntime>();
-            if (_hero == null) return;
-
-            _eligibleLines.Clear();
-            var lines = _hero.UpgradeLines;
-            if (lines != null)
+            _eligible.Clear();
+            var heroes = _session != null && _session.Heroes != null ? _session.Heroes.Heroes : null;
+            if (heroes != null)
             {
-                for (int i = 0; i < lines.Count; i++)
+                for (int h = 0; h < heroes.Count; h++)
                 {
-                    var line = lines[i];
-                    if (line != null && !_hero.IsLineMaxed(line)) _eligibleLines.Add(line);
+                    var hero = heroes[h];
+                    var lines = hero != null ? hero.UpgradeLines : null;
+                    if (lines == null) continue;
+                    for (int i = 0; i < lines.Count; i++)
+                    {
+                        var line = lines[i];
+                        if (line != null && !hero.IsLineMaxed(line)) _eligible.Add(new Candidate(hero, line));
+                    }
                 }
             }
 
-            int want = Mathf.Min(Mathf.Clamp(_cardsPerLevelUp, 2, 3), _eligibleLines.Count);
+            int want = Mathf.Min(Mathf.Clamp(_cardsPerLevelUp, 2, 3), _eligible.Count);
             for (int k = 0; k < want; k++)
             {
-                int swap = Random.Range(k, _eligibleLines.Count);
-                (_eligibleLines[k], _eligibleLines[swap]) = (_eligibleLines[swap], _eligibleLines[k]);
-                result.Add(_eligibleLines[k]);
+                int swap = Random.Range(k, _eligible.Count);
+                (_eligible[k], _eligible[swap]) = (_eligible[swap], _eligible[k]);
+                result.Add(_eligible[k]);
             }
         }
 
         // Card body: the NEXT tier the pick would grant — its tier number and description (falling back to
         // a numeric description of the underlying effect when no text is authored).
-        private string BuildInfo(UpgradeLineDefinitionSO line)
+        private string BuildInfo(Candidate candidate)
         {
-            int next = (_hero != null ? _hero.GetLineTier(line) : 0) + 1;
+            var line = candidate.Line;
+            int next = (candidate.Hero != null ? candidate.Hero.GetLineTier(line) : 0) + 1;
             var tier = line.TierAt(next);
 
             string body;

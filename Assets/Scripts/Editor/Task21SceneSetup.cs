@@ -42,60 +42,39 @@ namespace Wavekeep.EditorTools
 
             var uiSprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
 
-            // Root: anchored bottom-centre, acts as the dark background of the bar.
-            var rootGo = new GameObject(RootName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            // Task 36: UltimateChargeBar is now multi-bar (one generated bar per active hero), so the root is
+            // a bottom-centre VERTICAL CONTAINER the component fills at runtime — not a single fixed bar.
+            var rootGo = new GameObject(RootName,
+                typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
             rootGo.transform.SetParent(canvas.transform, false);
             var rootRt = (RectTransform)rootGo.transform;
             rootRt.anchorMin = new Vector2(0.5f, 0f);
             rootRt.anchorMax = new Vector2(0.5f, 0f);
             rootRt.pivot = new Vector2(0.5f, 0f);
-            rootRt.sizeDelta = new Vector2(420f, 36f);
-            rootRt.anchoredPosition = new Vector2(0f, 36f);
-            var background = rootGo.GetComponent<Image>();
-            background.sprite = uiSprite;
-            background.type = Image.Type.Sliced;
-            background.color = new Color(0f, 0f, 0f, 0.65f);
+            rootRt.sizeDelta = new Vector2(420f, 0f);
+            rootRt.anchoredPosition = new Vector2(0f, 12f);
 
-            // Fill: a horizontally-filled image inset slightly inside the background.
-            var fillGo = new GameObject("Fill", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            fillGo.transform.SetParent(rootGo.transform, false);
-            var fillRt = (RectTransform)fillGo.transform;
-            fillRt.anchorMin = Vector2.zero;
-            fillRt.anchorMax = Vector2.one;
-            fillRt.offsetMin = new Vector2(3f, 3f);
-            fillRt.offsetMax = new Vector2(-3f, -3f);
-            var fillImage = fillGo.GetComponent<Image>();
-            fillImage.sprite = uiSprite;
-            fillImage.type = Image.Type.Filled;
-            fillImage.fillMethod = Image.FillMethod.Horizontal;
-            fillImage.fillOrigin = (int)Image.OriginHorizontal.Left;
-            fillImage.fillAmount = 0f;
-            fillImage.color = new Color(0.20f, 0.40f, 0.90f, 1f);
-
-            // Label: centred over the bar.
-            var labelGo = new GameObject("Label", typeof(RectTransform));
-            labelGo.transform.SetParent(rootGo.transform, false);
-            var label = labelGo.AddComponent<TextMeshProUGUI>();
-            label.text = "Ultimate 0%";
-            label.fontSize = 20f;
-            label.color = Color.white;
-            label.alignment = TextAlignmentOptions.Center;
-            if (TMP_Settings.defaultFontAsset != null) label.font = TMP_Settings.defaultFontAsset;
-            var labelRt = label.rectTransform;
-            labelRt.anchorMin = Vector2.zero;
-            labelRt.anchorMax = Vector2.one;
-            labelRt.offsetMin = Vector2.zero;
-            labelRt.offsetMax = Vector2.zero;
+            var vlg = rootGo.GetComponent<VerticalLayoutGroup>();
+            vlg.spacing = 4f;
+            vlg.childAlignment = TextAnchor.LowerCenter;
+            vlg.childControlWidth = true;
+            vlg.childControlHeight = false;
+            vlg.childForceExpandWidth = true;
+            vlg.childForceExpandHeight = false;
+            rootGo.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             var bar = rootGo.AddComponent<UltimateChargeBar>();
             var so = new SerializedObject(bar);
-            so.FindProperty("_fillImage").objectReferenceValue = fillImage;
-            so.FindProperty("_label").objectReferenceValue = label;
+            so.FindProperty("_container").objectReferenceValue = rootRt;
+            so.FindProperty("_barSprite").objectReferenceValue = uiSprite;
+            // Wire the session so the bar reads the hero registry (falls back to a scene scan if left null).
+            var bootstrap = Object.FindFirstObjectByType<Wavekeep.Core.GameSessionBootstrap>();
+            if (bootstrap != null) so.FindProperty("_bootstrap").objectReferenceValue = bootstrap;
             so.ApplyModifiedPropertiesWithoutUndo();
 
             EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
-            Debug.Log("[Task21SceneSetup] Ultimate charge bar added. Play: the bar fills over the ultimate " +
-                      "cooldown and shows 'READY'; pressing U mid-cooldown does nothing. Save the scene (Ctrl+S).");
+            Debug.Log("[Task21SceneSetup] Ultimate charge bar added (now one bar per active hero, Task 36). " +
+                      "For the full dual-hero wiring run 'Setup Task 36' too. Save the scene (Ctrl+S).");
         }
 
         private static void DestroyIfExists(string objectName)

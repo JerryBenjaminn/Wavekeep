@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8eaab155df950d24f9c63d05c5484a91, type: 3}
+  m_Name: ApexTalent_LethalSurge
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.ApexTalentDefinitionSO
+  _hero: {fileID: 11400000, guid: 86703b95547c99a48bdc6f7112d270f5, type: 2}
+  _apexName: Lethal Surge
+  _requiredLines:
+  - {fileID: 11400000, guid: d80a3ed6722ad404a8417dcf21a24ea3, type: 2}
+  - {fileID: 11400000, guid: cb528ecd4c062a34783c341b8871a506, type: 2}
+  _ability: {fileID: 11400000, guid: bbcc90de412544f478b9f5624ad34100, type: 2}

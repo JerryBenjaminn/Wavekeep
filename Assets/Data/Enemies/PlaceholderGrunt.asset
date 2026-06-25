@@ -17,6 +17,8 @@ MonoBehaviour:
   _maxHealth: 10
   _moveSpeed: 3
   _contactDamage: 5
+  _armor: 0
+  _magicResist: 0
   _currencyReward: 1
   _xpReward: 5
   _lootTable: {fileID: 11400000, guid: 1c030cf7b223ab54cabc75f7df85567f, type: 2}

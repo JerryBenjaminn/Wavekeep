@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b40531314bde4845a89597168de6cad, type: 3}
+  m_Name: UpgradeLine_Overcharge
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.UpgradeLineDefinitionSO
+  _hero: {fileID: 11400000, guid: 86703b95547c99a48bdc6f7112d270f5, type: 2}
+  _skill: 0
+  _lineName: Overcharge
+  _tiers:
+  - _description: +5% crit; 5% chance for a +50% spike.
+    _effect: {fileID: 11400000, guid: aa0835187199ed7449cb7bc743088913, type: 2}
+  - _description: +10% crit; 10% chance for a +75% spike.
+    _effect: {fileID: 11400000, guid: 79c9a47467a459e49b899ac67de2415c, type: 2}
+  - _description: +15% crit; 15% chance for a +100% spike.
+    _effect: {fileID: 11400000, guid: 03c547187639a4e43add2eec756835b4, type: 2}

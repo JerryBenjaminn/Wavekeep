@@ -36,6 +36,14 @@ namespace Wavekeep.UI
         [Header("Roster (add a HeroDefinitionSO here to add a hero — no code needed)")]
         [SerializeField] private List<HeroDefinitionSO> _heroRoster = new List<HeroDefinitionSO>();
 
+        [Header("Debug Team (Task 36 — temporary dual-hero entry point)")]
+        [Tooltip("If non-empty, the run starts immediately with ALL these heroes active together (skipping " +
+                 "single-hero select / launch context). The proper Hub team-select UI is a later task; this " +
+                 "is the 'hardcoded/debug entry point' Task 36 assumes (Frost Warden + Bolt Striker).")]
+        [SerializeField] private List<HeroDefinitionSO> _debugTeam = new List<HeroDefinitionSO>();
+        [Tooltip("Lateral spacing (m) between spawned team members so they don't overlap at the near edge.")]
+        [SerializeField, Min(0f)] private float _teamSpacing = 3f;
+
         [Header("UI")]
         [Tooltip("Root object hidden once a hero is chosen.")]
         [SerializeField] private GameObject _selectPanel;
@@ -46,6 +54,14 @@ namespace Wavekeep.UI
 
         private void Start()
         {
+            // Task 36: dual-hero debug entry point takes priority — start the whole hardcoded team at once.
+            if (_debugTeam != null && _debugTeam.Count > 0)
+            {
+                if (_selectPanel != null) _selectPanel.SetActive(false);
+                StartCoroutine(AutoStartTeamNextFrame());
+                return;
+            }
+
             // Task 14: Hub-launched run — auto-start the hero chosen in the Hub, skipping the panel.
             var launch = Object.FindFirstObjectByType<RunLaunchContext>();
             if (launch != null && launch.SelectedHero != null)
@@ -66,6 +82,13 @@ namespace Wavekeep.UI
         {
             yield return null;
             OnHeroChosen(hero);
+        }
+
+        // Task 36: same one-frame defer, but starts the whole team together.
+        private IEnumerator AutoStartTeamNextFrame()
+        {
+            yield return null;
+            StartTeam(_debugTeam);
         }
 
         private void BuildButtons()
@@ -110,7 +133,16 @@ namespace Wavekeep.UI
             go.GetComponent<Button>().onClick.AddListener(() => OnHeroChosen(hero));
         }
 
+        // Single-hero path (Hub launch / dev panel) — delegates to the team path with a one-hero team so
+        // spawn/registration/run-start logic lives in exactly one place (Task 36).
         private void OnHeroChosen(HeroDefinitionSO hero)
+        {
+            StartTeam(new List<HeroDefinitionSO> { hero });
+        }
+
+        // Task 36: spawn every hero in the team side-by-side at the near edge, initialise each (they
+        // self-register into the session's HeroRegistry), then start the run once.
+        private void StartTeam(IReadOnlyList<HeroDefinitionSO> team)
         {
             if (_chosen) return;
             if (_bootstrap == null || _bootstrap.Session == null)
@@ -118,31 +150,62 @@ namespace Wavekeep.UI
                 Debug.LogError("[HeroSelectController] No GameSessionBootstrap/Session; cannot start.", this);
                 return;
             }
-            if (hero.Prefab == null)
+            if (team == null || team.Count == 0)
             {
-                Debug.LogError($"[HeroSelectController] Hero '{hero.HeroName}' has no prefab assigned.", this);
+                Debug.LogError("[HeroSelectController] Empty team; cannot start.", this);
                 return;
             }
 
             _chosen = true;
             if (_selectPanel != null) _selectPanel.SetActive(false);
 
-            var spawnPos = _heroSpawnPoint != null ? _heroSpawnPoint.position : Vector3.zero;
-            var spawnRot = _heroSpawnPoint != null ? _heroSpawnPoint.rotation : Quaternion.identity;
-            var instance = Object.Instantiate(hero.Prefab, spawnPos, spawnRot);
+            var basePos = _heroSpawnPoint != null ? _heroSpawnPoint.position : Vector3.zero;
+            var rot = _heroSpawnPoint != null ? _heroSpawnPoint.rotation : Quaternion.identity;
+            // Lateral axis to spread members along — the spawn point's right (falls back to world X). The
+            // arena is open width-wise (CLAUDE.md §2), so spreading on X keeps everyone at the near edge.
+            var right = _heroSpawnPoint != null ? _heroSpawnPoint.right : Vector3.right;
+
+            int spawned = 0;
+            for (int i = 0; i < team.Count; i++)
+            {
+                var hero = team[i];
+                if (hero == null) continue;
+                // Centre the row: offsets are symmetric around the spawn point.
+                float offset = (i - (team.Count - 1) * 0.5f) * _teamSpacing;
+                SpawnHero(hero, basePos + right * offset, rot);
+                spawned++;
+            }
+
+            if (spawned == 0)
+            {
+                Debug.LogError("[HeroSelectController] No valid heroes in team (all null/prefabless).", this);
+                return;
+            }
+
+            Debug.Log($"[HeroSelectController] Started run with {spawned} hero(es).");
+            if (_waveSpawner != null) _waveSpawner.StartRun();
+        }
+
+        private void SpawnHero(HeroDefinitionSO hero, Vector3 position, Quaternion rotation)
+        {
+            if (hero.Prefab == null)
+            {
+                Debug.LogError($"[HeroSelectController] Hero '{hero.HeroName}' has no prefab assigned.", this);
+                return;
+            }
+
+            var instance = Object.Instantiate(hero.Prefab, position, rotation);
             instance.name = $"Hero ({hero.HeroName})";
 
             var heroRuntime = instance.GetComponent<HeroRuntime>();
             if (heroRuntime == null) heroRuntime = instance.AddComponent<HeroRuntime>();
-            heroRuntime.Initialize(hero, _bootstrap.Session, _waveSpawner);
+            heroRuntime.Initialize(hero, _bootstrap.Session, _waveSpawner); // self-registers into Session.Heroes
 
-            // Task 11: announce the active hero so the level-up picker can include this hero's exclusive
-            // upgrade pool (and no other hero's). Published before the run starts, so it's cached well
-            // before the first level-up.
+            // Task 11/14: announce each spawned hero (gear-debug + any per-hero listeners). With a team, this
+            // fires once per hero; listeners that track a single "active hero" simply see the last one.
             _bootstrap.Session.Events.Publish(new HeroSelectedEvent(hero));
 
-            Debug.Log($"[HeroSelectController] Selected hero '{hero.HeroName}'. Starting run.");
-            if (_waveSpawner != null) _waveSpawner.StartRun();
+            Debug.Log($"[HeroSelectController] Spawned hero '{hero.HeroName}' at {position}.");
         }
     }
 }

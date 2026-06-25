@@ -203,6 +203,149 @@ namespace Wavekeep.Abilities
             return false;
         }
 
+        // === Task 35: Bolt Striker line getters. Same generic pattern as the Frost Warden getters above —
+        // scan held upgrades for the relevant data, switching on data never on a specific upgrade/hero. ===
+
+        /// <summary>Task 35 (Chain Lightning): the held jump count + per-jump damage fraction, if any.</summary>
+        public bool TryGetChainLightning(out int jumps, out float fraction)
+        {
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.ChainLightningJumps > 0 && u.ChainLightningFraction > 0f)
+                {
+                    jumps = u.ChainLightningJumps;
+                    fraction = u.ChainLightningFraction;
+                    return true;
+                }
+            }
+            jumps = 0;
+            fraction = 0f;
+            return false;
+        }
+
+        /// <summary>Task 35 (Static Charge): the held per-stack bonus + max stacks, if any.</summary>
+        public bool TryGetStaticCharge(out float perStack, out int maxStacks)
+        {
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.StaticChargePerStack > 0f && u.StaticChargeMaxStacks > 0)
+                {
+                    perStack = u.StaticChargePerStack;
+                    maxStacks = u.StaticChargeMaxStacks;
+                    return true;
+                }
+            }
+            perStack = 0f;
+            maxStacks = 0;
+            return false;
+        }
+
+        /// <summary>Task 35 (Overcharge): the strongest held flat crit-chance bonus [0..1] (0 if none). Fed
+        /// into the existing Task 23 crit roll, never a parallel crit path. Max (not sum) since line REPLACE
+        /// semantics holds one tier per line.</summary>
+        public float CritChanceBonus()
+        {
+            float best = 0f;
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.CritChanceBonus > best) best = u.CritChanceBonus;
+            }
+            return best;
+        }
+
+        /// <summary>Task 35 (Overcharge): the held bonus-spike chance + bonus fraction, if any.</summary>
+        public bool TryGetOverchargeSpike(out float chance, out float bonus)
+        {
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.OverchargeSpikeChance > 0f && u.OverchargeSpikeBonus > 0f)
+                {
+                    chance = u.OverchargeSpikeChance;
+                    bonus = u.OverchargeSpikeBonus;
+                    return true;
+                }
+            }
+            chance = 0f;
+            bonus = 0f;
+            return false;
+        }
+
+        /// <summary>Task 35 (Piercing Bolt): the held temporary Armor-reduction params, if any.</summary>
+        public bool TryGetPiercingBolt(out float amount, out float duration)
+        {
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.ArmorReductionAmount > 0f && u.ArmorReductionDuration > 0f)
+                {
+                    amount = u.ArmorReductionAmount;
+                    duration = u.ArmorReductionDuration;
+                    return true;
+                }
+            }
+            amount = 0f;
+            duration = 0f;
+            return false;
+        }
+
+        /// <summary>Task 35 (Multi-Strike): the held hit count + per-hit fraction, if any.</summary>
+        public bool TryGetMultiStrike(out int hits, out float fraction)
+        {
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.MultiStrikeHits > 0 && u.MultiStrikeFraction > 0f)
+                {
+                    hits = u.MultiStrikeHits;
+                    fraction = u.MultiStrikeFraction;
+                    return true;
+                }
+            }
+            hits = 0;
+            fraction = 0f;
+            return false;
+        }
+
+        /// <summary>Task 35 (Execute): the held low-HP threshold + bonus fraction, if any.</summary>
+        public bool TryGetExecute(out float threshold, out float bonus)
+        {
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.ExecuteThreshold > 0f && u.ExecuteBonus > 0f)
+                {
+                    threshold = u.ExecuteThreshold;
+                    bonus = u.ExecuteBonus;
+                    return true;
+                }
+            }
+            threshold = 0f;
+            bonus = 0f;
+            return false;
+        }
+
+        /// <summary>Task 35 (Overload): the held generic-vulnerability bonus + duration, if any.</summary>
+        public bool TryGetOverload(out float bonus, out float duration)
+        {
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.VulnerabilityBonus > 0f && u.VulnerabilityDuration > 0f)
+                {
+                    bonus = u.VulnerabilityBonus;
+                    duration = u.VulnerabilityDuration;
+                    return true;
+                }
+            }
+            bonus = 0f;
+            duration = 0f;
+            return false;
+        }
+
         public void Clear()
         {
             _upgrades.Clear();

@@ -15,8 +15,9 @@ namespace Wavekeep.Runtime
     /// pipeline. Drives nothing in normal play; gated behind <see cref="_enableDebugKeys"/>.
     ///
     /// Keys: G = grant a random sample item; J = equip the first owned item on the active hero; L =
-    /// unequip everything back to inventory; I = log inventory + loadout + the basic ability's
+    /// unequip everything back to inventory; K = log inventory + loadout + the basic ability's
     /// gear-inclusive effective damage (proving stats flow through the AbilityRuntime pipeline).
+    /// (K, not I: Task 36 bound I to hero 2's manual ultimate.)
     /// </summary>
     [AddComponentMenu("Wavekeep/Debug/Gear Debug Controller")]
     public sealed class GearDebugController : MonoBehaviour
@@ -60,7 +61,7 @@ namespace Wavekeep.Runtime
             if (keyboard[Key.G].wasPressedThisFrame) GrantRandom();
             if (keyboard[Key.J].wasPressedThisFrame) EquipFirstOwned();
             if (keyboard[Key.L].wasPressedThisFrame) UnequipAll();
-            if (keyboard[Key.I].wasPressedThisFrame) LogState();
+            if (keyboard[Key.K].wasPressedThisFrame) LogState();
         }
 
         private void GrantRandom()

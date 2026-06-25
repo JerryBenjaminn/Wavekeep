@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using Wavekeep.Abilities;
 using Wavekeep.Core;
 using Wavekeep.Data;
@@ -28,12 +27,18 @@ namespace Wavekeep.Runtime
     [AddComponentMenu("Wavekeep/Runtime/Hero Runtime")]
     public sealed class HeroRuntime : MonoBehaviour
     {
-        [Tooltip("Placeholder manual trigger for the ultimate; real charge mechanics are a later task.")]
-        [SerializeField] private Key _ultimateKey = Key.U;
+        [Tooltip("Task 36: when ON this hero auto-casts its Ultimate the moment it is ready and a target is " +
+                 "in range. HeroTeamController toggles this globally; when OFF the Ultimate waits for that " +
+                 "hero's manual key via TryCastUltimate. Input itself lives in HeroTeamController, not here, " +
+                 "so two heroes from the same prefab don't fight over one key.")]
+        [SerializeField] private bool _autoUltimate = true;
 
         public HeroDefinitionSO Definition { get; private set; }
         public IAbility Basic { get; private set; }
         public IAbility Ultimate { get; private set; }
+
+        /// <summary>Task 36: per-hero auto-ultimate flag (set by <c>HeroTeamController</c>'s global toggle).</summary>
+        public bool AutoUltimate { get => _autoUltimate; set => _autoUltimate = value; }
 
         /// <summary>Task 22: the basic/ultimate's FINAL stats, resolved through the SAME inputs this hero
         /// feeds the abilities each frame (upgrades + consumables + equipped gear). Null until the ability
@@ -66,6 +71,10 @@ namespace Wavekeep.Runtime
         // (per-run, no static singleton); abilities spawn into it via the execution context, and it is
         // ticked below each frame — frozen with the rest of gameplay while paused.
         private readonly GroundZoneManager _zones = new GroundZoneManager();
+
+        // Task 35: caster-scoped combat state (Bolt Striker's Static Charge combo). Owned here so the basic
+        // and the Lethal Surge apex — separate AbilityRuntime instances — share one combo counter.
+        private readonly HeroCombatState _combatState = new HeroCombatState();
 
         /// <summary>Task 24: the hero's live total Luck (hero base + summed equipped-gear Luck + in-run
         /// potion bonus), clamped to 0–100. Delegates to the run's <see cref="LuckState"/>, which is the
@@ -126,6 +135,10 @@ namespace Wavekeep.Runtime
                 }
             }
             _apexTalents = definition.ApexTalents;
+
+            // Task 36: register into the run's hero set so the team input, level-up pool, and cooldown HUD
+            // can reach every active hero through GameSession (no static singleton). Idempotent.
+            session.Heroes?.Register(this);
 
             ApplyTint(definition.Tint);
             _initialized = true;
@@ -236,10 +249,7 @@ namespace Wavekeep.Runtime
             // Task 31 (Pass 2): advance persistent ground/zones with the live enemy list + basic damage.
             _zones.Tick(Time.deltaTime, _waveSpawner.ActiveEnemies, basicDamage);
 
-            var context = new AbilityExecutionContext(
-                transform.position, _waveSpawner.ActiveEnemies, _upgrades, _consumables,
-                _equippedModifiers, _feedback, basicDamage, _zones,
-                _waveSpawner.DefendedLineZ, _waveSpawner.ApproachDirectionZ); // Task 33: full-width Frost Zone band
+            var context = BuildContext(basicDamage);
 
             if (Basic != null)
             {
@@ -251,33 +261,49 @@ namespace Wavekeep.Runtime
             {
                 Ultimate.Tick(Time.deltaTime);
 
-                var keyboard = Keyboard.current;
-                if (keyboard != null && keyboard[_ultimateKey].wasPressedThisFrame)
+                // Task 36: auto-ultimate. When the toggle (HeroTeamController) leaves AutoUltimate on, the
+                // hero fires its ultimate the instant it is ready and a target is in range — Execute no-ops
+                // (and keeps the cooldown) when nothing is in range, so it simply retries. When the toggle is
+                // off, the cast comes via TryCastUltimate from the team input instead.
+                if (AutoUltimate && Ultimate.IsReady)
                 {
-                    // Task 21: the cooldown is now a real gate. Only fire if charged; Execute starts the
-                    // cooldown on a successful hit (its existing behaviour). A press while charging is a
-                    // no-op so the ultimate can't be spammed.
-                    if (Ultimate.IsReady)
-                    {
-                        Ultimate.Execute(context);
-                        Debug.Log($"[HeroRuntime] {Definition.HeroName}: ultimate triggered.");
-                    }
-                    else
-                    {
-                        Debug.Log($"[HeroRuntime] {Definition.HeroName}: ultimate on cooldown " +
-                                  $"({Ultimate.CooldownProgress01 * 100f:0}% charged).");
-                    }
+                    Ultimate.Execute(context);
                 }
             }
 
             // Task 29: unlocked apex talents tick + auto-fire on their OWN cooldowns, no player input —
-            // they share the same execution context (targets/upgrades/gear) as the Basic/Ultimate.
+            // they share the same execution context (targets/upgrades/gear) as the Basic/Ultimate. This is
+            // unaffected by the auto-ultimate toggle (Task 36), which only governs the player-cast Ultimate.
             for (int i = 0; i < _apexAbilities.Count; i++)
             {
                 var apex = _apexAbilities[i];
                 apex.Tick(Time.deltaTime);
                 apex.Execute(context); // no-ops unless ready AND a target is in range
             }
+        }
+
+        // Task 36: build the per-frame execution context (extracted so the manual TryCastUltimate path can
+        // reuse the exact same context the auto path uses). Cheap — references live lists, allocates nothing.
+        private AbilityExecutionContext BuildContext(float basicDamage)
+        {
+            return new AbilityExecutionContext(
+                transform.position, _waveSpawner.ActiveEnemies, _upgrades, _consumables,
+                _equippedModifiers, _feedback, basicDamage, _zones,
+                _waveSpawner.DefendedLineZ, _waveSpawner.ApproachDirectionZ, // Task 33: full-width Frost Zone band
+                _combatState); // Task 35: shared Static Charge combo
+        }
+
+        /// <summary>Task 36: cast this hero's Ultimate on explicit player command (used by
+        /// <c>HeroTeamController</c> when the auto-ultimate toggle is off). No-op if not ready or paused, so a
+        /// press while charging is harmless. Returns true if it actually fired.</summary>
+        public bool TryCastUltimate()
+        {
+            if (!_initialized || Ultimate == null || !Ultimate.IsReady) return false;
+            if (_pause != null && _pause.IsPaused) return false;
+
+            Ultimate.Execute(BuildContext(BasicStats?.Damage ?? 0f));
+            Debug.Log($"[HeroRuntime] {Definition.HeroName}: ultimate triggered (manual).");
+            return true;
         }
 
         private void ApplyTint(Color tint)

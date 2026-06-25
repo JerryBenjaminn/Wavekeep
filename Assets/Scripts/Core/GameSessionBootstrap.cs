@@ -87,10 +87,13 @@ namespace Wavekeep.Core
             // Task 24: also takes LuckState so drop-tier odds shift (weakly) with Luck.
             var lootService = new LootService(eventBus, gearManager, luckState);
 
+            // Task 36: empty hero registry; the spawn flow registers each active hero into it at run start.
+            var heroes = new HeroRegistry();
+
             Session = new GameSession(
                 eventBus, enemyPool, interactionInput, currencyManager, xpManager,
                 upgradeInventory, consumableInventory, pauseState, rerollManager, gearManager, lootService,
-                luckState);
+                luckState, heroes);
         }
 
         private void OnDestroy()

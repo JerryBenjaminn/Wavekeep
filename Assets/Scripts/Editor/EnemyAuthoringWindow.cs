@@ -50,6 +50,8 @@ namespace Wavekeep.EditorTools
         private float _maxHealth = 10f;
         private float _moveSpeed = 3f;
         private float _contactDamage = 5f;
+        private float _armor;        // Task 34: Physical mitigation (0 = full damage)
+        private float _magicResist;  // Task 34: Magical mitigation (0 = full damage)
         private int _currencyReward = 5;
         private int _xpReward = 5;
 
@@ -91,6 +93,8 @@ namespace Wavekeep.EditorTools
             _maxHealth = EditorGUILayout.FloatField("Max Health", _maxHealth);
             _moveSpeed = EditorGUILayout.FloatField("Move Speed", _moveSpeed);
             _contactDamage = EditorGUILayout.FloatField("Contact Damage", _contactDamage);
+            _armor = Mathf.Max(0f, EditorGUILayout.FloatField("Armor (Physical)", _armor));
+            _magicResist = Mathf.Max(0f, EditorGUILayout.FloatField("Magic Resist (Magical)", _magicResist));
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Rewards", EditorStyles.boldLabel);
@@ -161,6 +165,8 @@ namespace Wavekeep.EditorTools
             _maxHealth = 400f;
             _moveSpeed = 1.5f;
             _contactDamage = 30f;
+            _armor = 60f;        // Task 34: tankier boss defence (mirrors BossGrunt)
+            _magicResist = 60f;
             _currencyReward = 50;
             _xpReward = 50;
         }
@@ -248,6 +254,8 @@ namespace Wavekeep.EditorTools
             _maxHealth = _template.MaxHealth;
             _moveSpeed = _template.MoveSpeed;
             _contactDamage = _template.ContactDamage;
+            _armor = _template.Armor;
+            _magicResist = _template.MagicResist;
             _currencyReward = _template.CurrencyReward;
             _xpReward = _template.XpReward;
 
@@ -289,6 +297,8 @@ namespace Wavekeep.EditorTools
             so.FindProperty("_maxHealth").floatValue = _maxHealth;
             so.FindProperty("_moveSpeed").floatValue = _moveSpeed;
             so.FindProperty("_contactDamage").floatValue = _contactDamage;
+            so.FindProperty("_armor").floatValue = _armor;
+            so.FindProperty("_magicResist").floatValue = _magicResist;
             so.FindProperty("_currencyReward").intValue = _currencyReward;
             so.FindProperty("_xpReward").intValue = _xpReward;
             so.FindProperty("_lootTable").objectReferenceValue = lootTable;

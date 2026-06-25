@@ -3,6 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using Wavekeep.Abilities;
+using Wavekeep.Core;
 using Wavekeep.Runtime;
 
 namespace Wavekeep.UI
@@ -25,6 +26,8 @@ namespace Wavekeep.UI
         [SerializeField] private RectTransform _container;
         [Tooltip("Sprite used for the bar background + fill (wire the built-in UI/Skin/UISprite).")]
         [SerializeField] private Sprite _barSprite;
+        [Tooltip("Task 36: session source for the active-hero registry. If unset, falls back to a scene scan.")]
+        [SerializeField] private GameSessionBootstrap _bootstrap;
 
         [Header("Appearance (mirrors the ultimate bar)")]
         [SerializeField] private Color _chargingColor = new Color(0.85f, 0.55f, 0.20f, 1f);
@@ -38,34 +41,47 @@ namespace Wavekeep.UI
         }
 
         private readonly List<Bar> _bars = new List<Bar>();
-        private HeroRuntime _hero;
+        private readonly HeroLookup _heroes = new HeroLookup();
 
         private void Update()
         {
             if (_container == null) return;
-            if (_hero == null) _hero = Object.FindFirstObjectByType<HeroRuntime>();
 
-            var apexes = _hero != null ? _hero.ApexAbilities : null;
-            int count = apexes != null ? apexes.Count : 0;
+            // Task 36: one bar per UNLOCKED apex across ALL active heroes (Task 32 already generates N bars;
+            // this just feeds it both heroes' apex lists, labelled by hero so two heroes' apexes are distinct).
+            var heroes = _heroes.Get(_bootstrap);
 
-            // Grow the bar pool to match the number of unlocked apexes (only ever grows during a run).
-            while (_bars.Count < count) _bars.Add(CreateBar());
-
-            for (int i = 0; i < _bars.Count; i++)
+            int barIndex = 0;
+            for (int h = 0; heroes != null && h < heroes.Count; h++)
             {
-                bool active = i < count;
-                if (_bars[i].Root.activeSelf != active) _bars[i].Root.SetActive(active);
-                if (!active) continue;
+                var hero = heroes[h];
+                var apexes = hero != null ? hero.ApexAbilities : null;
+                if (apexes == null) continue;
 
-                var apex = apexes[i];
-                float progress = Mathf.Clamp01(apex.CooldownProgress01);
-                bool ready = apex.IsReady;
+                for (int a = 0; a < apexes.Count; a++)
+                {
+                    if (_bars.Count <= barIndex) _bars.Add(CreateBar());
+                    var bar = _bars[barIndex++];
+                    if (!bar.Root.activeSelf) bar.Root.SetActive(true);
 
-                _bars[i].Fill.fillAmount = progress;
-                _bars[i].Fill.color = ready ? _readyColor : _chargingColor;
+                    var apex = apexes[a];
+                    float progress = Mathf.Clamp01(apex.CooldownProgress01);
+                    bool ready = apex.IsReady;
+                    bar.Fill.fillAmount = progress;
+                    bar.Fill.color = ready ? _readyColor : _chargingColor;
 
-                string label = apex.Definition != null ? apex.Definition.AbilityName : "Apex";
-                _bars[i].Label.text = ready ? $"{label} — READY" : $"{label} {Mathf.FloorToInt(progress * 100f)}%";
+                    string apexName = apex.Definition != null ? apex.Definition.AbilityName : "Apex";
+                    string heroName = hero.Definition != null ? hero.Definition.HeroName : "Hero";
+                    bar.Label.text = ready
+                        ? $"{heroName}: {apexName} — READY"
+                        : $"{heroName}: {apexName} {Mathf.FloorToInt(progress * 100f)}%";
+                }
+            }
+
+            // Deactivate any surplus bars (e.g. nothing unlocked yet).
+            for (int i = barIndex; i < _bars.Count; i++)
+            {
+                if (_bars[i].Root.activeSelf) _bars[i].Root.SetActive(false);
             }
         }
 

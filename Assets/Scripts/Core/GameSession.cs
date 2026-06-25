@@ -53,9 +53,11 @@ namespace Wavekeep.Core
         /// the shop and loot rolls reweight against; resets each run like other per-run services.</summary>
         public LuckState LuckState { get; }
 
-        // Placeholder service slots — populated by later tasks:
-        // TODO (Task 05): HeroRuntime HeroRuntime { get; }
-        //
+        /// <summary>Task 36: the run's active heroes (one or two). Heroes self-register on Initialize; the
+        /// level-up pool, team ultimate input, and cooldown HUD read the team from here rather than via a
+        /// scene-wide lookup or static singleton (§3.5).</summary>
+        public HeroRegistry Heroes { get; }
+
         // Task 02 note: WaveSpawner is a scene MonoBehaviour that *consumes* this session
         // (pulls Events + EnemyPool from it) rather than being held here, so Core has no
         // dependency on the Waves layer. Dependency flow still originates from GameSession (§3.5).
@@ -72,7 +74,8 @@ namespace Wavekeep.Core
             RerollManager rerollManager,
             GearManager gearManager,
             LootService lootService,
-            LuckState luckState)
+            LuckState luckState,
+            HeroRegistry heroes)
         {
             Events = eventBus;
             EnemyPool = enemyPool;
@@ -86,6 +89,7 @@ namespace Wavekeep.Core
             GearManager = gearManager;
             LootService = lootService;
             LuckState = luckState;
+            Heroes = heroes;
         }
 
         /// <summary>Release all session-scoped state. Call when the run/scene ends.</summary>
@@ -96,6 +100,7 @@ namespace Wavekeep.Core
             XPManager?.Dispose();
             LootService?.Dispose();
             LuckState?.Dispose();
+            Heroes?.Clear(); // Task 36: drop hero references so none leak across a scene reload (§3.5)
             Events.UnsubscribeAll();
             EnemyPool.Clear();
         }

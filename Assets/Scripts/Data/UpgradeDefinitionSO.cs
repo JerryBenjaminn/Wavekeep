@@ -69,6 +69,54 @@ namespace Wavekeep.Data
                  "runaway uptime. Placeholder 3s.")]
         [SerializeField, Min(0f)] private float _zoneDurationExtendCapBonus = 3f;
 
+        // === Task 35: Bolt Striker line effects (single-target DPS; NO AoE/DoT). Each is optional data
+        // a tier authors; UpgradeInventory exposes generic getters and AbilityRuntime reads them by role,
+        // never by hero identity — same pattern as the Frost Warden fields above. ===
+
+        [Header("Chain Lightning (Task 35 — Basic; bolt jumps to nearby enemies for reduced damage)")]
+        [Tooltip("Number of extra enemies the basic hit jumps to. 0 = no chain.")]
+        [SerializeField, Min(0)] private int _chainLightningJumps;
+        [Tooltip("Jump damage as a fraction [0..1] of the main hit's damage.")]
+        [SerializeField, Min(0f)] private float _chainLightningFraction;
+
+        [Header("Static Charge (Task 35 — Basic; consecutive hits on one target stack a damage bonus)")]
+        [Tooltip("Damage bonus fraction added per stack [0..1]. 0 = no static charge.")]
+        [SerializeField, Min(0f)] private float _staticChargePerStack;
+        [Tooltip("Maximum stacks (the cap the bonus builds to).")]
+        [SerializeField, Min(0)] private int _staticChargeMaxStacks;
+
+        [Header("Overcharge (Task 35 — Basic; crit chance + an independent bonus-spike chance)")]
+        [Tooltip("Flat crit CHANCE bonus [0..1] fed into the existing Task 23 crit pipeline.")]
+        [SerializeField, Range(0f, 1f)] private float _critChanceBonus;
+        [Tooltip("Chance [0..1] for a one-time bonus damage spike on a basic hit (rolled separately from crit).")]
+        [SerializeField, Range(0f, 1f)] private float _overchargeSpikeChance;
+        [Tooltip("Spike bonus damage as a fraction of the hit [0..1] (e.g. 0.5 = +50%).")]
+        [SerializeField, Min(0f)] private float _overchargeSpikeBonus;
+
+        [Header("Piercing Bolt (Task 35 — Basic; consumes Task 34's temporary Armor reduction)")]
+        [Tooltip("Effective Armor reduction applied to the hit target for a duration. 0 = no reduction.")]
+        [SerializeField, Min(0f)] private float _armorReductionAmount;
+        [SerializeField, Min(0f)] private float _armorReductionDuration;
+
+        [Header("Multi-Strike (Task 35 — Ultimate; the cast hits the same target multiple times)")]
+        [Tooltip("Hits per ultimate cast. 0 = not a multi-strike upgrade (ability fires once).")]
+        [SerializeField, Min(0)] private int _multiStrikeHits;
+        [Tooltip("Each multi-strike hit deals this fraction [0..1] of the ultimate's resolved damage.")]
+        [SerializeField, Min(0f)] private float _multiStrikeFraction;
+
+        [Header("Execute (Task 35 — Ultimate; bonus damage vs low-HP targets)")]
+        [Tooltip("Target HP fraction [0..1] below which the bonus applies. 0 = no execute.")]
+        [SerializeField, Range(0f, 1f)] private float _executeThreshold;
+        [Tooltip("Bonus damage fraction [0..1] vs targets under the threshold.")]
+        [SerializeField, Min(0f)] private float _executeBonus;
+
+        [Header("Overload (Task 35 — Ultimate; generic incoming-damage vulnerability, NOT Armor reduction)")]
+        [Tooltip("Extra fraction of damage the target takes from ALL sources for the duration [0..1] " +
+                 "(e.g. 0.10 = +10% taken). Distinct from Piercing Bolt's Armor reduction — this is a " +
+                 "post-mitigation damage-taken multiplier on EnemyRuntime. 0 = no vulnerability.")]
+        [SerializeField, Min(0f)] private float _vulnerabilityBonus;
+        [SerializeField, Min(0f)] private float _vulnerabilityDuration;
+
         [Header("Status Effect on Hit (Task 11 — applied by abilities flagged AppliesStatusEffects)")]
         [Tooltip("If true, holding this upgrade makes status-delivering ability hits apply the effect below.")]
         [SerializeField] private bool _appliesStatusEffect;
@@ -124,6 +172,37 @@ namespace Wavekeep.Data
         // Absolute Zero (Task 33): Frost Zone duration extension on death inside.
         public float ZoneDurationExtendPerDeath => _zoneDurationExtendPerDeath;
         public float ZoneDurationExtendCapBonus => _zoneDurationExtendCapBonus;
+
+        // --- Task 35: Bolt Striker line effects ---
+
+        // Chain Lightning (Basic).
+        public int ChainLightningJumps => _chainLightningJumps;
+        public float ChainLightningFraction => _chainLightningFraction;
+
+        // Static Charge (Basic).
+        public float StaticChargePerStack => _staticChargePerStack;
+        public int StaticChargeMaxStacks => _staticChargeMaxStacks;
+
+        // Overcharge (Basic).
+        public float CritChanceBonus => _critChanceBonus;
+        public float OverchargeSpikeChance => _overchargeSpikeChance;
+        public float OverchargeSpikeBonus => _overchargeSpikeBonus;
+
+        // Piercing Bolt (Basic) — feeds Task 34's EnemyRuntime.ApplyArmorReduction.
+        public float ArmorReductionAmount => _armorReductionAmount;
+        public float ArmorReductionDuration => _armorReductionDuration;
+
+        // Multi-Strike (Ultimate).
+        public int MultiStrikeHits => _multiStrikeHits;
+        public float MultiStrikeFraction => _multiStrikeFraction;
+
+        // Execute (Ultimate).
+        public float ExecuteThreshold => _executeThreshold;
+        public float ExecuteBonus => _executeBonus;
+
+        // Overload (Ultimate) — generic incoming-damage vulnerability, distinct from Armor reduction.
+        public float VulnerabilityBonus => _vulnerabilityBonus;
+        public float VulnerabilityDuration => _vulnerabilityDuration;
 
         public bool HasTag(UpgradeTag tag) => _tags.Contains(tag);
     }

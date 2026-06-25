@@ -32,6 +32,9 @@ namespace Wavekeep.Runtime
         // mutate the live active-enemy list while enumerating it — kills remove enemies from it.
         private readonly List<EnemyRuntime> _aoeBuffer = new List<EnemyRuntime>();
 
+        // Task 35: reusable buffer for Chain Lightning jump-target collection (same no-alloc rationale).
+        private readonly List<EnemyRuntime> _chainBuffer = new List<EnemyRuntime>();
+
         public AbilityDefinitionSO Definition { get; }
         public int CurrentLevel { get; private set; } = 1;
         public bool IsReady => _cooldownTimer <= 0f;
@@ -101,7 +104,7 @@ namespace Wavekeep.Runtime
             // Task 23: crit is the FINAL multiplicative step in the damage pipeline — a per-cast roll on
             // the fully-modified damage. Rolled here (at execution), NOT in ComputeStats, so deterministic
             // previews (GetEffectiveDamage / ResolveStats) never randomly crit. Defaults to no-op (0% chance).
-            damage = RollCrit(damage, context.Consumables);
+            damage = RollCrit(damage, context.Consumables, context.Upgrades);
 
             bool hitSomething;
             switch (Definition.TargetingType)
@@ -149,11 +152,29 @@ namespace Wavekeep.Runtime
             }
 
             if (nearest == null) return false;
-            OnHit(nearest, context, damage);
+
+            // Task 35: a single-target cast can strike its target multiple times (Multi-Strike upgrade on the
+            // ultimate, or an ability-baked _hitCount like Thunderstorm). Each strike is a full OnHit so the
+            // per-hit payloads (Execute, Overload, etc.) resolve per strike. 1 hit = the pre-Task-35 behaviour.
+            ResolveMultiHit(context.Upgrades, out int hits, out float hitFraction);
+            float perHitDamage = damage * hitFraction;
+            for (int i = 0; i < hits; i++)
+            {
+                OnHit(nearest, context, perHitDamage);
+                if (!nearest.IsAlive) break; // target died mid-burst — stop wasting strikes on it
+            }
 
             // Task 08: fire the visual from the SAME resolved target used for damage (not a separate
             // targeting pass), so the indicator can never disagree with where damage actually landed.
             context.Feedback?.OnSingleTargetHit(context.CasterPosition, nearest.Transform.position);
+
+            // Task 35 (Chain Lightning / Thunderstorm): the bolt jumps to nearby OTHER enemies for a fraction
+            // of the per-hit damage. Single-/double-jump only (nearest N) — NOT an AoE; it is pure damage, so
+            // it never re-applies the primary's on-hit payloads (e.g. Static Charge, which is target-specific).
+            ResolveChain(context.Upgrades, out int jumps, out float chainFraction);
+            if (jumps > 0 && chainFraction > 0f)
+                ChainJumps(nearest, context, perHitDamage * chainFraction, jumps);
+
             return true;
         }
 
@@ -273,7 +294,15 @@ namespace Wavekeep.Runtime
                     float bonus = context.Upgrades.BonusDamageVsImpaired();
                     if (bonus > 0f) finalDamage *= 1f + bonus;
                 }
-                target.TakeDamage(finalDamage);
+
+                // Task 35 — Bolt Striker per-hit damage modifiers. Each is guarded by role + held data, so
+                // it is a no-op for any other hero/ability (generic, never keyed on hero identity).
+                finalDamage = ApplyStaticCharge(target, context, finalDamage);        // Basic: consecutive-hit stacks
+                finalDamage = ApplyOverchargeSpike(context, finalDamage);             // Basic: independent spike roll
+                finalDamage = ApplyExecuteBonus(target, context, finalDamage);        // Ultimate: vs low-HP targets
+                finalDamage = ApplyApexFinisherBonuses(target, context, finalDamage); // Apex: Lethal Surge
+
+                DealDamage(target, context, finalDamage);
             }
 
             ApplyZonePayload(target, context);          // Task 19: ultimate Slow zone (DoT removed in Task 31)
@@ -281,6 +310,165 @@ namespace Wavekeep.Runtime
             ApplyHeldStatusEffects(target, context.Upgrades); // Task 11: held status-upgrade payloads
             ApplyBaselineStatus(target);                // Task 31: ability's own status (apex freeze)
             ApplyHardFreeze(target, context);           // Task 31: basic chance-to-hard-freeze
+            ApplyPiercingBolt(target, context);         // Task 35: basic temporary Armor reduction (Task 34 mechanism)
+            ApplyOverload(target, context);             // Task 35: ultimate generic vulnerability
+        }
+
+        // Task 34/35: the actual damage application — diminishing-returns mitigation (Task 34) then
+        // EnemyRuntime.TakeDamage (which applies the Task 35 Overload vulnerability as its final stage).
+        // Chain jumps call this directly so they take mitigation/vulnerability but NONE of the on-hit payloads.
+        private void DealDamage(EnemyRuntime target, AbilityExecutionContext context, float rawDamage)
+        {
+            if (target == null || rawDamage <= 0f) return;
+            target.TakeDamage(MitigateDamage(target, rawDamage));
+        }
+
+        // Task 35: resolve repeated single-target strikes. Default 1 hit at full damage; the ability can bake
+        // a multi-hit (Thunderstorm), and the Ultimate's Multi-Strike upgrade overrides both at runtime.
+        private void ResolveMultiHit(UpgradeInventory upgrades, out int hits, out float fraction)
+        {
+            hits = Mathf.Max(1, Definition.HitCount);
+            fraction = Definition.HitDamageFraction <= 0f ? 1f : Definition.HitDamageFraction;
+            if (_role == AbilityRole.Ultimate && upgrades != null &&
+                upgrades.TryGetMultiStrike(out int n, out float f))
+            {
+                hits = Mathf.Max(1, n);
+                fraction = f;
+            }
+        }
+
+        // Task 35: resolve chain-jump config. A baked chain (Thunderstorm) is the ability's own behaviour;
+        // otherwise the Basic reads its held Chain Lightning upgrade. No chain for anything else.
+        private void ResolveChain(UpgradeInventory upgrades, out int jumps, out float fraction)
+        {
+            if (Definition.ChainJumps > 0 && Definition.ChainDamageFraction > 0f)
+            {
+                jumps = Definition.ChainJumps;
+                fraction = Definition.ChainDamageFraction;
+                return;
+            }
+            if (_role == AbilityRole.Basic && upgrades != null &&
+                upgrades.TryGetChainLightning(out int j, out float f))
+            {
+                jumps = j;
+                fraction = f;
+                return;
+            }
+            jumps = 0;
+            fraction = 0f;
+        }
+
+        // Task 35: deal chainDamage to the nearest `jumps` alive enemies within ChainRange of the origin
+        // (excluding the origin). Single/double jump only — explicitly NOT an AoE.
+        private void ChainJumps(EnemyRuntime origin, AbilityExecutionContext context, float chainDamage, int jumps)
+        {
+            if (chainDamage <= 0f || jumps <= 0) return;
+
+            float chainRange = Definition.ChainRange > 0f ? Definition.ChainRange : 8f;
+            float rangeSqr = chainRange * chainRange;
+            var originPos = origin.Transform.position;
+
+            _chainBuffer.Clear();
+            var enemies = context.Enemies;
+            for (int i = 0; i < enemies.Count; i++)
+            {
+                var e = enemies[i];
+                if (e == null || e == origin || !e.IsAlive) continue;
+                if ((e.Transform.position - originPos).sqrMagnitude <= rangeSqr) _chainBuffer.Add(e);
+            }
+            if (_chainBuffer.Count == 0) return;
+
+            if (_chainBuffer.Count > jumps)
+            {
+                _chainBuffer.Sort((a, b) =>
+                    (a.Transform.position - originPos).sqrMagnitude.CompareTo(
+                    (b.Transform.position - originPos).sqrMagnitude));
+                _chainBuffer.RemoveRange(jumps, _chainBuffer.Count - jumps);
+            }
+
+            for (int i = 0; i < _chainBuffer.Count; i++)
+            {
+                var jump = _chainBuffer[i];
+                DealDamage(jump, context, chainDamage); // pure damage — no Static Charge/spike/piercing re-trigger
+                context.Feedback?.OnSingleTargetHit(originPos, jump.Transform.position);
+            }
+            _chainBuffer.Clear();
+        }
+
+        // Task 35 (Static Charge — Basic): consecutive hits on the same target stack a damage bonus; switching
+        // targets resets the combo (tracked in the shared HeroCombatState so Lethal Surge can consume it).
+        private float ApplyStaticCharge(EnemyRuntime target, AbilityExecutionContext context, float damage)
+        {
+            if (_role != AbilityRole.Basic || context.Upgrades == null || context.CombatState == null) return damage;
+            if (!context.Upgrades.TryGetStaticCharge(out float perStack, out int maxStacks)) return damage;
+
+            int bonusStacks = context.CombatState.RegisterBasicHit(target, maxStacks);
+            if (bonusStacks > 0 && perStack > 0f) damage *= 1f + perStack * bonusStacks;
+            return damage;
+        }
+
+        // Task 35 (Overcharge — Basic): a separate, independently-rolled chance for a one-time damage spike on
+        // top of the (already crit-resolved) hit. Distinct from the crit-chance bonus, which feeds RollCrit.
+        private float ApplyOverchargeSpike(AbilityExecutionContext context, float damage)
+        {
+            if (_role != AbilityRole.Basic || context.Upgrades == null) return damage;
+            if (!context.Upgrades.TryGetOverchargeSpike(out float chance, out float bonus)) return damage;
+
+            if (Random.value < chance)
+            {
+                Debug.Log($"[AbilityRuntime] {Definition.AbilityName} OVERCHARGE SPIKE +{bonus * 100f:0}%!");
+                damage *= 1f + bonus;
+            }
+            return damage;
+        }
+
+        // Task 35 (Execute — Ultimate): bonus damage against a target below the held Execute upgrade's HP%.
+        private float ApplyExecuteBonus(EnemyRuntime target, AbilityExecutionContext context, float damage)
+        {
+            if (_role != AbilityRole.Ultimate || context.Upgrades == null || target == null) return damage;
+            if (!context.Upgrades.TryGetExecute(out float threshold, out float bonus)) return damage;
+            if (target.MaxHealth > 0f && target.CurrentHealth / target.MaxHealth < threshold)
+                damage *= 1f + bonus;
+            return damage;
+        }
+
+        // Task 35 (Lethal Surge apex): +bonus per CONSUMED Static Charge stack, and an extra bonus if the
+        // target is below the held Execute upgrade's threshold. Both are ability-baked (apex data), reading
+        // the same shared combat state / held Execute the basic + ultimate use.
+        private float ApplyApexFinisherBonuses(EnemyRuntime target, AbilityExecutionContext context, float damage)
+        {
+            if (Definition.ConsumesStaticCharge && context.CombatState != null &&
+                Definition.StaticChargeConsumeBonusPerStack > 0f)
+            {
+                int stacks = context.CombatState.ConsumeStaticCharge();
+                if (stacks > 0) damage *= 1f + Definition.StaticChargeConsumeBonusPerStack * stacks;
+            }
+
+            if (Definition.LowHpExecuteBonus > 0f && target != null && context.Upgrades != null &&
+                context.Upgrades.TryGetExecute(out float threshold, out _) &&
+                target.MaxHealth > 0f && target.CurrentHealth / target.MaxHealth < threshold)
+            {
+                damage *= 1f + Definition.LowHpExecuteBonus;
+            }
+            return damage;
+        }
+
+        // Task 35 (Piercing Bolt — Basic): apply Task 34's generic temporary Armor reduction to the target,
+        // so its Physical damage taken from ALL sources rises for the duration. No-op on a just-killed target.
+        private void ApplyPiercingBolt(EnemyRuntime target, AbilityExecutionContext context)
+        {
+            if (_role != AbilityRole.Basic || context.Upgrades == null || target == null) return;
+            if (context.Upgrades.TryGetPiercingBolt(out float amount, out float duration))
+                target.ApplyArmorReduction(amount, duration);
+        }
+
+        // Task 35 (Overload — Ultimate): apply the generic incoming-damage vulnerability (separate from the
+        // Armor-reduction mechanism) so the target takes more from all sources for the duration.
+        private void ApplyOverload(EnemyRuntime target, AbilityExecutionContext context)
+        {
+            if (_role != AbilityRole.Ultimate || context.Upgrades == null || target == null) return;
+            if (context.Upgrades.TryGetOverload(out float bonus, out float duration))
+                target.ApplyVulnerability(bonus, duration);
         }
 
         // Task 31 (Wider Burst): when an AoE is capped at maxTargets, keep only the nearest N to the blast
@@ -464,18 +652,39 @@ namespace Wavekeep.Runtime
             dotPerSecond = Definition.ZoneDotDamagePerSecond;
         }
 
-        // Task 23: roll the final crit step. Reads crit chance/damage from the consumable aggregates (the
-        // only crit source for now; upgrades/gear could feed the same getters later). No-op at 0% chance.
-        private float RollCrit(float damage, ConsumableInventory consumables)
+        // Task 34: diminishing-returns mitigation — the final pipeline step. Picks the enemy defence stat
+        // matching THIS ability's DamageType (Armor for Physical, MagicResist for Magical) and applies
+        // damageTaken = raw × 100 / (100 + defence). A defence of 0 yields ×1 (no mitigation), so enemies
+        // without authored Armor/MagicResist take unchanged damage. Reads EffectiveArmor so any active
+        // temporary armor debuff (Task 34) reduces Physical damage from every source while live.
+        private float MitigateDamage(EnemyRuntime target, float rawDamage)
         {
-            if (consumables == null || damage <= 0f) return damage;
+            if (target == null || rawDamage <= 0f) return rawDamage;
 
-            float chance = consumables.TotalCritChance();
+            float defense = Definition.DamageType == DamageType.Physical
+                ? target.EffectiveArmor
+                : target.MagicResist;
+
+            if (defense <= 0f) return rawDamage; // no mitigation — preserves pre-Task-34 behaviour
+            return rawDamage * (100f / (100f + defense));
+        }
+
+        // Task 23: roll the final crit step. Reads crit chance/damage from the consumable aggregates and
+        // (Task 35) the held-upgrade crit-chance bonus (Overcharge) — both feed the SAME single roll, never
+        // a parallel crit path. No-op at 0% chance.
+        private float RollCrit(float damage, ConsumableInventory consumables, UpgradeInventory upgrades)
+        {
+            if (damage <= 0f) return damage;
+
+            float chance = consumables != null ? consumables.TotalCritChance() : 0f;
+            if (upgrades != null) chance += upgrades.CritChanceBonus(); // Task 35 (Overcharge)
+            chance = Mathf.Clamp01(chance);
             if (chance <= 0f) return damage;
 
             if (Random.value < chance)
             {
-                float critted = damage * (1f + consumables.TotalCritDamageBonus());
+                float critDamageBonus = consumables != null ? consumables.TotalCritDamageBonus() : 0f;
+                float critted = damage * (1f + critDamageBonus);
                 Debug.Log($"[AbilityRuntime] {Definition.AbilityName} CRIT! {damage:0.#} → {critted:0.#}");
                 return critted;
             }
@@ -584,6 +793,12 @@ namespace Wavekeep.Runtime
                 damage = upgrades.ResolveModifier(UpgradeModifierTarget.BasicDamage, damage);
                 cooldown = upgrades.ResolveModifier(UpgradeModifierTarget.BasicCooldown, cooldown);
                 range = upgrades.ResolveModifier(UpgradeModifierTarget.BasicRadius, range);
+            }
+            else if (upgrades != null && _role == AbilityRole.Ultimate)
+            {
+                // Task 35 (Charged Finisher): scales the ultimate's base damage only. Multi-Strike's
+                // per-hit fraction is applied later (per hit), so this composes cleanly with it.
+                damage = upgrades.ResolveModifier(UpgradeModifierTarget.UltimateDamage, damage);
             }
 
             // Consumable shop bonuses (Task 06): the same pipeline, just another modifier source —
