@@ -35,6 +35,19 @@ namespace Wavekeep.Runtime
         // Task 35: reusable buffer for Chain Lightning jump-target collection (same no-alloc rationale).
         private readonly List<EnemyRuntime> _chainBuffer = new List<EnemyRuntime>();
 
+        // Task 49: reusable buffer for PiercingLine corridor collection (no-alloc; sorted by distance along the ray).
+        private readonly List<EnemyRuntime> _pierceBuffer = new List<EnemyRuntime>();
+
+        // Task 49 (Minigun / Bullet Storm shot-burst channel): live channel state. While active the ability
+        // fires piercing shots on its internal cadence; Tick advances the timers and accumulates how many shot
+        // triggers are DUE this frame (fired by Execute, which has the context). Cooldown runs from cast.
+        private bool _burstActive;
+        private float _burstRemaining;
+        private float _burstInterval;
+        private float _burstShotTimer;
+        private int _pendingTriggers;
+        private int _burstShotIndex; // increments per trigger; drives the Bullet Storm arc fan
+
         // Task 46: per-hit proc flags, written by the payload helpers during a single OnHit and read by the
         // lightning-VFX call right after, so a strike's flash reflects what ACTUALLY procced on that hit
         // (Overcharge spike / Execute) without changing OnHit's signature or adding a parallel path.
@@ -43,7 +56,13 @@ namespace Wavekeep.Runtime
 
         public AbilityDefinitionSO Definition { get; }
         public int CurrentLevel { get; private set; } = 1;
-        public bool IsReady => _cooldownTimer <= 0f;
+
+        // Task 49: a channelling shot-burst is "ready" the whole time it's active, so the hero keeps driving its
+        // Execute each frame (to fire the due shots); otherwise the normal cooldown gate applies.
+        public bool IsReady => _burstActive || _cooldownTimer <= 0f;
+
+        /// <summary>Task 49: true while a Minigun-style shot-burst is mid-channel (see IAbility).</summary>
+        public bool IsChanneling => _burstActive;
 
         /// <summary>Charge progress in [0,1] for UI (Task 21): 0 right after a cast, climbing to 1 when
         /// the ability is ready again. Derived purely from the live cooldown state — no parallel timer.
@@ -61,7 +80,25 @@ namespace Wavekeep.Runtime
         {
             if (_cooldownTimer > 0f)
             {
-                _cooldownTimer -= deltaTime;
+                _cooldownTimer -= deltaTime; // cooldown runs from cast, concurrently with any active channel
+            }
+
+            // Task 49: advance the shot-burst channel and queue the triggers that come due this frame (Execute
+            // fires them, since it has the targeting context). The channel ends when its duration runs out.
+            if (_burstActive)
+            {
+                _burstRemaining -= deltaTime;
+                _burstShotTimer -= deltaTime;
+                while (_burstShotTimer <= 0f)
+                {
+                    _pendingTriggers++;
+                    _burstShotTimer += _burstInterval;
+                }
+                if (_burstRemaining <= 0f)
+                {
+                    _burstActive = false;
+                    _pendingTriggers = 0; // drop any leftover queued triggers at channel end
+                }
             }
         }
 
@@ -107,6 +144,39 @@ namespace Wavekeep.Runtime
                 return;
             }
 
+            // Task 48 (Firewall): a fire-wall ability places a PERSISTENT full-width fire band on cast (sustained
+            // DoT + Inferno-Surge burst + Wildfire-Spread death-patches) instead of an instant hit — same pattern
+            // as the Frost Zone above. Falls through to normal targeting only when no zone system is wired.
+            if (Definition.AppliesFireWall && context.Zones != null)
+            {
+                SpawnFireWall(context);
+                _cooldownTimer = cooldown;
+                _cooldownDuration = cooldown;
+                return;
+            }
+
+            // Task 49 (Minigun / Bullet Storm): a shot-burst ability channels — on cast it goes active and fires
+            // piercing shots over its duration; while active it fires the triggers queued by Tick. `damage` is
+            // the per-shot damage (Heavy Rounds via the ultimate-damage modifier, or the basic-fraction for the
+            // apex). Manages its own cooldown (from cast), so it returns before the normal targeting switch.
+            if (Definition.AppliesShotBurst)
+            {
+                ExecuteShotBurst(context, damage, cooldown);
+                return;
+            }
+
+            // Task 49 (Executioner's Volley): a single heavy shot at the most-shredded target, scaling with its
+            // Armor-Shredder stacks. Manages its own cooldown; returns before the normal targeting switch.
+            if (Definition.TargetsHighestShred)
+            {
+                if (ExecuteExecutionersVolley(context, damage))
+                {
+                    _cooldownTimer = cooldown;
+                    _cooldownDuration = cooldown;
+                }
+                return;
+            }
+
             // Task 23: crit is the FINAL multiplicative step in the damage pipeline — a per-cast roll on
             // the fully-modified damage. Rolled here (at execution), NOT in ComputeStats, so deterministic
             // previews (GetEffectiveDamage / ResolveStats) never randomly crit. Defaults to no-op (0% chance).
@@ -115,6 +185,9 @@ namespace Wavekeep.Runtime
             bool hitSomething;
             switch (Definition.TargetingType)
             {
+                case AbilityTargetingType.PiercingLine:
+                    hitSomething = ExecutePiercingLine(context, range, damage);
+                    break;
                 case AbilityTargetingType.AreaOfEffect:
                     hitSomething = ExecuteAreaOfEffect(context, range, damage, maxTargets);
                     break;
@@ -376,10 +449,12 @@ namespace Wavekeep.Runtime
                 finalDamage = ApplyExecuteBonus(target, context, finalDamage);        // Ultimate: vs low-HP targets
                 finalDamage = ApplyApexFinisherBonuses(target, context, finalDamage); // Apex: Lethal Surge
                 finalDamage = ApplyComboConsume(target, context, finalDamage);        // Task 38: Frozen Lightning amp
+                finalDamage = ApplyBurningBonus(target, finalDamage);                 // Task 48: Cataclysm vs Burning
 
                 DealDamage(target, context, finalDamage);
             }
 
+            ApplyBurnOnHit(target, context);            // Task 48: Fireball/Wildfire-Apocalypse Burn DoT
             ApplyZonePayload(target, context);          // Task 19: ultimate Slow zone (DoT removed in Task 31)
             ApplyFrostStack(target, context);           // Task 19: basic Frost stacking
             ApplyHeldStatusEffects(target, context.Upgrades); // Task 11: held status-upgrade payloads
@@ -388,6 +463,7 @@ namespace Wavekeep.Runtime
             ApplyHardFreeze(target, context);           // Task 31: basic chance-to-hard-freeze
             ApplyPiercingBolt(target, context);         // Task 35: basic temporary Armor reduction (Task 34 mechanism)
             ApplyOverload(target, context);             // Task 35: ultimate generic vulnerability
+            ApplyArmorShredder(target, context);        // Task 49: basic STACKING Armor Shredder
         }
 
         // Task 34/35: the actual damage application — diminishing-returns mitigation (Task 34) then
@@ -639,6 +715,353 @@ namespace Wavekeep.Runtime
 
             Debug.Log($"[AbilityRuntime] {Definition.AbilityName}: Frost Zone (full-width band " +
                       $"z=[{minZ:0.#},{maxZ:0.#}], slow={slow:0.##}, dur={duration:0.#}s, capDur={maxDuration:0.#}s).");
+        }
+
+        // Task 48 (Firewall): place the persistent full-width FIRE band in front of the wall — same geometry as
+        // the Frost Zone (depth = AoeRadius, X unconstrained). Tick damage layers Raging Wall (FirewallTickDamage
+        // multiplier); duration layers Lingering Embers (UltimateDuration add). Inferno Surge (burst) and Wildfire
+        // Spread (death-patch) are resolved from held upgrades and baked into the zone. All keyed off data.
+        private void SpawnFireWall(AbilityExecutionContext context)
+        {
+            float tickDamage = Definition.FireWallTickDamage;
+            float duration = Definition.FireWallDuration;
+            if (context.Upgrades != null)
+            {
+                tickDamage = context.Upgrades.ResolveModifier(UpgradeModifierTarget.FirewallTickDamage, tickDamage); // Raging Wall
+                duration = context.Upgrades.ResolveModifier(UpgradeModifierTarget.UltimateDuration, duration);       // Lingering Embers
+            }
+            if (context.Consumables != null) duration += context.Consumables.UltimateDurationBonus();
+            tickDamage = Mathf.Max(0f, tickDamage);
+            duration = Mathf.Max(0f, duration);
+
+            float tickInterval = Definition.FireWallTickInterval > 0f ? Definition.FireWallTickInterval : 0.5f;
+
+            float burstInterval = 0f, burstFraction = 0f;
+            float patchDuration = 0f, patchTickDamage = 0f;
+            if (context.Upgrades != null)
+            {
+                context.Upgrades.TryGetInfernoSurge(out burstInterval, out burstFraction);          // Inferno Surge
+                if (context.Upgrades.TryGetWildfireSpread(out float pd, out float tf))               // Wildfire Spread
+                {
+                    patchDuration = pd;
+                    patchTickDamage = tickDamage * tf; // patch deals a fraction of Firewall's tick damage
+                }
+            }
+
+            // Band of `depth` extending from the wall toward the spawn side (mirrors SpawnFrostZone).
+            float depth = Definition.AoeRadius > 0f ? Definition.AoeRadius : 6f;
+            float wallZ = context.DefendedLineZ;
+            float sign = context.ApproachDirectionZ >= 0f ? 1f : -1f;
+            float minZ = Mathf.Min(wallZ, wallZ + sign * depth);
+            float maxZ = Mathf.Max(wallZ, wallZ + sign * depth);
+
+            context.Zones.Spawn(GroundZone.FireBox(
+                minZ, maxZ, duration, tickInterval, tickDamage,
+                burstInterval, burstFraction, patchDuration, patchTickDamage, context.Zones.Spawn));
+
+            // Diagnostic burst at the band centre (VFX polish is out of scope for Task 48; reuse the generic ring).
+            float centerZ = 0.5f * (minZ + maxZ);
+            context.Feedback?.OnAreaOfEffect(new Vector3(context.CasterPosition.x, context.CasterPosition.y, centerZ), depth);
+
+            Debug.Log($"[AbilityRuntime] {Definition.AbilityName}: Firewall (band z=[{minZ:0.#},{maxZ:0.#}], " +
+                      $"tick={tickDamage:0.#}/{tickInterval:0.##}s, dur={duration:0.#}s, burst={burstFraction:0.##}×basic" +
+                      $"@{burstInterval:0.##}s, patch={patchDuration:0.#}s).");
+        }
+
+        // Task 48 (Cataclysm): extra damage to a target that is currently Burning. Keyed off the ability's data
+        // (BonusDamageVsBurningFraction), generic — a no-op for any ability that doesn't author it.
+        private float ApplyBurningBonus(EnemyRuntime target, float damage)
+        {
+            if (target == null || Definition.BonusDamageVsBurningFraction <= 0f || !target.IsBurning) return damage;
+            return damage * (1f + Definition.BonusDamageVsBurningFraction);
+        }
+
+        // Task 48 (Fireball / Wildfire Apocalypse): apply this ability's Burn DoT on hit. The Basic layers the
+        // held Smoldering Wound (damage × / duration +) and Stacking Embers (per-target stacking) — Basic role
+        // only, so an apex ignite (baked potency) doesn't pick up the basic's stacking. No-op on a just-killed
+        // target (ApplyBurn guards a resolved enemy).
+        private void ApplyBurnOnHit(EnemyRuntime target, AbilityExecutionContext context)
+        {
+            if (!Definition.AppliesBurnOnHit || target == null) return;
+
+            float perTick = Definition.BurnDamagePerTick;
+            float duration = Definition.BurnDuration;
+            int maxStacks = 0;
+            float perStackBonus = 0f;
+
+            if (_role == AbilityRole.Basic && context.Upgrades != null)
+            {
+                context.Upgrades.GetBurnAmplifiers(out float dmgMul, out float durBonus); // Smoldering Wound
+                perTick *= dmgMul;
+                duration += durBonus;
+                if (context.Upgrades.TryGetStackingEmbers(out float pb, out int ms))       // Stacking Embers
+                {
+                    perStackBonus = pb;
+                    maxStacks = ms;
+                }
+            }
+
+            target.ApplyBurn(perTick, duration, maxStacks, perStackBonus);
+        }
+
+        // === Task 49: Marksman — piercing-line shots, the shot-burst channel, and Executioner's Volley. ===
+
+        // Basic PiercingLine: fire Multishot shots in a fan toward the nearest enemy, each piercing up to the
+        // Piercing Rounds limit (0 = unlimited; default 1 = single target). Returns true if any enemy was hit.
+        private bool ExecutePiercingLine(AbilityExecutionContext context, float range, float damage)
+        {
+            if (!TryGetAimDirection(context, range, out Vector3 aimDir)) return false;
+
+            int shotCount = 1;
+            float spread = 0f;
+            if (_role == AbilityRole.Basic && context.Upgrades != null)
+                context.Upgrades.TryGetMultishot(out shotCount, out spread); // Multishot
+
+            int pierceLimit = 1; // no Piercing Rounds → single target
+            if (_role == AbilityRole.Basic && context.Upgrades != null &&
+                context.Upgrades.TryGetPiercingRounds(out int limit))
+                pierceLimit = limit; // 0 = unlimited
+
+            // Basic has no Full Pierce bonus (that's the Minigun's line) — pierced targets all take 100%.
+            return FireShotFan(context, aimDir, shotCount, spread, damage, pierceLimit, 0f, range);
+        }
+
+        // Task 49: drive the active Minigun / Bullet Storm channel. On the first call (cooldown ready) it starts
+        // the channel and fires the first trigger; subsequent calls (while active) fire the triggers Tick queued.
+        private void ExecuteShotBurst(AbilityExecutionContext context, float perShotDamage, float cooldown)
+        {
+            if (_burstActive)
+            {
+                FirePendingTriggers(context, perShotDamage);
+                return;
+            }
+            if (_cooldownTimer > 0f) return; // not ready to start a new channel
+
+            float duration = Definition.ChannelDuration;
+            float interval = Definition.ChannelShotInterval;
+            if (_role == AbilityRole.Ultimate && context.Upgrades != null)
+            {
+                duration = context.Upgrades.ResolveModifier(UpgradeModifierTarget.UltimateDuration, duration); // Sustained Barrage
+                float fireRateBonus = context.Upgrades.MinigunFireRateBonus();                                  // Faster Spin-Up
+                if (fireRateBonus > 0f) interval /= 1f + fireRateBonus;
+            }
+            if (_role == AbilityRole.Ultimate && context.Consumables != null)
+                duration += context.Consumables.UltimateDurationBonus();
+
+            _burstActive = true;
+            _burstRemaining = Mathf.Max(0f, duration);
+            _burstInterval = Mathf.Max(0.02f, interval);
+            _burstShotTimer = _burstInterval; // first trigger fires now (below); next after one interval
+            _burstShotIndex = 0;
+            _pendingTriggers = 1;
+            _cooldownTimer = cooldown;        // cooldown runs from cast
+            _cooldownDuration = cooldown;
+
+            Debug.Log($"[AbilityRuntime] {Definition.AbilityName}: shot-burst channel START (dur={_burstRemaining:0.#}s, " +
+                      $"interval={_burstInterval:0.###}s).");
+            FirePendingTriggers(context, perShotDamage);
+        }
+
+        // Fire the triggers Tick queued this frame. Each trigger is one shot (Minigun) fired in a sweep, or one
+        // arc-stepped shot (Bullet Storm). Both pierce unlimited; the Minigun adds Full Pierce's beyond-first bonus.
+        private void FirePendingTriggers(AbilityExecutionContext context, float perShotDamage)
+        {
+            int triggers = _pendingTriggers;
+            _pendingTriggers = 0;
+            if (triggers <= 0) return;
+
+            float range = Definition.Range > 0f ? Definition.Range : 100f;
+            float spread = Definition.ChannelSpreadAngle;
+            float pierceBonus = (_role == AbilityRole.Ultimate && context.Upgrades != null)
+                ? context.Upgrades.FullPierceBonus() : 0f; // Full Pierce (Minigun only)
+
+            for (int t = 0; t < triggers; t++)
+            {
+                float dmg = RollCrit(perShotDamage, context.Consumables, context.Upgrades, out _);
+                Vector3 dir;
+                if (spread > 0f)
+                {
+                    // Bullet Storm: a wide arc fanned in front, stepping across the arc per shot.
+                    if (!TryGetAimDirection(context, range, out Vector3 aim)) continue;
+                    float frac = (_burstShotIndex % 12) / 11f; // 12-step fan across the arc
+                    float angle = Mathf.Lerp(-spread * 0.5f, spread * 0.5f, frac);
+                    dir = Quaternion.AngleAxis(angle, Vector3.up) * aim;
+                }
+                else
+                {
+                    // Minigun: spray — aim at a random alive enemy each trigger (sweeps the width over time).
+                    if (!TryGetRandomAimDirection(context, range, out dir)) continue;
+                }
+                FireOneShot(context, dir, dmg, 0 /*unlimited pierce*/, pierceBonus, range);
+                _burstShotIndex++;
+            }
+        }
+
+        // Task 49 (Executioner's Volley): one heavy shot at the in-range enemy with the most Armor-Shredder
+        // stacks (nearest breaks ties), scaling damage by that stack count. Returns true if it fired.
+        private bool ExecuteExecutionersVolley(AbilityExecutionContext context, float baseDamage)
+        {
+            float range = Definition.Range > 0f ? Definition.Range : 100f;
+            float rangeSqr = range * range;
+            EnemyRuntime best = null;
+            int bestStacks = -1;
+            float bestSqr = float.MaxValue;
+
+            var enemies = context.Enemies;
+            for (int i = 0; i < enemies.Count; i++)
+            {
+                var e = enemies[i];
+                if (e == null || !e.IsAlive) continue;
+                float sqr = (e.Transform.position - context.CasterPosition).sqrMagnitude;
+                if (sqr > rangeSqr) continue;
+                int stacks = e.ArmorShredStacks;
+                if (stacks > bestStacks || (stacks == bestStacks && sqr < bestSqr))
+                {
+                    best = e;
+                    bestStacks = stacks;
+                    bestSqr = sqr;
+                }
+            }
+            if (best == null) return false;
+
+            float damage = baseDamage * (1f + Definition.ShredStackDamageBonus * best.ArmorShredStacks);
+            damage = RollCrit(damage, context.Consumables, context.Upgrades, out _);
+
+            // One high-impact apex effect at the target (VFX polish out of scope — reuse the shared apex impact).
+            context.Feedback?.OnApexImpact(best.Transform.position, ApexVisualRadius(), ResolveApexStyle());
+            OnHit(best, context, damage);
+            Debug.Log($"[AbilityRuntime] Executioner's Volley → {bestStacks} shred stack(s), {damage:0.#} dmg.");
+            return true;
+        }
+
+        // Fire a fan of `shotCount` piercing shots around `aimDir` spanning `spreadDeg` total. Returns true if
+        // any shot hit at least one enemy (so the basic consumes its cooldown only when it connects).
+        private bool FireShotFan(AbilityExecutionContext context, Vector3 aimDir, int shotCount,
+            float spreadDeg, float perShotDamage, int pierceLimit, float pierceBonus, float range)
+        {
+            shotCount = Mathf.Max(1, shotCount);
+            bool hitAny = false;
+            for (int i = 0; i < shotCount; i++)
+            {
+                Vector3 dir = aimDir;
+                if (shotCount > 1 && spreadDeg > 0f)
+                {
+                    float frac = (float)i / (shotCount - 1); // 0..1 across the fan
+                    float angle = Mathf.Lerp(-spreadDeg * 0.5f, spreadDeg * 0.5f, frac);
+                    dir = Quaternion.AngleAxis(angle, Vector3.up) * aimDir;
+                }
+                if (FireOneShot(context, dir, perShotDamage, pierceLimit, pierceBonus, range)) hitAny = true;
+            }
+            return hitAny;
+        }
+
+        // Resolve a single shot along `dir` from the caster: collect every alive enemy within the corridor
+        // (perpendicular distance ≤ the ability's corridor half-width) and within `range` AHEAD of the caster,
+        // ordered nearest-first, then damage up to `pierceLimit` of them (0 = unlimited). The first hit takes
+        // 100%; each pierced target beyond the first takes ×(1 + pierceBonus). Returns true if it hit anyone.
+        private bool FireOneShot(AbilityExecutionContext context, Vector3 dir, float perShotDamage,
+            int pierceLimit, float pierceBonus, float range)
+        {
+            if (perShotDamage <= 0f) return false;
+
+            Vector3 dirN = new Vector3(dir.x, 0f, dir.z);
+            if (dirN.sqrMagnitude < 0.0001f) return false;
+            dirN.Normalize();
+
+            float halfWidthSqr = Definition.ShotCorridorHalfWidth * Definition.ShotCorridorHalfWidth;
+            var caster = context.CasterPosition;
+            var enemies = context.Enemies;
+
+            _pierceBuffer.Clear();
+            for (int i = 0; i < enemies.Count; i++)
+            {
+                var e = enemies[i];
+                if (e == null || !e.IsAlive) continue;
+                Vector3 to = e.Transform.position - caster;
+                to.y = 0f;
+                float proj = Vector3.Dot(to, dirN);
+                if (proj <= 0f || proj > range) continue;           // behind the caster or out of range
+                Vector3 perp = to - dirN * proj;
+                if (perp.sqrMagnitude > halfWidthSqr) continue;     // outside the shot's corridor
+                _pierceBuffer.Add(e);
+            }
+            if (_pierceBuffer.Count == 0) return false;
+
+            // Order nearest-first along the ray so "beyond the first" pierce bonus is well-defined.
+            _pierceBuffer.Sort((a, b) =>
+                Vector3.Dot(a.Transform.position - caster, dirN).CompareTo(
+                Vector3.Dot(b.Transform.position - caster, dirN)));
+
+            int limit = pierceLimit <= 0 ? _pierceBuffer.Count : Mathf.Min(pierceLimit, _pierceBuffer.Count);
+            EnemyRuntime farthest = null;
+            for (int j = 0; j < limit; j++)
+            {
+                var target = _pierceBuffer[j];
+                float dmg = perShotDamage * (j == 0 ? 1f : 1f + pierceBonus);
+                OnHit(target, context, dmg);
+                if (target.IsAlive) farthest = target; // farthest still-alive hit for the beam visual
+            }
+
+            // Diagnostic beam from the caster to the deepest target the shot reached (placeholder VFX).
+            var beamEnd = farthest != null ? farthest.Transform.position : caster + dirN * range;
+            context.Feedback?.OnSingleTargetHit(caster, beamEnd);
+
+            _pierceBuffer.Clear();
+            return true;
+        }
+
+        // Direction toward the nearest alive enemy within `range` (planar), or false if none.
+        private bool TryGetAimDirection(AbilityExecutionContext context, float range, out Vector3 dir)
+        {
+            EnemyRuntime nearest = null;
+            float bestSqr = range * range;
+            var enemies = context.Enemies;
+            for (int i = 0; i < enemies.Count; i++)
+            {
+                var e = enemies[i];
+                if (e == null || !e.IsAlive) continue;
+                float sqr = (e.Transform.position - context.CasterPosition).sqrMagnitude;
+                if (sqr <= bestSqr) { bestSqr = sqr; nearest = e; }
+            }
+            if (nearest == null) { dir = Vector3.forward; return false; }
+            dir = PlanarDirection(context.CasterPosition, nearest.Transform.position);
+            return true;
+        }
+
+        // Direction toward a RANDOM alive enemy within `range` (planar) — the Minigun's sweep aim, so its shots
+        // spray across the arena width over the channel rather than tunnelling one lane. False if none in range.
+        private bool TryGetRandomAimDirection(AbilityExecutionContext context, float range, out Vector3 dir)
+        {
+            _pierceBuffer.Clear();
+            float rangeSqr = range * range;
+            var enemies = context.Enemies;
+            for (int i = 0; i < enemies.Count; i++)
+            {
+                var e = enemies[i];
+                if (e == null || !e.IsAlive) continue;
+                if ((e.Transform.position - context.CasterPosition).sqrMagnitude <= rangeSqr) _pierceBuffer.Add(e);
+            }
+            if (_pierceBuffer.Count == 0) { dir = Vector3.forward; return false; }
+            var pick = _pierceBuffer[Random.Range(0, _pierceBuffer.Count)];
+            dir = PlanarDirection(context.CasterPosition, pick.Transform.position);
+            _pierceBuffer.Clear();
+            return true;
+        }
+
+        private static Vector3 PlanarDirection(Vector3 from, Vector3 to)
+        {
+            Vector3 d = to - from;
+            d.y = 0f;
+            return d.sqrMagnitude < 0.0001f ? Vector3.forward : d.normalized;
+        }
+
+        // Task 49 (Armor Shredder — Basic): each hit adds a stacking effective-Armor reduction (capped, refreshed).
+        // A DISTINCT mechanism from Piercing Bolt's flat reduction (EnemyRuntime tracks them separately).
+        private void ApplyArmorShredder(EnemyRuntime target, AbilityExecutionContext context)
+        {
+            if (_role != AbilityRole.Basic || context.Upgrades == null || target == null) return;
+            if (context.Upgrades.TryGetArmorShredder(out float perStack, out int maxStacks, out float refresh))
+                target.ApplyArmorShred(perStack, maxStacks, refresh);
         }
 
         // Task 31: base AoE target cap + the basic-role Wider Burst modifier. 0 = unlimited.

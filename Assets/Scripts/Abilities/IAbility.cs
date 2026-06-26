@@ -20,6 +20,11 @@ namespace Wavekeep.Abilities
         /// <summary>True when the cooldown has elapsed and the ability may execute.</summary>
         bool IsReady { get; }
 
+        /// <summary>Task 49: true while a sustained shot-burst ability (Minigun) is mid-channel, so the hero
+        /// keeps driving its Execute every frame regardless of the auto-cast toggle. Always false for
+        /// instant abilities.</summary>
+        bool IsChanneling { get; }
+
         /// <summary>Charge progress in [0,1] for UI (Task 21): 0 just after a cast, 1 when ready. Derived
         /// from the live cooldown state, so the UI never tracks cooldown independently.</summary>
         float CooldownProgress01 { get; }

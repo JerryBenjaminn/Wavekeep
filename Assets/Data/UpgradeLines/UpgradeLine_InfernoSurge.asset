@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b40531314bde4845a89597168de6cad, type: 3}
+  m_Name: UpgradeLine_InfernoSurge
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.UpgradeLineDefinitionSO
+  _hero: {fileID: 11400000, guid: d39678aa193e7594284f1c8ef74a6438, type: 2}
+  _skill: 1
+  _lineName: Inferno Surge
+  _tiers:
+  - _description: Burst every 3s for 40% of Basic.
+    _effect: {fileID: 11400000, guid: 5801b3231edca0041a472365c14b39d3, type: 2}
+  - _description: Burst every 2.5s for 55% of Basic.
+    _effect: {fileID: 11400000, guid: f39d8c77c871d57478c3bc89804732c1, type: 2}
+  - _description: Burst every 2s for 70% of Basic.
+    _effect: {fileID: 11400000, guid: 69ac88910e4aeff46bb8a4600da5c531, type: 2}

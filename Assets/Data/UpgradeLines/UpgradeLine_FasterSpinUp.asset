@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b40531314bde4845a89597168de6cad, type: 3}
+  m_Name: UpgradeLine_FasterSpinUp
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.UpgradeLineDefinitionSO
+  _hero: {fileID: 11400000, guid: b51c01e1e850bea44bb0e4278b58dfc2, type: 2}
+  _skill: 1
+  _lineName: Faster Spin-Up
+  _tiers:
+  - _description: +25% Minigun fire rate.
+    _effect: {fileID: 11400000, guid: bb88f78aece20a0448f1a88baf7f8698, type: 2}
+  - _description: +45% Minigun fire rate.
+    _effect: {fileID: 11400000, guid: a9d65a3e5f8562e46aec062aa2bfa27e, type: 2}
+  - _description: +65% Minigun fire rate.
+    _effect: {fileID: 11400000, guid: 8c84173a3256220429c0489ab3f6d9b2, type: 2}

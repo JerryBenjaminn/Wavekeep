@@ -22,6 +22,10 @@ namespace Wavekeep.Data
 
         /// <summary>Task 35 (Charged Finisher): scales the Ultimate ability's base damage (Multiply op).
         /// Resolved only for the Ultimate role so it never leaks onto the Basic.</summary>
-        UltimateDamage
+        UltimateDamage,
+
+        /// <summary>Task 48 (Raging Wall): scales the Firewall zone's per-tick DoT damage (Multiply op).
+        /// Resolved directly when the Firewall zone is spawned, so it never leaks onto Basic/Ultimate damage.</summary>
+        FirewallTickDamage
     }
 }

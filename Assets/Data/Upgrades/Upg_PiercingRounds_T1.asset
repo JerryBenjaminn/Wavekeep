@@ -1,0 +1,79 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 52454073088c694468ad0b8d9255224e, type: 3}
+  m_Name: Upg_PiercingRounds_T1
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.UpgradeDefinitionSO
+  _upgradeName: Piercing Rounds I
+  _icon: {fileID: 0}
+  _tags: 
+  _branch: 0
+  _statModifiers: []
+  _frostChainSpread: 0
+  _frostChainStacks: 2
+  _frostChainRadius: 2
+  _ultimateFreezeOnStacks: 0
+  _ultimateFreezeStackThreshold: 3
+  _ultimateFreezeDuration: 2
+  _effectType: 0
+  _effectValue: 0
+  _bonusDamageVsImpaired: 0
+  _hardFreezeChance: 0
+  _hardFreezeDuration: 0
+  _frozenGroundRadius: 0
+  _frozenGroundDuration: 0
+  _frozenGroundSlow: 0
+  _zonePulseInterval: 0
+  _zonePulseBasicFraction: 0
+  _zoneDurationExtendPerDeath: 0
+  _zoneDurationExtendCapBonus: 3
+  _chainLightningJumps: 0
+  _chainLightningFraction: 0
+  _staticChargePerStack: 0
+  _staticChargeMaxStacks: 0
+  _critChanceBonus: 0
+  _overchargeSpikeChance: 0
+  _overchargeSpikeBonus: 0
+  _armorReductionAmount: 0
+  _armorReductionDuration: 0
+  _multiStrikeHits: 0
+  _multiStrikeFraction: 0
+  _executeThreshold: 0
+  _executeBonus: 0
+  _vulnerabilityBonus: 0
+  _vulnerabilityDuration: 0
+  _burnDamageMultiplier: 1
+  _burnDurationBonus: 0
+  _burnStackPerStackBonus: 0
+  _burnMaxStacks: 0
+  _burnSpreadTargets: 0
+  _burnSpreadRange: 0
+  _burnSpreadPotency: 1
+  _combustionChance: 0
+  _combustionRadius: 0
+  _combustionBasicFraction: 0
+  _wildfirePatchDuration: 0
+  _wildfirePatchTickFraction: 0
+  _infernoSurgeInterval: 0
+  _infernoSurgeBasicFraction: 0
+  _piercingRounds: 1
+  _piercingRoundsLimit: 2
+  _multishotCount: 0
+  _multishotSpreadAngle: 0
+  _armorShredPerStack: 0
+  _armorShredMaxStacks: 0
+  _armorShredRefresh: 0
+  _minigunFireRateBonus: 0
+  _fullPierceBonus: 0
+  _appliesStatusEffect: 0
+  _statusEffectType: 0
+  _statusMagnitude: 0
+  _statusDuration: 0

@@ -111,6 +111,55 @@ namespace Wavekeep.Data
         [Tooltip("Seconds the zone's Slow + DoT last on affected enemies.")]
         [SerializeField, Min(0f)] private float _zoneDuration;
 
+        [Header("Burn On Hit (Task 48 — Pyromancer; this ability applies a Burn DoT on each hit)")]
+        [Tooltip("If true, every hit applies a Burn DoT (the generic EnemyRuntime burn). The Basic Fireball " +
+                 "sets this; an apex that ignites (Wildfire Apocalypse) sets it too with baked potency. Held " +
+                 "Smoldering Wound / Stacking Embers modify the BASIC's burn at apply time (Basic role only).")]
+        [SerializeField] private bool _appliesBurnOnHit;
+        [Tooltip("Base Burn damage PER TICK (tick cadence = EnemyRuntime.BurnTickInterval).")]
+        [SerializeField, Min(0f)] private float _burnDamagePerTick;
+        [Tooltip("Base Burn duration in seconds.")]
+        [SerializeField, Min(0f)] private float _burnDuration;
+
+        [Header("Firewall Zone (Task 48 — Pyromancer ultimate; full-width sustained-DoT fire band)")]
+        [Tooltip("If true, on cast this ability places a persistent full-width fire band (same geometry as " +
+                 "Frost Zone) that deals sustained DoT to everything inside. The band depth is AoeRadius.")]
+        [SerializeField] private bool _appliesFireWall;
+        [Tooltip("Seconds between Firewall DoT ticks.")]
+        [SerializeField, Min(0.05f)] private float _fireWallTickInterval = 0.5f;
+        [Tooltip("Firewall DoT damage PER TICK (absolute; Raging Wall multiplies it via FirewallTickDamage).")]
+        [SerializeField, Min(0f)] private float _fireWallTickDamage;
+        [Tooltip("Firewall active duration in seconds (Lingering Embers adds via the UltimateDuration modifier).")]
+        [SerializeField, Min(0f)] private float _fireWallDuration;
+
+        [Header("Bonus vs Burning (Task 48 — Cataclysm apex; extra damage to currently-Burning targets)")]
+        [Tooltip("Extra fraction [0..1] of damage dealt to a target that is currently Burning. 0 = none.")]
+        [SerializeField, Min(0f)] private float _bonusDamageVsBurningFraction;
+
+        [Header("Pierce Corridor (Task 49 — Marksman; half-width of a PiercingLine/channel shot's hit lane)")]
+        [Tooltip("Half-width (m) of the corridor a piercing shot sweeps along its line. Enemies within this " +
+                 "perpendicular distance of the shot's ray are hit. Used by PiercingLine + the shot-burst channel.")]
+        [SerializeField, Min(0f)] private float _shotCorridorHalfWidth = 1f;
+
+        [Header("Shot-Burst Channel (Task 49 — Marksman Minigun / Bullet Storm apex)")]
+        [Tooltip("If true, on cast this ability becomes ACTIVE for ChannelDuration, firing piercing shots on " +
+                 "ChannelShotInterval (a sustained burst) instead of a single hit. Cooldown runs from cast.")]
+        [SerializeField] private bool _appliesShotBurst;
+        [Tooltip("Channel active duration in seconds (Minigun base 5s; Sustained Barrage adds via UltimateDuration).")]
+        [SerializeField, Min(0f)] private float _channelDuration = 5f;
+        [Tooltip("Base seconds between shots while channelling (Faster Spin-Up shortens it for the Ultimate role).")]
+        [SerializeField, Min(0.02f)] private float _channelShotInterval = 0.15f;
+        [Tooltip("Fan spread (degrees) of each channel trigger. >0 = a fixed arc fan (Bullet Storm); " +
+                 "0 = sweep aim at a random enemy each shot (Minigun spray across the width).")]
+        [SerializeField, Min(0f)] private float _channelSpreadAngle;
+
+        [Header("Executioner's Volley (Task 49 — Marksman apex; one heavy shot at the most-shredded target)")]
+        [Tooltip("If true, this ability fires a single shot at the enemy with the highest Armor-Shredder stack " +
+                 "count, scaling damage by that count (see ShredStackDamageBonus).")]
+        [SerializeField] private bool _targetsHighestShred;
+        [Tooltip("Bonus damage fraction [0..1] added PER current Armor-Shredder stack on the chosen target.")]
+        [SerializeField, Min(0f)] private float _shredStackDamageBonus;
+
         [Header("VFX (Task 46 — visual treatment only, no gameplay effect)")]
         [Tooltip("Selects which VFX presenter styles this ability's hits. Default = generic beam/ring; " +
                  "Lightning = gold electrical bolts/flashes (Bolt Striker). Frost uses its payload flags above.")]
@@ -169,6 +218,33 @@ namespace Wavekeep.Data
         public float ZoneSlowMagnitude => _zoneSlowMagnitude;
         public float ZoneDotDamagePerSecond => _zoneDotDamagePerSecond;
         public float ZoneDuration => _zoneDuration;
+
+        // Burn on hit (Task 48) — base values; held Smoldering Wound/Stacking Embers adjust the basic's burn.
+        public bool AppliesBurnOnHit => _appliesBurnOnHit;
+        public float BurnDamagePerTick => _burnDamagePerTick;
+        public float BurnDuration => _burnDuration;
+
+        // Firewall zone (Task 48) — base values; Raging Wall (tick) + Lingering Embers (duration) adjust them.
+        public bool AppliesFireWall => _appliesFireWall;
+        public float FireWallTickInterval => _fireWallTickInterval;
+        public float FireWallTickDamage => _fireWallTickDamage;
+        public float FireWallDuration => _fireWallDuration;
+
+        /// <summary>Task 48 (Cataclysm): extra damage fraction vs currently-Burning targets (0 = none).</summary>
+        public float BonusDamageVsBurningFraction => _bonusDamageVsBurningFraction;
+
+        // Pierce corridor (Task 49) — shared by PiercingLine + the shot-burst channel.
+        public float ShotCorridorHalfWidth => _shotCorridorHalfWidth > 0f ? _shotCorridorHalfWidth : 1f;
+
+        // Shot-burst channel (Task 49) — Minigun + Bullet Storm.
+        public bool AppliesShotBurst => _appliesShotBurst;
+        public float ChannelDuration => _channelDuration;
+        public float ChannelShotInterval => _channelShotInterval;
+        public float ChannelSpreadAngle => _channelSpreadAngle;
+
+        // Executioner's Volley (Task 49) — single shot at the most-shredded target, scaling with its stacks.
+        public bool TargetsHighestShred => _targetsHighestShred;
+        public float ShredStackDamageBonus => _shredStackDamageBonus;
 
         /// <summary>Task 46: visual treatment selector for the VFX layer (no gameplay effect).</summary>
         public AbilityVfxStyle VfxStyle => _vfxStyle;

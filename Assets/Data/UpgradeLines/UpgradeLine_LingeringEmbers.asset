@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b40531314bde4845a89597168de6cad, type: 3}
+  m_Name: UpgradeLine_LingeringEmbers
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.UpgradeLineDefinitionSO
+  _hero: {fileID: 11400000, guid: d39678aa193e7594284f1c8ef74a6438, type: 2}
+  _skill: 1
+  _lineName: Lingering Embers
+  _tiers:
+  - _description: Firewall duration +1.5s.
+    _effect: {fileID: 11400000, guid: 86370edb5048ece4597abcc52cdf9c01, type: 2}
+  - _description: Firewall duration +3s.
+    _effect: {fileID: 11400000, guid: 2ab3ca2f1aa0e394381de81502caa573, type: 2}
+  - _description: Firewall duration +4.5s.
+    _effect: {fileID: 11400000, guid: ea2d2d1d9010c1f46a48f7e7036f630e, type: 2}

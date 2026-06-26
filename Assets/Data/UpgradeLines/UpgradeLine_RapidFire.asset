@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b40531314bde4845a89597168de6cad, type: 3}
+  m_Name: UpgradeLine_RapidFire
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.UpgradeLineDefinitionSO
+  _hero: {fileID: 11400000, guid: b51c01e1e850bea44bb0e4278b58dfc2, type: 2}
+  _skill: 0
+  _lineName: Rapid Fire
+  _tiers:
+  - _description: +20% fire rate.
+    _effect: {fileID: 11400000, guid: 24ee66a8de012d04ab823c9edd25819e, type: 2}
+  - _description: +35% fire rate.
+    _effect: {fileID: 11400000, guid: 597a9f4d96a65b04c8099fb7be58b876, type: 2}
+  - _description: +50% fire rate.
+    _effect: {fileID: 11400000, guid: 3f673960d67f4424496d9596e29f427e, type: 2}

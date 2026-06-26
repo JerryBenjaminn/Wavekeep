@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b40531314bde4845a89597168de6cad, type: 3}
+  m_Name: UpgradeLine_Multishot
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.UpgradeLineDefinitionSO
+  _hero: {fileID: 11400000, guid: b51c01e1e850bea44bb0e4278b58dfc2, type: 2}
+  _skill: 0
+  _lineName: Multishot
+  _tiers:
+  - _description: "2 shots, 15\xB0 spread."
+    _effect: {fileID: 11400000, guid: 0c5770e2d5d40724080d99aef9877658, type: 2}
+  - _description: "3 shots, 15\xB0 spread."
+    _effect: {fileID: 11400000, guid: e4645c09d37c059438b3ed306328cfb0, type: 2}
+  - _description: "4 shots, 20\xB0 spread."
+    _effect: {fileID: 11400000, guid: 495e1031b750e3b45b747e1e67fbabb4, type: 2}

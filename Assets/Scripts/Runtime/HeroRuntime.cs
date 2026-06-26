@@ -79,6 +79,12 @@ namespace Wavekeep.Runtime
         // and the Lethal Surge apex — separate AbilityRuntime instances — share one combo counter.
         private readonly HeroCombatState _combatState = new HeroCombatState();
 
+        // Task 48: Pyromancer's Burn-reaction service (Spreading Flame death-spread + Combustion expiry-detonation).
+        // Owned per-run (no static singleton); polled each frame with the live enemy list + held upgrades. Only
+        // ticked for a hero whose abilities are fire-based (data flag, not identity), so it is inert otherwise.
+        private readonly FireSubsystem _fire = new FireSubsystem();
+        private bool _hasFireReactions;
+
         /// <summary>Task 24: the hero's live total Luck (hero base + summed equipped-gear Luck + in-run
         /// potion bonus), clamped to 0–100. Delegates to the run's <see cref="LuckState"/>, which is the
         /// single numeric source of truth the shop/loot rolls reweight against — so the stat panel, the
@@ -148,6 +154,12 @@ namespace Wavekeep.Runtime
                 ? new AbilityRuntime(definition.BasicAbility, AbilityRole.Basic) : null;
             Ultimate = definition.UltimateAbility != null
                 ? new AbilityRuntime(definition.UltimateAbility, AbilityRole.Ultimate) : null;
+
+            // Task 48: only run the Burn-reaction poller for a fire hero (data-flagged abilities, not identity),
+            // so it stays inert for every other hero even though they share the run's UpgradeInventory.
+            _hasFireReactions =
+                (definition.BasicAbility != null && definition.BasicAbility.AppliesBurnOnHit) ||
+                (definition.UltimateAbility != null && definition.UltimateAbility.AppliesFireWall);
 
             // Task 29: seed every owned line at tier 0, and remember the hero's apex talents so unlocks can
             // be checked as lines reach max tier. No upgrades are picked yet, so no apex is unlocked here.
@@ -289,6 +301,10 @@ namespace Wavekeep.Runtime
             // Task 31 (Pass 2): advance persistent ground/zones with the live enemy list + basic damage.
             _zones.Tick(Time.deltaTime, _waveSpawner.ActiveEnemies, basicDamage);
 
+            // Task 48: advance the Burn-reaction poller (Spreading Flame / Combustion) for fire heroes.
+            if (_hasFireReactions)
+                _fire.Tick(Time.deltaTime, _waveSpawner.ActiveEnemies, _upgrades, basicDamage);
+
             var context = BuildContext(basicDamage);
 
             if (Basic != null)
@@ -305,7 +321,9 @@ namespace Wavekeep.Runtime
                 // hero fires its ultimate the instant it is ready and a target is in range — Execute no-ops
                 // (and keeps the cooldown) when nothing is in range, so it simply retries. When the toggle is
                 // off, the cast comes via TryCastUltimate from the team input instead.
-                if (AutoUltimate && Ultimate.IsReady)
+                // Task 49: while a shot-burst ultimate (Minigun) is mid-channel, keep driving its Execute every
+                // frame regardless of the auto toggle, so the active burst fires its queued shots either way.
+                if (Ultimate.IsChanneling || (AutoUltimate && Ultimate.IsReady))
                 {
                     Ultimate.Execute(context);
                 }

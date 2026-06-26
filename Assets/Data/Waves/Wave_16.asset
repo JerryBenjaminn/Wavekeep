@@ -15,7 +15,7 @@ MonoBehaviour:
   _waveNumber: 16
   _spawnEntries:
   - _enemyType: {fileID: 11400000, guid: b4c54f8f848fc154eb0105193c70beac, type: 2}
-    _count: 35
-    _spawnInterval: 0.5
+    _count: 70
+    _spawnInterval: 0.2
   _statMultiplier: 1.75
   _bossLootTable: {fileID: 0}

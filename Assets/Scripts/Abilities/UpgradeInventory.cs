@@ -346,6 +346,202 @@ namespace Wavekeep.Abilities
             return false;
         }
 
+        // === Task 48: Pyromancer line getters. Same generic pattern as above — scan held upgrades for the
+        // relevant data, switching on data never on a specific upgrade/hero. ===
+
+        /// <summary>Task 48 (Smoldering Wound): the strongest held Burn damage multiplier (1 if none) and the
+        /// matching duration bonus. Max (not sum) since line REPLACE semantics holds one tier per line.</summary>
+        public void GetBurnAmplifiers(out float damageMultiplier, out float durationBonus)
+        {
+            damageMultiplier = 1f;
+            durationBonus = 0f;
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u == null) continue;
+                if (u.BurnDamageMultiplier > damageMultiplier)
+                {
+                    damageMultiplier = u.BurnDamageMultiplier;
+                    durationBonus = u.BurnDurationBonus;
+                }
+            }
+        }
+
+        /// <summary>Task 48 (Stacking Embers): the held per-stack Burn bonus + max stacks, if any.</summary>
+        public bool TryGetStackingEmbers(out float perStackBonus, out int maxStacks)
+        {
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.BurnStackPerStackBonus > 0f && u.BurnMaxStacks > 0)
+                {
+                    perStackBonus = u.BurnStackPerStackBonus;
+                    maxStacks = u.BurnMaxStacks;
+                    return true;
+                }
+            }
+            perStackBonus = 0f;
+            maxStacks = 0;
+            return false;
+        }
+
+        /// <summary>Task 48 (Spreading Flame): the held spread target count / range / potency, if any.</summary>
+        public bool TryGetSpreadingFlame(out int targets, out float range, out float potency)
+        {
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.BurnSpreadTargets > 0 && u.BurnSpreadRange > 0f)
+                {
+                    targets = u.BurnSpreadTargets;
+                    range = u.BurnSpreadRange;
+                    potency = u.BurnSpreadPotency > 0f ? u.BurnSpreadPotency : 1f;
+                    return true;
+                }
+            }
+            targets = 0;
+            range = 0f;
+            potency = 0f;
+            return false;
+        }
+
+        /// <summary>Task 48 (Combustion): the held detonation chance / radius / basic-fraction, if any.</summary>
+        public bool TryGetCombustion(out float chance, out float radius, out float basicFraction)
+        {
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.CombustionChance > 0f && u.CombustionRadius > 0f && u.CombustionBasicFraction > 0f)
+                {
+                    chance = u.CombustionChance;
+                    radius = u.CombustionRadius;
+                    basicFraction = u.CombustionBasicFraction;
+                    return true;
+                }
+            }
+            chance = 0f;
+            radius = 0f;
+            basicFraction = 0f;
+            return false;
+        }
+
+        /// <summary>Task 48 (Wildfire Spread): the held death-patch duration + tick fraction, if any.</summary>
+        public bool TryGetWildfireSpread(out float patchDuration, out float tickFraction)
+        {
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.WildfirePatchDuration > 0f && u.WildfirePatchTickFraction > 0f)
+                {
+                    patchDuration = u.WildfirePatchDuration;
+                    tickFraction = u.WildfirePatchTickFraction;
+                    return true;
+                }
+            }
+            patchDuration = 0f;
+            tickFraction = 0f;
+            return false;
+        }
+
+        /// <summary>Task 48 (Inferno Surge): the held burst interval + basic-fraction, if any.</summary>
+        public bool TryGetInfernoSurge(out float interval, out float basicFraction)
+        {
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.InfernoSurgeInterval > 0f && u.InfernoSurgeBasicFraction > 0f)
+                {
+                    interval = u.InfernoSurgeInterval;
+                    basicFraction = u.InfernoSurgeBasicFraction;
+                    return true;
+                }
+            }
+            interval = 0f;
+            basicFraction = 0f;
+            return false;
+        }
+
+        // === Task 49: Marksman line getters. Same generic pattern as above. ===
+
+        /// <summary>Task 49 (Piercing Rounds): whether the Basic pierces and its line limit (0 = unlimited).</summary>
+        public bool TryGetPiercingRounds(out int limit)
+        {
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.PiercingRounds)
+                {
+                    limit = u.PiercingRoundsLimit; // 0 = unlimited
+                    return true;
+                }
+            }
+            limit = 0;
+            return false;
+        }
+
+        /// <summary>Task 49 (Multishot): the held shot count + fan spread, if any.</summary>
+        public bool TryGetMultishot(out int count, out float spreadAngle)
+        {
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.MultishotCount > 1)
+                {
+                    count = u.MultishotCount;
+                    spreadAngle = u.MultishotSpreadAngle;
+                    return true;
+                }
+            }
+            count = 1;
+            spreadAngle = 0f;
+            return false;
+        }
+
+        /// <summary>Task 49 (Armor Shredder): the held per-stack reduction / max stacks / refresh, if any.</summary>
+        public bool TryGetArmorShredder(out float perStack, out int maxStacks, out float refresh)
+        {
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.ArmorShredPerStack > 0f && u.ArmorShredMaxStacks > 0)
+                {
+                    perStack = u.ArmorShredPerStack;
+                    maxStacks = u.ArmorShredMaxStacks;
+                    refresh = u.ArmorShredRefresh;
+                    return true;
+                }
+            }
+            perStack = 0f;
+            maxStacks = 0;
+            refresh = 0f;
+            return false;
+        }
+
+        /// <summary>Task 49 (Faster Spin-Up): the strongest held Minigun fire-rate bonus (0 if none). Max
+        /// (not sum) since line REPLACE semantics holds one tier per line.</summary>
+        public float MinigunFireRateBonus()
+        {
+            float best = 0f;
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.MinigunFireRateBonus > best) best = u.MinigunFireRateBonus;
+            }
+            return best;
+        }
+
+        /// <summary>Task 49 (Full Pierce): the strongest held Minigun beyond-first pierce bonus (0 if none).</summary>
+        public float FullPierceBonus()
+        {
+            float best = 0f;
+            for (int i = 0; i < _upgrades.Count; i++)
+            {
+                var u = _upgrades[i];
+                if (u != null && u.FullPierceBonus > best) best = u.FullPierceBonus;
+            }
+            return best;
+        }
+
         public void Clear()
         {
             _upgrades.Clear();

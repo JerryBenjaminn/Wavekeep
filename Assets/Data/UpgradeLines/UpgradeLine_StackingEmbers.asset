@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b40531314bde4845a89597168de6cad, type: 3}
+  m_Name: UpgradeLine_StackingEmbers
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.UpgradeLineDefinitionSO
+  _hero: {fileID: 11400000, guid: d39678aa193e7594284f1c8ef74a6438, type: 2}
+  _skill: 0
+  _lineName: Stacking Embers
+  _tiers:
+  - _description: +10% Burn damage per stack, max 3.
+    _effect: {fileID: 11400000, guid: 0e5765844347f114c9b710f4d9fb922d, type: 2}
+  - _description: +15% Burn damage per stack, max 4.
+    _effect: {fileID: 11400000, guid: bde57f7d0e3771547bd2a02847614698, type: 2}
+  - _description: +20% Burn damage per stack, max 5.
+    _effect: {fileID: 11400000, guid: 6c3d02f6507e16548bb0445bd967137c, type: 2}

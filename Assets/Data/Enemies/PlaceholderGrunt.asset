@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.EnemyDefinitionSO
   _enemyName: Placeholder Grunt
   _prefab: {fileID: 9098454545160116387, guid: 0185bd957c8785f40b997ad66f07711e, type: 3}
-  _maxHealth: 10
+  _maxHealth: 25
   _moveSpeed: 3
   _contactDamage: 5
   _armor: 0

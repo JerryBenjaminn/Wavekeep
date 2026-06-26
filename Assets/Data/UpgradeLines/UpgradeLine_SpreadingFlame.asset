@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b40531314bde4845a89597168de6cad, type: 3}
+  m_Name: UpgradeLine_SpreadingFlame
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.UpgradeLineDefinitionSO
+  _hero: {fileID: 11400000, guid: d39678aa193e7594284f1c8ef74a6438, type: 2}
+  _skill: 0
+  _lineName: Spreading Flame
+  _tiers:
+  - _description: 'On Burn-death: spread to 1 enemy (15m).'
+    _effect: {fileID: 11400000, guid: fcddd709839340e458a13fac8eefa058, type: 2}
+  - _description: 'On Burn-death: spread to 1 enemy (20m), 100% potency.'
+    _effect: {fileID: 11400000, guid: 7f1de2d8122539347b87f1920e6cbbc8, type: 2}
+  - _description: 'On Burn-death: spread to 2 enemies (20m), 100% potency.'
+    _effect: {fileID: 11400000, guid: 9721a9ca6b126e74a90cff31f2d224e4, type: 2}

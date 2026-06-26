@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b40531314bde4845a89597168de6cad, type: 3}
+  m_Name: UpgradeLine_PiercingRounds
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.UpgradeLineDefinitionSO
+  _hero: {fileID: 11400000, guid: b51c01e1e850bea44bb0e4278b58dfc2, type: 2}
+  _skill: 0
+  _lineName: Piercing Rounds
+  _tiers:
+  - _description: Shots pierce up to 2 enemies, 100% each.
+    _effect: {fileID: 11400000, guid: 251af4d3c61970e44a4c33ac16774c7b, type: 2}
+  - _description: Shots pierce up to 4 enemies, 100% each.
+    _effect: {fileID: 11400000, guid: c9ac81500f83c53429f9627abac386f8, type: 2}
+  - _description: Shots pierce unlimited enemies, 100% each.
+    _effect: {fileID: 11400000, guid: 2964d4bf2ad0d6a4ca160c00eda82167, type: 2}

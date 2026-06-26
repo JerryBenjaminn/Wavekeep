@@ -117,6 +117,81 @@ namespace Wavekeep.Data
         [SerializeField, Min(0f)] private float _vulnerabilityBonus;
         [SerializeField, Min(0f)] private float _vulnerabilityDuration;
 
+        // === Task 48: Pyromancer line effects (DoT/AoE fire; held data read by AbilityRuntime/FireSubsystem
+        // via UpgradeInventory getters, switching on data never on hero identity — same pattern as above). ===
+
+        [Header("Smoldering Wound (Task 48 — Basic; increases Fireball's Burn damage and duration)")]
+        [Tooltip("Multiplier on the Basic's base Burn per-tick damage (1 = no change).")]
+        [SerializeField, Min(0f)] private float _burnDamageMultiplier = 1f;
+        [Tooltip("Seconds added to the Basic's base Burn duration.")]
+        [SerializeField, Min(0f)] private float _burnDurationBonus;
+
+        [Header("Stacking Embers (Task 48 — Basic; repeated Fireball hits stack Burn damage on one target)")]
+        [Tooltip("Extra Burn-damage fraction per stack [0..1]. 0 = no stacking (burn just refreshes).")]
+        [SerializeField, Min(0f)] private float _burnStackPerStackBonus;
+        [Tooltip("Maximum extra stacks the Burn builds to on a single target.")]
+        [SerializeField, Min(0)] private int _burnMaxStacks;
+
+        [Header("Spreading Flame (Task 48 — Basic; a Burning target's death spreads Burn to nearby enemies)")]
+        [Tooltip("Number of new enemies the Burn spreads to on a Burning-target death. 0 = no spread.")]
+        [SerializeField, Min(0)] private int _burnSpreadTargets;
+        [Tooltip("Search radius (m) for spread targets around the dying enemy.")]
+        [SerializeField, Min(0f)] private float _burnSpreadRange;
+        [Tooltip("Fraction [0..1] of the original Burn's potency applied to each spread target (1 = 100%).")]
+        [SerializeField, Min(0f)] private float _burnSpreadPotency = 1f;
+
+        [Header("Combustion (Task 48 — Basic; a Burn that expires naturally may detonate in an AoE)")]
+        [Tooltip("Chance [0..1] for a naturally-expiring Burn to detonate. 0 = no combustion.")]
+        [SerializeField, Range(0f, 1f)] private float _combustionChance;
+        [Tooltip("Detonation blast radius (m).")]
+        [SerializeField, Min(0f)] private float _combustionRadius;
+        [Tooltip("Detonation damage as a fraction [0..1] of the caster's current Basic damage.")]
+        [SerializeField, Min(0f)] private float _combustionBasicFraction;
+
+        [Header("Wildfire Spread (Task 48 — Ultimate; enemies dying in Firewall leave a lingering patch)")]
+        [Tooltip("Seconds the smoldering patch persists AFTER Firewall ends. 0 = no patch.")]
+        [SerializeField, Min(0f)] private float _wildfirePatchDuration;
+        [Tooltip("Patch DoT as a fraction [0..1] of Firewall's per-tick damage.")]
+        [SerializeField, Min(0f)] private float _wildfirePatchTickFraction;
+
+        [Header("Inferno Surge (Task 48 — Ultimate; Firewall periodically bursts extra instant AoE)")]
+        [Tooltip("Seconds between Firewall bursts. 0 = no burst.")]
+        [SerializeField, Min(0f)] private float _infernoSurgeInterval;
+        [Tooltip("Burst damage as a fraction [0..1] of the caster's current Basic damage.")]
+        [SerializeField, Min(0f)] private float _infernoSurgeBasicFraction;
+
+        // === Task 49: Marksman line effects (Physical pierce DPS; held data read by AbilityRuntime via
+        // UpgradeInventory getters, switching on data never on hero identity). ===
+
+        [Header("Piercing Rounds (Task 49 — Basic; shots pierce enemies in a line)")]
+        [Tooltip("If true, the Basic's shots pierce. Limit = max enemies hit in line (0 = unlimited).")]
+        [SerializeField] private bool _piercingRounds;
+        [Tooltip("Max enemies a piercing shot hits (0 = unlimited). Ignored unless PiercingRounds is true.")]
+        [SerializeField, Min(0)] private int _piercingRoundsLimit;
+
+        [Header("Multishot (Task 49 — Basic; multiple shots per trigger in a narrow spread)")]
+        [Tooltip("Shots fired per Basic trigger. 0 = not a multishot upgrade (one shot).")]
+        [SerializeField, Min(0)] private int _multishotCount;
+        [Tooltip("Total fan spread in degrees across the multishot shots.")]
+        [SerializeField, Min(0f)] private float _multishotSpreadAngle;
+
+        [Header("Armor Shredder (Task 49 — Basic; STACKING armor reduction per hit, distinct from Piercing Bolt)")]
+        [Tooltip("Effective Armor removed PER stack. 0 = no shredder.")]
+        [SerializeField, Min(0f)] private float _armorShredPerStack;
+        [Tooltip("Maximum Armor-Shredder stacks on a single target.")]
+        [SerializeField, Min(0)] private int _armorShredMaxStacks;
+        [Tooltip("Seconds the shred lasts; refreshed on each new hit (drops all stacks if not refreshed in time).")]
+        [SerializeField, Min(0f)] private float _armorShredRefresh;
+
+        [Header("Faster Spin-Up (Task 49 — Ultimate; Minigun internal fire-rate bonus)")]
+        [Tooltip("Fire-rate bonus fraction [0..1] during Minigun (shot interval ÷ (1+bonus)). 0 = none.")]
+        [SerializeField, Min(0f)] private float _minigunFireRateBonus;
+
+        [Header("Full Pierce (Task 49 — Ultimate; Minigun bonus damage to pierced targets beyond the first)")]
+        [Tooltip("Bonus damage fraction [0..1] to each pierced target AFTER the first. Stacks with the base " +
+                 "pierce (which deals 100% to each). 0 = none.")]
+        [SerializeField, Min(0f)] private float _fullPierceBonus;
+
         [Header("Status Effect on Hit (Task 11 — applied by abilities flagged AppliesStatusEffects)")]
         [Tooltip("If true, holding this upgrade makes status-delivering ability hits apply the effect below.")]
         [SerializeField] private bool _appliesStatusEffect;
@@ -203,6 +278,55 @@ namespace Wavekeep.Data
         // Overload (Ultimate) — generic incoming-damage vulnerability, distinct from Armor reduction.
         public float VulnerabilityBonus => _vulnerabilityBonus;
         public float VulnerabilityDuration => _vulnerabilityDuration;
+
+        // --- Task 48: Pyromancer line effects ---
+
+        // Smoldering Wound (Basic).
+        public float BurnDamageMultiplier => _burnDamageMultiplier;
+        public float BurnDurationBonus => _burnDurationBonus;
+
+        // Stacking Embers (Basic).
+        public float BurnStackPerStackBonus => _burnStackPerStackBonus;
+        public int BurnMaxStacks => _burnMaxStacks;
+
+        // Spreading Flame (Basic).
+        public int BurnSpreadTargets => _burnSpreadTargets;
+        public float BurnSpreadRange => _burnSpreadRange;
+        public float BurnSpreadPotency => _burnSpreadPotency;
+
+        // Combustion (Basic).
+        public float CombustionChance => _combustionChance;
+        public float CombustionRadius => _combustionRadius;
+        public float CombustionBasicFraction => _combustionBasicFraction;
+
+        // Wildfire Spread (Ultimate).
+        public float WildfirePatchDuration => _wildfirePatchDuration;
+        public float WildfirePatchTickFraction => _wildfirePatchTickFraction;
+
+        // Inferno Surge (Ultimate).
+        public float InfernoSurgeInterval => _infernoSurgeInterval;
+        public float InfernoSurgeBasicFraction => _infernoSurgeBasicFraction;
+
+        // --- Task 49: Marksman line effects ---
+
+        // Piercing Rounds (Basic).
+        public bool PiercingRounds => _piercingRounds;
+        public int PiercingRoundsLimit => _piercingRoundsLimit;
+
+        // Multishot (Basic).
+        public int MultishotCount => _multishotCount;
+        public float MultishotSpreadAngle => _multishotSpreadAngle;
+
+        // Armor Shredder (Basic) — stacking, distinct from Bolt Striker's flat Piercing Bolt.
+        public float ArmorShredPerStack => _armorShredPerStack;
+        public int ArmorShredMaxStacks => _armorShredMaxStacks;
+        public float ArmorShredRefresh => _armorShredRefresh;
+
+        // Faster Spin-Up (Ultimate).
+        public float MinigunFireRateBonus => _minigunFireRateBonus;
+
+        // Full Pierce (Ultimate).
+        public float FullPierceBonus => _fullPierceBonus;
 
         public bool HasTag(UpgradeTag tag) => _tags.Contains(tag);
     }

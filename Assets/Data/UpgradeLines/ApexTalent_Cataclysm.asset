@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8eaab155df950d24f9c63d05c5484a91, type: 3}
+  m_Name: ApexTalent_Cataclysm
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.ApexTalentDefinitionSO
+  _hero: {fileID: 11400000, guid: d39678aa193e7594284f1c8ef74a6438, type: 2}
+  _apexName: Cataclysm
+  _description: An automatically-firing apex ability, unlocked by maxing all of its
+    required upgrade lines.
+  _requiredLines:
+  - {fileID: 11400000, guid: 276fbed2a46eed24ca5a5d6580d3cfe7, type: 2}
+  - {fileID: 11400000, guid: 5569ddda2e1166848aeca05341c512eb, type: 2}
+  _ability: {fileID: 11400000, guid: 166d33b146011424180d9eaa104b0cae, type: 2}

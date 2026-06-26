@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b40531314bde4845a89597168de6cad, type: 3}
+  m_Name: UpgradeLine_Combustion
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.UpgradeLineDefinitionSO
+  _hero: {fileID: 11400000, guid: d39678aa193e7594284f1c8ef74a6438, type: 2}
+  _skill: 0
+  _lineName: Combustion
+  _tiers:
+  - _description: '20% on Burn-expiry: 2m blast, 30% of Basic.'
+    _effect: {fileID: 11400000, guid: 16c4fe1459cb9aa46944f2ab34e9093b, type: 2}
+  - _description: '35% on Burn-expiry: 2.5m blast, 45% of Basic.'
+    _effect: {fileID: 11400000, guid: 3c67fe580000f924b94043df076d596c, type: 2}
+  - _description: '50% on Burn-expiry: 3m blast, 60% of Basic.'
+    _effect: {fileID: 11400000, guid: 4d0e7bb0fffde124c860534dc979558f, type: 2}

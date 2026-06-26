@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b40531314bde4845a89597168de6cad, type: 3}
+  m_Name: UpgradeLine_SustainedBarrage
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.UpgradeLineDefinitionSO
+  _hero: {fileID: 11400000, guid: b51c01e1e850bea44bb0e4278b58dfc2, type: 2}
+  _skill: 1
+  _lineName: Sustained Barrage
+  _tiers:
+  - _description: Minigun duration +1.5s.
+    _effect: {fileID: 11400000, guid: 727e8f84cc06448468f387a1f7aafb2c, type: 2}
+  - _description: Minigun duration +3s.
+    _effect: {fileID: 11400000, guid: 98ac56ac35d7c4748be18e240a59d86d, type: 2}
+  - _description: Minigun duration +4.5s.
+    _effect: {fileID: 11400000, guid: 9b9d84896fa1b164694d8010f70619b1, type: 2}

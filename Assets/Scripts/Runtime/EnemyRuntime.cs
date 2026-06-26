@@ -45,13 +45,31 @@ namespace Wavekeep.Runtime
             public StatusEffectType Type;
             public float RemainingDuration;
             public float Magnitude;
-            public float BurnTimer; // only used by Burn
         }
 
         /// <summary>DoT granularity (seconds per tick); per-tick damage comes from the SO. Public so an
         /// ability authoring a damage-per-SECOND zone can convert it to per-tick (Task 19).</summary>
         public const float BurnTickInterval = 0.5f;
         private readonly List<ActiveStatusEffect> _statusEffects = new List<ActiveStatusEffect>();
+
+        // Task 48: Burn is promoted out of the generic status list into its own richer model so the Pyromancer's
+        // mechanics work: a single Burn that can STACK (Stacking Embers raises its per-tick), tracks its base
+        // potency + duration (so Spreading Flame can copy it on death), and exposes a clean "is burning" query
+        // (Combustion / Cataclysm). It is still ONE generic burn — any applier (Fireball, Firewall DoT, a Frost
+        // zone's DoT, a held Burn status-upgrade) routes through ApplyBurn; only stacking parameters differ.
+        private struct BurnState
+        {
+            public bool Active;
+            public float BasePerTick;    // per-tick of the base instance (before stack bonus)
+            public int Stacks;           // extra stacks beyond the base (0..MaxStacks)
+            public float MaxStacks;      // stacking cap (0 = no stacking, just refresh)
+            public float PerStackBonus;  // extra per-tick fraction added per stack [0..1]
+            public float Duration;       // configured full duration (copied by Spreading Flame)
+            public float Remaining;
+            public float TickTimer;
+        }
+
+        private BurnState _burn;
 
         // Task 19: generic STACKING-effect state — a counter per StackingEffectType that decays over time
         // and fires a one-shot payload at max. Same pattern as _statusEffects (one list + one tick loop),
@@ -81,6 +99,22 @@ namespace Wavekeep.Runtime
         }
 
         private readonly List<ActiveArmorReduction> _armorReductions = new List<ActiveArmorReduction>();
+
+        // Task 49 (Armor Shredder): a STACKING effective-Armor reduction, deliberately DISTINCT from the flat
+        // single-application reductions above (Bolt Striker's Piercing Bolt). Each Marksman Basic hit adds one
+        // stack (capped) and refreshes a single shared timer; the reduction is PerStack × Stacks while active,
+        // dropping all stacks together when the timer lapses. The live stack count is queryable so an apex
+        // (Executioner's Volley) can scale off it. Same per-entry-expiry state-machine spirit as the others.
+        private struct ArmorShredState
+        {
+            public bool Active;
+            public int Stacks;
+            public float PerStack;
+            public int MaxStacks;
+            public float Remaining; // refreshed on each hit; clears all stacks on expiry
+        }
+
+        private ArmorShredState _armorShred;
 
         // Task 35 (Overload): generic incoming-damage VULNERABILITY debuffs. Deliberately DISTINCT from the
         // Task 34 Armor reduction above — they operate at different pipeline stages: Armor reduction lowers
@@ -159,6 +193,8 @@ namespace Wavekeep.Runtime
             _armorReductions.Clear(); // reset temporary armor debuffs on pooled reuse (Task 34)
             _vulnerabilities.Clear(); // reset vulnerability debuffs on pooled reuse (Task 35)
             _primedRemaining = 0f;    // reset combo prime on pooled reuse (Task 38)
+            _burn = default;          // reset Burn DoT on pooled reuse (Task 48)
+            _armorShred = default;    // reset stacking Armor Shredder on pooled reuse (Task 49)
 
             MaxHealth = definition.MaxHealth * statMultiplier;
             CurrentHealth = MaxHealth;
@@ -183,12 +219,17 @@ namespace Wavekeep.Runtime
         {
             if (_isResolved) return;
 
-            // Task 11: status effects tick first. Burn deals damage through the normal TakeDamage path,
-            // which can resolve this enemy mid-tick — bail immediately if so (it's now pool-released).
+            // Task 48: Burn (its own DoT model) ticks first; like the old Burn it deals damage through the
+            // normal TakeDamage path, which can resolve this enemy mid-tick — bail immediately if so.
+            TickBurn(deltaTime);
+            if (_isResolved) return;
+
+            // Task 11: status effects (Freeze/Slow) tick next.
             TickStatusEffects(deltaTime);
             if (_isResolved || _wall == null) return;
             TickStackingEffects(deltaTime); // Task 19: stack decay (never lethal, so no resolve check needed)
             TickArmorReductions(deltaTime); // Task 34: expire temporary armor debuffs
+            TickArmorShred(deltaTime);      // Task 49: expire the stacking Armor Shredder
             TickVulnerabilities(deltaTime); // Task 35: expire vulnerability debuffs
             TickPrime(deltaTime);           // Task 38: expire the combo prime window
             UpdateFrostVfx(deltaTime);      // Task 44: drive the Slow/Freeze overlay shader (also while attacking)
@@ -258,6 +299,14 @@ namespace Wavekeep.Runtime
         {
             if (_isResolved || duration <= 0f) return;
 
+            // Task 48: Burn lives in its own model now. Route the generic Burn status (zone DoT, held Burn
+            // upgrades, apex ignites) to ApplyBurn as a single, non-stacking instance — same refresh semantics.
+            if (type == StatusEffectType.Burn)
+            {
+                ApplyBurn(magnitude, duration, maxStacks: 0, perStackBonus: 0f);
+                return;
+            }
+
             for (int i = 0; i < _statusEffects.Count; i++)
             {
                 if (_statusEffects[i].Type != type) continue;
@@ -273,11 +322,74 @@ namespace Wavekeep.Runtime
             {
                 Type = type,
                 RemainingDuration = duration,
-                Magnitude = magnitude,
-                BurnTimer = 0f
+                Magnitude = magnitude
             });
 
             Debug.Log($"[EnemyRuntime] Status '{type}' applied (mag={magnitude:0.#}, dur={duration:0.#}s) to '{Definition.EnemyName}'.");
+        }
+
+        /// <summary>
+        /// Task 48: apply (or refresh) the Burn DoT. <paramref name="perTick"/> is the base per-tick damage and
+        /// <paramref name="duration"/> the burn length. With <paramref name="maxStacks"/> &gt; 0 (Stacking Embers),
+        /// re-applying on a still-Burning target adds one stack (capped), each stack adding
+        /// <paramref name="perStackBonus"/> of the base per-tick — stacks PERSIST on this specific enemy for the
+        /// burn's remaining duration, independent of hits on other targets. Re-applying always refreshes the
+        /// base potency + remaining duration. With maxStacks 0 it's a plain single-instance refresh (zone DoT etc.).
+        /// </summary>
+        public void ApplyBurn(float perTick, float duration, int maxStacks, float perStackBonus)
+        {
+            if (_isResolved || perTick <= 0f || duration <= 0f) return;
+
+            if (_burn.Active)
+            {
+                // Stacking Embers: a repeat application on the SAME burning target adds a stack (up to the cap).
+                if (maxStacks > 0 && _burn.Stacks < maxStacks) _burn.Stacks++;
+            }
+            else
+            {
+                _burn.Active = true;
+                _burn.Stacks = 0;
+                _burn.TickTimer = 0f;
+            }
+
+            _burn.BasePerTick = perTick;          // latest potency wins
+            _burn.PerStackBonus = perStackBonus;
+            _burn.MaxStacks = maxStacks;
+            _burn.Duration = duration;
+            _burn.Remaining = duration;           // refresh
+
+            Debug.Log($"[EnemyRuntime] Burn applied ({BurnPerTick:0.#}/tick, dur={duration:0.#}s, stacks={_burn.Stacks}) to '{Definition.EnemyName}'.");
+        }
+
+        /// <summary>Task 48: true while this enemy has an active Burn (Combustion / Cataclysm / Spreading Flame
+        /// all key off this).</summary>
+        public bool IsBurning => _burn.Active;
+
+        /// <summary>Task 48: the Burn's current EFFECTIVE per-tick damage (base × stack bonus), or 0 if not
+        /// burning. Spreading Flame copies this as the spread instance's potency.</summary>
+        public float BurnPerTick => _burn.Active ? _burn.BasePerTick * (1f + _burn.PerStackBonus * _burn.Stacks) : 0f;
+
+        /// <summary>Task 48: the Burn's configured duration (copied by Spreading Flame), or 0 if not burning.</summary>
+        public float BurnDuration => _burn.Active ? _burn.Duration : 0f;
+
+        // Task 48: advance the Burn DoT. Damage goes through the normal TakeDamage path (same death/pool-release
+        // flow as the old Burn — NOT a parallel system); the enemy can die mid-tick (handled by the caller's
+        // resolve check). A burn that runs out of duration deactivates — the FireSubsystem detects that natural
+        // expiry (was burning last tick, now alive but not burning) to roll Combustion.
+        private void TickBurn(float deltaTime)
+        {
+            if (!_burn.Active) return;
+
+            _burn.TickTimer += deltaTime;
+            while (_burn.TickTimer >= BurnTickInterval)
+            {
+                _burn.TickTimer -= BurnTickInterval;
+                TakeDamage(BurnPerTick);
+                if (_isResolved) return; // burn was lethal; enemy already resolved/released
+            }
+
+            _burn.Remaining -= deltaTime;
+            if (_burn.Remaining <= 0f) _burn = default; // natural expiry
         }
 
         /// <summary>
@@ -378,8 +490,41 @@ namespace Wavekeep.Runtime
                 float reduction = 0f;
                 for (int i = 0; i < _armorReductions.Count; i++)
                     reduction += _armorReductions[i].Amount;
+                if (_armorShred.Active) reduction += _armorShred.PerStack * _armorShred.Stacks; // Task 49
                 return Mathf.Max(0f, Armor - reduction);
             }
+        }
+
+        /// <summary>Task 49 (Armor Shredder): current stack count (0 if none active). Executioner's Volley
+        /// reads this to pick the most-shredded target and scale its damage.</summary>
+        public int ArmorShredStacks => _armorShred.Active ? _armorShred.Stacks : 0;
+
+        /// <summary>Task 49: apply one Armor-Shredder stack (capped at <paramref name="maxStacks"/>) and refresh
+        /// the shared timer to <paramref name="refresh"/>s. Reduction is <paramref name="perStack"/> × stacks of
+        /// effective Armor while active; on expiry all stacks drop together. Distinct from the flat
+        /// <see cref="ApplyArmorReduction"/> (Piercing Bolt) — this one stacks per hit.</summary>
+        public void ApplyArmorShred(float perStack, int maxStacks, float refresh)
+        {
+            if (_isResolved || perStack <= 0f || maxStacks < 1 || refresh <= 0f) return;
+
+            if (_armorShred.Active && _armorShred.Stacks < maxStacks) _armorShred.Stacks++;
+            else if (!_armorShred.Active) _armorShred.Stacks = 1;
+
+            _armorShred.Active = true;
+            _armorShred.PerStack = perStack;   // latest tier's values win
+            _armorShred.MaxStacks = maxStacks;
+            _armorShred.Remaining = refresh;   // refresh the shared timer
+
+            Debug.Log($"[EnemyRuntime] Armor Shredder → {_armorShred.Stacks}/{maxStacks} stacks " +
+                      $"(-{_armorShred.PerStack * _armorShred.Stacks:0.#} Armor) on '{Definition.EnemyName}'.");
+        }
+
+        // Task 49: advance the Armor-Shredder timer; drop all stacks when it lapses (refreshed by new hits).
+        private void TickArmorShred(float deltaTime)
+        {
+            if (!_armorShred.Active) return;
+            _armorShred.Remaining -= deltaTime;
+            if (_armorShred.Remaining <= 0f) _armorShred = default;
         }
 
         /// <summary>Task 34: apply a temporary, time-limited reduction to this enemy's effective Armor.
@@ -561,24 +706,13 @@ namespace Wavekeep.Runtime
             }
         }
 
-        // Advance durations, apply Burn ticks through the existing TakeDamage path (reusing the normal
-        // death/pool-release flow — NOT a parallel DoT system), and drop expired effects.
+        // Advance Freeze/Slow durations and drop expired effects. Burn is handled separately in TickBurn
+        // (Task 48 promoted it to its own model); only movement-affecting statuses live in this list now.
         private void TickStatusEffects(float deltaTime)
         {
             for (int i = _statusEffects.Count - 1; i >= 0; i--)
             {
                 var effect = _statusEffects[i];
-
-                if (effect.Type == StatusEffectType.Burn)
-                {
-                    effect.BurnTimer += deltaTime;
-                    while (effect.BurnTimer >= BurnTickInterval)
-                    {
-                        effect.BurnTimer -= BurnTickInterval;
-                        TakeDamage(effect.Magnitude);
-                        if (_isResolved) return; // burn was lethal; enemy already resolved/released
-                    }
-                }
 
                 effect.RemainingDuration -= deltaTime;
                 if (effect.RemainingDuration <= 0f)

@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b40531314bde4845a89597168de6cad, type: 3}
+  m_Name: UpgradeLine_WildfireSpread
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.UpgradeLineDefinitionSO
+  _hero: {fileID: 11400000, guid: d39678aa193e7594284f1c8ef74a6438, type: 2}
+  _skill: 1
+  _lineName: Wildfire Spread
+  _tiers:
+  - _description: 'Death-patch: 2s after Firewall, 20% of tick.'
+    _effect: {fileID: 11400000, guid: e4eed8a882c48ac4fbfb33a201c63944, type: 2}
+  - _description: 'Death-patch: 3s after Firewall, 30% of tick.'
+    _effect: {fileID: 11400000, guid: 1e61fa16719c7cb44b3f65662e820900, type: 2}
+  - _description: 'Death-patch: 4s after Firewall, 40% of tick.'
+    _effect: {fileID: 11400000, guid: ebbccc7c8af99eb42ad1526f5d4a39cf, type: 2}

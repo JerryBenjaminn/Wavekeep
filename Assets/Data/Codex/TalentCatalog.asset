@@ -14,9 +14,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.TalentCatalogSO
   _apexTalents:
   - {fileID: 11400000, guid: f31b532cfe9a4ad4692b5b16f1feea0a, type: 2}
+  - {fileID: 11400000, guid: 641920b5a678a1a448cdd9fba7824f90, type: 2}
+  - {fileID: 11400000, guid: 3ccbf9b989c42204298917dcfa903a52, type: 2}
+  - {fileID: 11400000, guid: 7239abcaf1fb0ab428a844a635d69443, type: 2}
   - {fileID: 11400000, guid: 1be05e8e79b4be54ab765c7d8915c6ce, type: 2}
   - {fileID: 11400000, guid: b36411f827c50fd46859190a6eb73bb7, type: 2}
   - {fileID: 11400000, guid: 3acc5d086b54e424c83842f05b706acc, type: 2}
   - {fileID: 11400000, guid: 23eeada09a2bdab4cad1c09e49606fa2, type: 2}
+  - {fileID: 11400000, guid: 22101d910acc52a479bc7f688a57ab37, type: 2}
   _comboApexes:
   - {fileID: 11400000, guid: 5638afb45edcc1743ba85a1808adad28, type: 2}
