@@ -62,4 +62,4 @@ MonoBehaviour:
   _channelSpreadAngle: 0
   _targetsHighestShred: 0
   _shredStackDamageBonus: 0
-  _vfxStyle: 0
+  _vfxStyle: 4

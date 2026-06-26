@@ -80,5 +80,50 @@ namespace Wavekeep.Runtime
         {
             for (int i = 0; i < _sinks.Length; i++) _sinks[i]?.OnComboFrozenLightning(center);
         }
+
+        public void OnFireballImpact(Vector3 from, Vector3 to, float burstRadius)
+        {
+            for (int i = 0; i < _sinks.Length; i++) _sinks[i]?.OnFireballImpact(from, to, burstRadius);
+        }
+
+        public void OnCombustion(Vector3 center, float radius)
+        {
+            for (int i = 0; i < _sinks.Length; i++) _sinks[i]?.OnCombustion(center, radius);
+        }
+
+        public void OnSpreadingFlame(Vector3 from, Vector3 to)
+        {
+            for (int i = 0; i < _sinks.Length; i++) _sinks[i]?.OnSpreadingFlame(from, to);
+        }
+
+        public IFireZoneVisual BeginFireWall(float bandMinZ, float bandMaxZ)
+        {
+            for (int i = 0; i < _sinks.Length; i++)
+            {
+                var handle = _sinks[i]?.BeginFireWall(bandMinZ, bandMaxZ);
+                if (handle != null) return handle;
+            }
+            return null;
+        }
+
+        public void OnTracer(Vector3 from, Vector3 to, float intensity, bool sustained)
+        {
+            for (int i = 0; i < _sinks.Length; i++) _sinks[i]?.OnTracer(from, to, intensity, sustained);
+        }
+
+        public void OnPierceImpact(Vector3 point)
+        {
+            for (int i = 0; i < _sinks.Length; i++) _sinks[i]?.OnPierceImpact(point);
+        }
+
+        public void OnArmorShred(Transform target, int stacks, int maxStacks, float duration)
+        {
+            for (int i = 0; i < _sinks.Length; i++) _sinks[i]?.OnArmorShred(target, stacks, maxStacks, duration);
+        }
+
+        public void OnMinigunSpinUp(Vector3 at, float intensity)
+        {
+            for (int i = 0; i < _sinks.Length; i++) _sinks[i]?.OnMinigunSpinUp(at, intensity);
+        }
     }
 }

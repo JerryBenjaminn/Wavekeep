@@ -134,10 +134,11 @@ namespace Wavekeep.Runtime
             float bandMinZ, float bandMaxZ, float duration,
             float tickInterval, float tickDamage,
             float burstInterval, float burstBasicFraction,
-            float patchDuration, float patchTickDamage, System.Action<GroundZone> spawnSibling)
+            float patchDuration, float patchTickDamage, System.Action<GroundZone> spawnSibling,
+            IZoneVisual visual = null)
         {
             return new GroundZone(Shape.Box, Vector3.zero, 0f, bandMinZ, bandMaxZ, duration, 0f,
-                0f, 0.5f, 0f, 0f, 0f, null,
+                0f, 0.5f, 0f, 0f, 0f, visual,
                 tickInterval, tickDamage, burstInterval, burstBasicFraction,
                 patchDuration, patchTickDamage, spawnSibling);
         }
@@ -220,6 +221,7 @@ namespace Wavekeep.Runtime
                     float dmg = _burstBasicFraction * basicDamage;
                     for (int i = 0; i < _inside.Count; i++)
                         if (_inside[i].IsAlive) _inside[i].TakeDamage(dmg);
+                    _visual?.Pulse(); // Task 51: Inferno Surge flare on the SAME tick the burst damage lands
                 }
             }
 
@@ -246,8 +248,12 @@ namespace Wavekeep.Runtime
                 foreach (var e in _insideLastTick)
                 {
                     if (e == null || e.IsAlive) continue;
-                    _spawnSibling(FirePatch(e.Transform.position, WildfirePatchRadius,
+                    var pos = e.Transform.position;
+                    _spawnSibling(FirePatch(pos, WildfirePatchRadius,
                         patchLife, patchTick, _deathPatchTickDamage));
+                    // Task 51: a distinct cooling-ember after-patch visual at the SAME position/radius/lifetime as
+                    // the gameplay patch (dim embers, no full flame). Independent of the wall band's own lifetime.
+                    (_visual as IFireZoneVisual)?.SpawnCoolingPatch(pos.x, pos.z, WildfirePatchRadius, patchLife);
                 }
             }
 

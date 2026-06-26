@@ -57,6 +57,7 @@ namespace Wavekeep.Waves
         private EventBus _events;
         private EnemyPoolManager _pool;
         private PauseState _pause;
+        private ComboApexState _comboApex; // Task 50 (Frostburn): handed to each spawned EnemyRuntime
 
         private readonly List<EnemyRuntime> _activeEnemies = new List<EnemyRuntime>();
         private int _spawnMarkerCursor;
@@ -110,6 +111,7 @@ namespace Wavekeep.Waves
             _events = _bootstrap.Session.Events;
             _pool = _bootstrap.Session.EnemyPool;
             _pause = _bootstrap.Session.PauseState;
+            _comboApex = _bootstrap.Session.ComboApex; // Task 50 (Frostburn): per-tick Burn amp under Frost CC
             _wall.OnWallDestroyed += HandleWallDestroyed;
 
             if (_autoStartOnPlay)
@@ -315,7 +317,7 @@ namespace Wavekeep.Waves
 
             var enemy = new EnemyRuntime();
             enemy.Initialize(definition, instance, multiplier, _wall, _events, _arrivalThreshold, _attackInterval,
-                OnEnemyResolved, lootTable);
+                OnEnemyResolved, lootTable, _comboApex);
             _activeEnemies.Add(enemy);
 
             Debug.Log($"[WaveSpawner] Spawned '{definition.EnemyName}' mult={multiplier:0.00} maxHP={enemy.MaxHealth:0.0}");

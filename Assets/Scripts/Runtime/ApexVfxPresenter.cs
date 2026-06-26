@@ -90,6 +90,18 @@ namespace Wavekeep.Runtime
         public void OnArmorBreak(Transform target, float duration) { }
         public void OnVulnerability(Transform target, float duration) { }
 
+        // Task 51: Pyromancer fire VFX is handled by FireVfxPresenter — no-ops here.
+        public void OnFireballImpact(Vector3 from, Vector3 to, float burstRadius) { }
+        public void OnCombustion(Vector3 center, float radius) { }
+        public void OnSpreadingFlame(Vector3 from, Vector3 to) { }
+        public IFireZoneVisual BeginFireWall(float bandMinZ, float bandMaxZ) => null;
+
+        // Task 52: Marksman kinetic VFX is handled by KineticVfxPresenter — no-ops here.
+        public void OnTracer(Vector3 from, Vector3 to, float intensity, bool sustained) { }
+        public void OnPierceImpact(Vector3 point) { }
+        public void OnArmorShred(Transform target, int stacks, int maxStacks, float duration) { }
+        public void OnMinigunSpinUp(Vector3 at, float intensity) { }
+
         public void OnApexImpact(Vector3 center, float radius, ApexVfxStyle style)
         {
             if (!_ready) return;

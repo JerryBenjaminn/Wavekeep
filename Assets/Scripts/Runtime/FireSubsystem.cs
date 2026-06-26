@@ -37,7 +37,7 @@ namespace Wavekeep.Runtime
         private readonly List<EnemyRuntime> _buffer = new List<EnemyRuntime>();
 
         public void Tick(float deltaTime, IReadOnlyList<EnemyRuntime> enemies,
-            UpgradeInventory upgrades, float basicDamage)
+            UpgradeInventory upgrades, float basicDamage, IAbilityFeedback feedback = null)
         {
             int spreadTargets = 0;
             float spreadRange = 0f, spreadPotency = 0f;
@@ -58,13 +58,13 @@ namespace Wavekeep.Runtime
                     // Died while burning → Spreading Flame (copies the original Burn's potency × spread fraction).
                     if (hasSpread)
                         SpreadBurn(enemy, enemies, spreadTargets, spreadRange,
-                            kv.Value.PerTick * spreadPotency, kv.Value.Duration);
+                            kv.Value.PerTick * spreadPotency, kv.Value.Duration, feedback);
                 }
                 else if (!enemy.IsBurning)
                 {
                     // Burn lapsed naturally (still alive, no longer burning) → Combustion roll.
                     if (hasCombustion && Random.value < combChance)
-                        Detonate(enemy.Transform.position, enemies, combRadius, combFraction * basicDamage);
+                        Detonate(enemy.Transform.position, enemies, combRadius, combFraction * basicDamage, feedback);
                 }
             }
 
@@ -89,7 +89,7 @@ namespace Wavekeep.Runtime
         // Spreading Flame: apply a fresh Burn to the nearest `targets` alive OTHER enemies within `range` of the
         // dying enemy. A plain single-instance Burn (maxStacks 0) — the spec calls it a fresh instance.
         private void SpreadBurn(EnemyRuntime origin, IReadOnlyList<EnemyRuntime> enemies,
-            int targets, float range, float perTick, float duration)
+            int targets, float range, float perTick, float duration, IAbilityFeedback feedback)
         {
             if (targets <= 0 || range <= 0f || perTick <= 0f || duration <= 0f || enemies == null) return;
 
@@ -112,8 +112,13 @@ namespace Wavekeep.Runtime
                 _buffer.RemoveRange(targets, _buffer.Count - targets);
             }
 
+            var originPosVfx = origin.Transform.position;
             for (int i = 0; i < _buffer.Count; i++)
+            {
                 _buffer[i].ApplyBurn(perTick, duration, maxStacks: 0, perStackBonus: 0f);
+                // Task 51: a brief travelling ember from the dying enemy to each newly-ignited target.
+                feedback?.OnSpreadingFlame(originPosVfx, _buffer[i].Transform.position);
+            }
 
             Debug.Log($"[FireSubsystem] Spreading Flame: Burn spread to {_buffer.Count} enemy(ies).");
             _buffer.Clear();
@@ -121,9 +126,13 @@ namespace Wavekeep.Runtime
 
         // Combustion: instant unmitigated AoE damage (consistent with GroundZone pulses) to every alive enemy
         // within `radius` of the detonation point.
-        private void Detonate(Vector3 center, IReadOnlyList<EnemyRuntime> enemies, float radius, float damage)
+        private void Detonate(Vector3 center, IReadOnlyList<EnemyRuntime> enemies, float radius, float damage,
+            IAbilityFeedback feedback)
         {
             if (radius <= 0f || damage <= 0f || enemies == null) return;
+
+            // Task 51: a distinct Combustion fire-burst at the detonation point, sized to the ACTUAL tier radius.
+            feedback?.OnCombustion(center, radius);
 
             _buffer.Clear();
             float radiusSqr = radius * radius;

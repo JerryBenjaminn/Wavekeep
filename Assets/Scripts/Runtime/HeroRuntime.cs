@@ -148,7 +148,22 @@ namespace Wavekeep.Runtime
             {
                 apexPresenter = gameObject.AddComponent<ApexVfxPresenter>();
             }
-            _feedback = new CompositeAbilityFeedback(presenter, frostPresenter, lightningPresenter, apexPresenter);
+
+            // Task 51: Pyromancer's fire VFX presenter joins the composite. Inert (no allocation) for heroes whose
+            // abilities never call the fire methods (Fireball impact / Combustion / Spreading Flame / Firewall).
+            if (!TryGetComponent(out FireVfxPresenter firePresenter))
+            {
+                firePresenter = gameObject.AddComponent<FireVfxPresenter>();
+            }
+
+            // Task 52: Marksman's kinetic VFX presenter joins the composite. Inert for heroes whose abilities never
+            // call the kinetic methods (tracers / pierce sparks / Armor Shred indicator / Minigun spin-up).
+            if (!TryGetComponent(out KineticVfxPresenter kineticPresenter))
+            {
+                kineticPresenter = gameObject.AddComponent<KineticVfxPresenter>();
+            }
+            _feedback = new CompositeAbilityFeedback(
+                presenter, frostPresenter, lightningPresenter, apexPresenter, firePresenter, kineticPresenter);
 
             Basic = definition.BasicAbility != null
                 ? new AbilityRuntime(definition.BasicAbility, AbilityRole.Basic) : null;
@@ -302,8 +317,9 @@ namespace Wavekeep.Runtime
             _zones.Tick(Time.deltaTime, _waveSpawner.ActiveEnemies, basicDamage);
 
             // Task 48: advance the Burn-reaction poller (Spreading Flame / Combustion) for fire heroes.
+            // Task 51: pass the feedback sink so spread/combustion fire their VFX at the exact reaction moment.
             if (_hasFireReactions)
-                _fire.Tick(Time.deltaTime, _waveSpawner.ActiveEnemies, _upgrades, basicDamage);
+                _fire.Tick(Time.deltaTime, _waveSpawner.ActiveEnemies, _upgrades, basicDamage, _feedback);
 
             var context = BuildContext(basicDamage);
 

@@ -163,6 +163,7 @@ namespace Wavekeep.EditorTools
             so.FindProperty("_appliesBurnOnHit").boolValue = true;
             so.FindProperty("_burnDamagePerTick").floatValue = burnPerTick;
             so.FindProperty("_burnDuration").floatValue = burnDuration;
+            so.FindProperty("_vfxStyle").enumValueIndex = (int)AbilityVfxStyle.Fire; // Task 51: fireball VFX
             so.ApplyModifiedPropertiesWithoutUndo();
             return a;
         }
@@ -183,6 +184,7 @@ namespace Wavekeep.EditorTools
             so.FindProperty("_fireWallTickInterval").floatValue = tickInterval;
             so.FindProperty("_fireWallTickDamage").floatValue = tickDamage;
             so.FindProperty("_fireWallDuration").floatValue = duration;
+            so.FindProperty("_vfxStyle").enumValueIndex = (int)AbilityVfxStyle.Fire; // Task 51: firewall palette
             so.ApplyModifiedPropertiesWithoutUndo();
             return a;
         }

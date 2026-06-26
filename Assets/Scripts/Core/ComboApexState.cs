@@ -52,6 +52,9 @@ namespace Wavekeep.Core
             {
                 var combo = _combos[i];
                 if (combo == null || combo.TriggerType != ComboApexTriggerType.Passive) continue;
+                // Task 50: only prime-based effects (Frozen Lightning's AmplifyConsume + Shatter's detonate)
+                // mark targets; the other effect types are not prime/consume so they never prime.
+                if (!IsPrimeEffect(combo.EffectType)) continue;
                 if (combo.PrimingApex == null || combo.PrimingApex.Ability != ability) continue;
                 if (!IsUnlocked(combo)) continue;
                 windowSeconds = combo.PrimeWindowSeconds;
@@ -71,6 +74,10 @@ namespace Wavekeep.Core
             {
                 var combo = _combos[i];
                 if (combo == null || combo.TriggerType != ComboApexTriggerType.Passive) continue;
+                // Task 50: only Frozen Lightning's amplify-on-consume model consumes via the consuming apex's
+                // own hit. Shatter (also prime-based) detonates via TryGetShatterDetonation instead, so it is
+                // excluded here — a Bullet Storm hit must NOT be treated as a plain ×multiplier consume.
+                if (combo.EffectType != ComboEffectType.AmplifyConsume) continue;
                 if (combo.ConsumingApex == null || combo.ConsumingApex.Ability != ability) continue;
                 if (!IsUnlocked(combo)) continue;
                 multiplier = combo.ConsumeDamageMultiplier;
@@ -78,6 +85,84 @@ namespace Wavekeep.Core
             }
             return false;
         }
+
+        /// <summary>Task 50 (Shatter): if any unlocked combo detonates on a Physical hit to a primed target,
+        /// return true with the detonation AoE radius + damage multiplier (×the triggering shot's damage). The
+        /// caller checks the target is primed/Physical and consumes the prime — this only reports the params.</summary>
+        public bool TryGetShatterDetonation(out float radius, out float multiplier)
+        {
+            radius = 0f;
+            multiplier = 0f;
+            if (_combos == null) return false;
+            for (int i = 0; i < _combos.Count; i++)
+            {
+                var combo = _combos[i];
+                if (combo == null || combo.EffectType != ComboEffectType.ShatterDetonate) continue;
+                if (!IsUnlocked(combo)) continue;
+                radius = combo.EffectRadius;
+                multiplier = combo.ConsumeDamageMultiplier;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Task 50 (Frostburn): the Burn-tick damage multiplier for a target currently under Frost CC,
+        /// or 1 if no Frostburn combo is unlocked. Continuous (re-evaluated every tick by EnemyRuntime) — not a
+        /// consumed prime. Returns the strongest unlocked multiplier.</summary>
+        public float FrostburnBurnMultiplier()
+        {
+            float best = 1f;
+            if (_combos == null) return best;
+            for (int i = 0; i < _combos.Count; i++)
+            {
+                var combo = _combos[i];
+                if (combo == null || combo.EffectType != ComboEffectType.FrostburnTick) continue;
+                if (!IsUnlocked(combo)) continue;
+                if (combo.ConsumeDamageMultiplier > best) best = combo.ConsumeDamageMultiplier;
+            }
+            return best;
+        }
+
+        /// <summary>Task 50 (Chain Combustion): if unlocked, return the seconds a Bolt Striker chain-jump adds to
+        /// an already-Burning target's Burn (and the caller adds one Stacking-Embers stack). False if none.</summary>
+        public bool TryGetChainCombustion(out float burnExtendSeconds)
+        {
+            burnExtendSeconds = 0f;
+            if (_combos == null) return false;
+            for (int i = 0; i < _combos.Count; i++)
+            {
+                var combo = _combos[i];
+                if (combo == null || combo.EffectType != ComboEffectType.ChainCombustion) continue;
+                if (!IsUnlocked(combo)) continue;
+                burnExtendSeconds = combo.BurnExtendSeconds;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Task 50 (Incendiary Rounds): if unlocked, return the BASE Burn (per-tick + duration) a
+        /// Marksman pierce applies to each target beyond the first. The caller scales it by the held Smoldering
+        /// Wound tier. False if no Incendiary Rounds combo is unlocked.</summary>
+        public bool TryGetIncendiaryPierce(out float burnPerTick, out float burnDuration)
+        {
+            burnPerTick = 0f;
+            burnDuration = 0f;
+            if (_combos == null) return false;
+            for (int i = 0; i < _combos.Count; i++)
+            {
+                var combo = _combos[i];
+                if (combo == null || combo.EffectType != ComboEffectType.IncendiaryPierce) continue;
+                if (!IsUnlocked(combo)) continue;
+                burnPerTick = combo.IgniteBurnPerTick;
+                burnDuration = combo.IgniteBurnDuration;
+                return true;
+            }
+            return false;
+        }
+
+        // Task 50: prime-based effects mark/consume a per-enemy prime; the rest are passive rules with no prime.
+        private static bool IsPrimeEffect(ComboEffectType effect) =>
+            effect == ComboEffectType.AmplifyConsume || effect == ComboEffectType.ShatterDetonate;
 
         private bool AnyHeroHasApex(ApexTalentDefinitionSO apex)
         {

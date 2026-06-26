@@ -55,4 +55,4 @@ MonoBehaviour:
   _fireWallTickDamage: 0
   _fireWallDuration: 0
   _bonusDamageVsBurningFraction: 0
-  _vfxStyle: 0
+  _vfxStyle: 3

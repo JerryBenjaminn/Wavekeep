@@ -26,6 +26,10 @@ namespace Wavekeep.Runtime
     {
         private EventBus _events;
         private WallRuntime _wall;
+        // Task 50 (Frostburn): the run's combo resolver, so Burn ticks can ask whether a Frostburn combo is
+        // unlocked and amplify the tick while this enemy is under Frost CC. Injected (no static singleton);
+        // null in older callers/tests → Burn behaves exactly as before.
+        private ComboApexState _comboApex;
         private Action<EnemyRuntime> _onResolved;
         private float _arrivalThreshold;
         private float _attackInterval;
@@ -142,6 +146,11 @@ namespace Wavekeep.Runtime
         // the resulting visual tier each tick. Null only if the GameObject can't host one (never in practice).
         private FrostVfxController _frostVfx;
 
+        // Task 51: per-enemy Burn VFX driver (ember/fire overlay shader), the fire counterpart to _frostVfx.
+        // Same lifecycle — lives on the pooled GameObject, reset on reuse — and is fed a single intensity each
+        // tick scaled by the current Burn stack count so more stacks read as a hotter fire (not just longer).
+        private FireVfxController _fireVfx;
+
         public EnemyDefinitionSO Definition { get; private set; }
         public GameObject GameObject { get; private set; }
         public Transform Transform { get; private set; }
@@ -174,13 +183,15 @@ namespace Wavekeep.Runtime
             float arrivalThreshold,
             float attackInterval,
             Action<EnemyRuntime> onResolved,
-            LootTableSO lootTable = null)
+            LootTableSO lootTable = null,
+            ComboApexState comboApex = null)
         {
             Definition = definition;
             GameObject = pooledInstance;
             Transform = pooledInstance.transform;
             _wall = wall;
             _events = events;
+            _comboApex = comboApex; // Task 50 (Frostburn): run combo resolver for per-tick Burn amp under Frost CC
             _arrivalThreshold = arrivalThreshold;
             _attackInterval = attackInterval;
             _attackTimer = 0f;
@@ -212,6 +223,16 @@ namespace Wavekeep.Runtime
             }
             _frostVfx.EnsureInitialized();
             _frostVfx.ResetImmediate();
+
+            // Task 51: same pattern for the Burn (fire) overlay — ensure the driver exists once on this pooled
+            // GameObject, then reset it so a previously-Burning enemy doesn't spawn back already on fire.
+            if (_fireVfx == null)
+            {
+                _fireVfx = pooledInstance.GetComponent<FireVfxController>();
+                if (_fireVfx == null) _fireVfx = pooledInstance.AddComponent<FireVfxController>();
+            }
+            _fireVfx.EnsureInitialized();
+            _fireVfx.ResetImmediate();
         }
 
         /// <summary>Advance status effects, then movement or wall-attack by <paramref name="deltaTime"/> seconds.</summary>
@@ -233,6 +254,7 @@ namespace Wavekeep.Runtime
             TickVulnerabilities(deltaTime); // Task 35: expire vulnerability debuffs
             TickPrime(deltaTime);           // Task 38: expire the combo prime window
             UpdateFrostVfx(deltaTime);      // Task 44: drive the Slow/Freeze overlay shader (also while attacking)
+            UpdateFireVfx(deltaTime);       // Task 51: drive the Burn (ember/fire) overlay shader
 
             if (_isAttacking)
             {
@@ -384,12 +406,50 @@ namespace Wavekeep.Runtime
             while (_burn.TickTimer >= BurnTickInterval)
             {
                 _burn.TickTimer -= BurnTickInterval;
-                TakeDamage(BurnPerTick);
+                // Task 50 (Frostburn): a Burn tick on a target currently under Frost CC (Slow/Freeze) is
+                // multiplied while the Frostburn combo is unlocked — a CONTINUOUS per-tick check (re-evaluated
+                // here each tick from the CURRENT CC + unlock state), never a one-time consumed prime.
+                float tick = BurnPerTick;
+                if (_comboApex != null && HasActiveSlowOrFreeze())
+                    tick *= _comboApex.FrostburnBurnMultiplier();
+                TakeDamage(tick);
                 if (_isResolved) return; // burn was lethal; enemy already resolved/released
             }
 
             _burn.Remaining -= deltaTime;
             if (_burn.Remaining <= 0f) _burn = default; // natural expiry
+        }
+
+        // Task 50 (Frostburn): true if any Slow/Freeze STATUS is active (covers all the listed Frost Warden CC
+        // sources — Frozen Ground / Deepening Frost zone Slow, Hard Freeze, Remorseless Winter — which all apply
+        // a Slow/Freeze status). Frost-stack-only slow is intentionally not counted (it's not a status effect).
+        private bool HasActiveSlowOrFreeze()
+        {
+            for (int i = 0; i < _statusEffects.Count; i++)
+            {
+                var t = _statusEffects[i].Type;
+                if (t == StatusEffectType.Slow || t == StatusEffectType.Freeze) return true;
+            }
+            return false;
+        }
+
+        /// <summary>Task 50 (Chain Combustion): a Bolt Striker chain-jump that hits an already-Burning target
+        /// extends the Burn by <paramref name="extendSeconds"/> and adds ONE Stacking-Embers-style stack (capped
+        /// at <paramref name="maxStacks"/>, each worth <paramref name="perStackBonus"/>), WITHOUT a Fireball hit.
+        /// No-op if not currently burning (the combo only refreshes/intensifies an existing Burn).</summary>
+        public void AddBurnStackAndExtend(int maxStacks, float perStackBonus, float extendSeconds)
+        {
+            if (_isResolved || !_burn.Active) return;
+
+            if (maxStacks > 0)
+            {
+                _burn.PerStackBonus = perStackBonus; // adopt the current Stacking Embers tier value
+                _burn.MaxStacks = maxStacks;
+                if (_burn.Stacks < maxStacks) _burn.Stacks++;
+            }
+            if (extendSeconds > 0f) _burn.Remaining += extendSeconds; // extend (not refresh-to-base)
+
+            Debug.Log($"[EnemyRuntime] Chain Combustion: Burn +{extendSeconds:0.#}s, stacks={_burn.Stacks} on '{Definition.EnemyName}'.");
         }
 
         /// <summary>
@@ -680,6 +740,27 @@ namespace Wavekeep.Runtime
 
             _frostVfx.SetTarget(tier, intensity);
             _frostVfx.TickVisual(deltaTime);
+        }
+
+        // Task 51: map this enemy's current Burn state to a single 0..1 intensity and push it to the ember/fire
+        // overlay. A plain active Burn already shows clearly; each extra Stacking-Embers stack ramps the intensity
+        // toward full, so more stacks read as a hotter fire rather than merely a longer one (the task's explicit
+        // "intensity scales with stack count" requirement). Reads only this enemy's own Burn — no shared state.
+        private void UpdateFireVfx(float deltaTime)
+        {
+            if (_fireVfx == null) return;
+
+            float intensity = 0f;
+            if (_burn.Active)
+            {
+                float stackRatio = _burn.MaxStacks > 0f
+                    ? Mathf.Clamp01(_burn.Stacks / _burn.MaxStacks)
+                    : 0f;
+                intensity = Mathf.Lerp(0.45f, 1f, stackRatio); // a base burn is clearly visible; stacks intensify it
+            }
+
+            _fireVfx.SetTarget(intensity);
+            _fireVfx.TickVisual(deltaTime);
         }
 
         // Task 19: decay each stacking effect by one stack per DecayInterval of NOT being refreshed.

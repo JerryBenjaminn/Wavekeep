@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f5b57de18ec4c614087ec9f44023a69d, type: 3}
+  m_Name: ComboApex_IncendiaryRounds
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.ComboApexTalentDefinitionSO
+  _comboName: Incendiary Rounds
+  _description: 'Marksman + Pyromancer: every enemy a Marksman pierce shot hits beyond
+    the first also receives a Burn at the current Smoldering Wound tier potency.'
+  _icon: {fileID: 0}
+  _triggerType: 0
+  _effectType: 4
+  _primingApex: {fileID: 11400000, guid: 7239abcaf1fb0ab428a844a635d69443, type: 2}
+  _consumingApex: {fileID: 11400000, guid: 3ccbf9b989c42204298917dcfa903a52, type: 2}
+  _primeWindowSeconds: 0
+  _consumeDamageMultiplier: 1
+  _effectRadius: 0
+  _burnExtendSeconds: 0
+  _igniteBurnPerTick: 3
+  _igniteBurnDuration: 3

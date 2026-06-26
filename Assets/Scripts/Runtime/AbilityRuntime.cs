@@ -38,6 +38,10 @@ namespace Wavekeep.Runtime
         // Task 49: reusable buffer for PiercingLine corridor collection (no-alloc; sorted by distance along the ray).
         private readonly List<EnemyRuntime> _pierceBuffer = new List<EnemyRuntime>();
 
+        // Task 50 (Shatter): separate buffer for the detonation AoE so it never corrupts the _aoeBuffer/_pierceBuffer
+        // iteration that OnHit may be running inside when the detonation fires.
+        private readonly List<EnemyRuntime> _detonateBuffer = new List<EnemyRuntime>();
+
         // Task 49 (Minigun / Bullet Storm shot-burst channel): live channel state. While active the ability
         // fires piercing shots on its internal cadence; Tick advances the timers and accumulates how many shot
         // triggers are DUE this frame (fired by Execute, which has the context). Cooldown runs from cast.
@@ -238,6 +242,9 @@ namespace Wavekeep.Runtime
             // keep the diagnostic beam for anything else. No ability identity is hardcoded.
             bool apex = _role == AbilityRole.Apex;
             bool lightning = !apex && Definition.VfxStyle == AbilityVfxStyle.Lightning;
+            // Task 51: a fire-styled single-target ability (Pyromancer's Fireball) draws a fireball projectile +
+            // impact burst instead of the generic beam; gated on the data flag, never the ability identity.
+            bool fire = !apex && Definition.VfxStyle == AbilityVfxStyle.Fire;
 
             // Task 35: a single-target cast can strike its target multiple times (Multi-Strike upgrade on the
             // ultimate, or an ability-baked _hitCount like Thunderstorm). Each strike is a full OnHit so the
@@ -263,6 +270,9 @@ namespace Wavekeep.Runtime
             // targeting pass), so the indicator can never disagree with where damage actually landed.
             if (apex)
                 context.Feedback?.OnApexImpact(nearest.Transform.position, ApexVisualRadius(), ResolveApexStyle());
+            else if (fire)
+                // Single-target Fireball has no gameplay AoE, so the impact burst uses a small presentation size.
+                context.Feedback?.OnFireballImpact(context.CasterPosition, nearest.Transform.position, 1.2f);
             else if (!lightning)
                 context.Feedback?.OnSingleTargetHit(context.CasterPosition, nearest.Transform.position);
 
@@ -452,6 +462,7 @@ namespace Wavekeep.Runtime
                 finalDamage = ApplyBurningBonus(target, finalDamage);                 // Task 48: Cataclysm vs Burning
 
                 DealDamage(target, context, finalDamage);
+                ApplyShatter(target, context, finalDamage); // Task 50: Shatter detonation on a primed Physical hit
             }
 
             ApplyBurnOnHit(target, context);            // Task 48: Fireball/Wildfire-Apocalypse Burn DoT
@@ -546,11 +557,26 @@ namespace Wavekeep.Runtime
             {
                 var jump = _chainBuffer[i];
                 DealDamage(jump, context, chainDamage); // pure damage — no Static Charge/spike/piercing re-trigger
+                ApplyChainCombustion(jump, context);    // Task 50: extend+stack Burn on an already-Burning jump target
                 if (apex) continue; // storm visual handles apex chain feedback
                 if (lightning) context.Feedback?.OnChainJump(originPos, jump.Transform.position);
                 else context.Feedback?.OnSingleTargetHit(originPos, jump.Transform.position);
             }
             _chainBuffer.Clear();
+        }
+
+        // Task 50 (Chain Combustion): if a Chain Lightning jump hits an already-Burning target and the combo is
+        // unlocked, extend that Burn and add one Stacking-Embers-style stack (current Pyromancer tier value), with
+        // no Fireball required. Generic — keyed on the run's ComboApexState + the target's Burn state.
+        private void ApplyChainCombustion(EnemyRuntime jump, AbilityExecutionContext context)
+        {
+            if (jump == null || context.ComboApex == null || !jump.IsBurning) return;
+            if (!context.ComboApex.TryGetChainCombustion(out float extendSeconds)) return;
+
+            int maxStacks = 0;
+            float perStackBonus = 0f;
+            context.Upgrades?.TryGetStackingEmbers(out perStackBonus, out maxStacks); // current Stacking Embers tier
+            jump.AddBurnStackAndExtend(maxStacks, perStackBonus, extendSeconds);
         }
 
         // Task 35 (Static Charge — Basic): consecutive hits on the same target stack a damage bonus; switching
@@ -641,6 +667,40 @@ namespace Wavekeep.Runtime
             if (target == null || context.ComboApex == null) return;
             if (context.ComboApex.TryGetPrimeWindow(Definition, out float window))
                 target.ApplyPrime(window);
+        }
+
+        // Task 50 (Shatter): when a PHYSICAL hit (any Marksman shot) lands on a primed target and a Shatter combo
+        // is unlocked, detonate an AoE burst = multiplier × this shot's damage to every enemy within the radius of
+        // the primed target, then consume the prime. Generic — keyed on DamageType + the run's ComboApexState,
+        // never on the Marksman/Bullet Storm specifically. The burst is unmitigated-free: it routes through
+        // DealDamage so each enemy's Armor still mitigates the Physical burst. shotDamage is THIS hit's damage.
+        private void ApplyShatter(EnemyRuntime target, AbilityExecutionContext context, float shotDamage)
+        {
+            if (target == null || shotDamage <= 0f || context.ComboApex == null) return;
+            if (Definition.DamageType != DamageType.Physical || !target.IsPrimed) return;
+            if (!context.ComboApex.TryGetShatterDetonation(out float radius, out float multiplier)) return;
+            if (radius <= 0f || multiplier <= 0f) return;
+            if (!target.ConsumePrime()) return; // someone else consumed it this frame — no double-detonate
+
+            float burst = shotDamage * multiplier;
+            var center = target.Transform.position;
+            float radiusSqr = radius * radius;
+
+            _detonateBuffer.Clear();
+            var enemies = context.Enemies;
+            for (int i = 0; i < enemies.Count; i++)
+            {
+                var e = enemies[i];
+                if (e == null || !e.IsAlive) continue;
+                if ((e.Transform.position - center).sqrMagnitude <= radiusSqr) _detonateBuffer.Add(e);
+            }
+            for (int i = 0; i < _detonateBuffer.Count; i++)
+                DealDamage(_detonateBuffer[i], context, burst);
+
+            context.Feedback?.OnAreaOfEffect(center, radius); // placeholder VFX (combo VFX is a future task)
+            Debug.Log($"[AbilityRuntime] SHATTER! {Definition.AbilityName} detonates ×{multiplier:0.##} ({burst:0.#}) " +
+                      $"in {radius:0.#}m on {_detonateBuffer.Count} enemy(ies).");
+            _detonateBuffer.Clear();
         }
 
         // Task 35 (Piercing Bolt — Basic): apply Task 34's generic temporary Armor reduction to the target,
@@ -755,13 +815,15 @@ namespace Wavekeep.Runtime
             float minZ = Mathf.Min(wallZ, wallZ + sign * depth);
             float maxZ = Mathf.Max(wallZ, wallZ + sign * depth);
 
+            // Task 51: persistent wall-of-fire band visual — sweep-up activation flash + ambient flame for the
+            // band's lifetime. Owned by the zone so Inferno Surge flares ride its REAL burst cadence (Pulse) and
+            // Wildfire Spread cooling patches mirror its REAL death-patches (SpawnCoolingPatch), with no parallel
+            // timer. Replaces Task 48's placeholder diagnostic ring.
+            var wallVisual = context.Feedback?.BeginFireWall(minZ, maxZ);
+
             context.Zones.Spawn(GroundZone.FireBox(
                 minZ, maxZ, duration, tickInterval, tickDamage,
-                burstInterval, burstFraction, patchDuration, patchTickDamage, context.Zones.Spawn));
-
-            // Diagnostic burst at the band centre (VFX polish is out of scope for Task 48; reuse the generic ring).
-            float centerZ = 0.5f * (minZ + maxZ);
-            context.Feedback?.OnAreaOfEffect(new Vector3(context.CasterPosition.x, context.CasterPosition.y, centerZ), depth);
+                burstInterval, burstFraction, patchDuration, patchTickDamage, context.Zones.Spawn, wallVisual));
 
             Debug.Log($"[AbilityRuntime] {Definition.AbilityName}: Firewall (band z=[{minZ:0.#},{maxZ:0.#}], " +
                       $"tick={tickDamage:0.#}/{tickInterval:0.##}s, dur={duration:0.#}s, burst={burstFraction:0.##}×basic" +
@@ -856,6 +918,15 @@ namespace Wavekeep.Runtime
             _pendingTriggers = 1;
             _cooldownTimer = cooldown;        // cooldown runs from cast
             _cooldownDuration = cooldown;
+
+            // Task 52: the Minigun's spin-up moment (a ramp-up flash + heat-shimmer prime) right before sustained
+            // fire begins, sized by the current damage tier. Gated on the kinetic style so apex channels skip it.
+            if (Definition.VfxStyle == AbilityVfxStyle.Kinetic)
+            {
+                float spinIntensity = Definition.BaseDamage > 0f
+                    ? Mathf.Clamp(perShotDamage / Definition.BaseDamage, 0.6f, 2.5f) : 1f;
+                context.Feedback?.OnMinigunSpinUp(context.CasterPosition, spinIntensity);
+            }
 
             Debug.Log($"[AbilityRuntime] {Definition.AbilityName}: shot-burst channel START (dur={_burstRemaining:0.#}s, " +
                       $"interval={_burstInterval:0.###}s).");
@@ -993,18 +1064,52 @@ namespace Wavekeep.Runtime
                 Vector3.Dot(b.Transform.position - caster, dirN)));
 
             int limit = pierceLimit <= 0 ? _pierceBuffer.Count : Mathf.Min(pierceLimit, _pierceBuffer.Count);
+
+            // Task 50 (Incendiary Rounds): when this Marksman shot pierces, every target BEYOND the first also
+            // gets a Burn (at the held Smoldering Wound tier potency). Resolved once per shot, applied per pierced
+            // target below. Keyed on the run's ComboApexState — generic, never on the Marksman/Pyromancer.
+            float incBurnPerTick = 0f, incBurnDuration = 0f;
+            bool incendiary = limit > 1 && context.ComboApex != null &&
+                context.ComboApex.TryGetIncendiaryPierce(out incBurnPerTick, out incBurnDuration);
+            if (incendiary && context.Upgrades != null)
+            {
+                context.Upgrades.GetBurnAmplifiers(out float burnMul, out float burnDurBonus); // Smoldering Wound tier
+                incBurnPerTick *= burnMul;
+                incBurnDuration += burnDurBonus;
+            }
+
+            // Task 52: a kinetic-styled shot (Marksman Basic / Minigun) draws an instant tracer + per-pierce
+            // sparks instead of the generic beam; gated on the data style so apex shots (Bullet Storm) keep the
+            // default path. Brightness scales with the current damage tier (Heavy Rounds); the tracer runs the
+            // full straight line to the DEEPEST pierced target so it visibly continues through every pierce.
+            bool kinetic = Definition.VfxStyle == AbilityVfxStyle.Kinetic;
+            float tracerIntensity = (kinetic && Definition.BaseDamage > 0f)
+                ? Mathf.Clamp(perShotDamage / Definition.BaseDamage, 0.6f, 2.5f) : 1f;
+            Vector3 deepest = _pierceBuffer[limit - 1].Transform.position; // buffer is sorted nearest-first
+
             EnemyRuntime farthest = null;
             for (int j = 0; j < limit; j++)
             {
                 var target = _pierceBuffer[j];
+                Vector3 hitPos = target.Transform.position; // capture before OnHit may pool the enemy
                 float dmg = perShotDamage * (j == 0 ? 1f : 1f + pierceBonus);
                 OnHit(target, context, dmg);
+                if (incendiary && j > 0) target.ApplyBurn(incBurnPerTick, incBurnDuration, 0, 0f); // beyond-first ignite
+                if (kinetic) context.Feedback?.OnPierceImpact(hitPos); // ONE spark per actually-pierced enemy
                 if (target.IsAlive) farthest = target; // farthest still-alive hit for the beam visual
             }
 
-            // Diagnostic beam from the caster to the deepest target the shot reached (placeholder VFX).
-            var beamEnd = farthest != null ? farthest.Transform.position : caster + dirN * range;
-            context.Feedback?.OnSingleTargetHit(caster, beamEnd);
+            if (kinetic)
+            {
+                // One tracer per shot; AppliesShotBurst (Minigun) marks it sustained → casing eject + heat shimmer.
+                context.Feedback?.OnTracer(caster, deepest, tracerIntensity, Definition.AppliesShotBurst);
+            }
+            else
+            {
+                // Diagnostic beam from the caster to the deepest target the shot reached (placeholder VFX).
+                var beamEnd = farthest != null ? farthest.Transform.position : caster + dirN * range;
+                context.Feedback?.OnSingleTargetHit(caster, beamEnd);
+            }
 
             _pierceBuffer.Clear();
             return true;
@@ -1061,7 +1166,12 @@ namespace Wavekeep.Runtime
         {
             if (_role != AbilityRole.Basic || context.Upgrades == null || target == null) return;
             if (context.Upgrades.TryGetArmorShredder(out float perStack, out int maxStacks, out float refresh))
+            {
                 target.ApplyArmorShred(perStack, maxStacks, refresh);
+                // Task 52: gray fracture indicator scaled to the CURRENT stack count, refreshed for the stack's
+                // life so it fades per Task 49's stack-duration rules. Distinct from Piercing Bolt / Burn visuals.
+                context.Feedback?.OnArmorShred(target.Transform, target.ArmorShredStacks, maxStacks, refresh);
+            }
         }
 
         // Task 31: base AoE target cap + the basic-role Wider Burst modifier. 0 = unlimited.

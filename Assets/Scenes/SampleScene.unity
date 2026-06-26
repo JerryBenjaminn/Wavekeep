@@ -2725,6 +2725,10 @@ MonoBehaviour:
   _tierWeightingConfig: {fileID: 11400000, guid: 74bc6455a0fd8fb42a77f407086b6dc6, type: 2}
   _comboApexes:
   - {fileID: 11400000, guid: 5638afb45edcc1743ba85a1808adad28, type: 2}
+  - {fileID: 11400000, guid: 498b691d16d38f94cb3fbc0253949909, type: 2}
+  - {fileID: 11400000, guid: 9d0930bdbb20725499ba8860f67d586b, type: 2}
+  - {fileID: 11400000, guid: dd6f104d0a7fcdf4bacc5254e2684bbf, type: 2}
+  - {fileID: 11400000, guid: 73893d09cdda5d846bd2be3ded2d8fa7, type: 2}
   _heroSlotWaveMilestones: 0f0000001e00000032000000
 --- !u!4 &1169181628
 Transform:

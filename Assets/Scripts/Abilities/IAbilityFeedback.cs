@@ -106,5 +106,54 @@ namespace Wavekeep.Abilities
         /// a frost-blue freeze moment immediately followed by a gold lightning strike (both palettes), with the
         /// strongest weight treatment. Fired from the exact prime-consumption point, not a timer.</summary>
         void OnComboFrozenLightning(Vector3 center);
+
+        // --- Task 51: Pyromancer fire VFX. Driven from the SAME execution / reaction points as the gameplay,
+        // always passing ACTUAL resolved values (the Combustion blast radius for the current tier, the spread
+        // origin/destination, the Firewall band). Non-fire presenters no-op these. ---
+
+        /// <summary>A Fireball ranged hit: a fireball projectile travelling <paramref name="from"/> →
+        /// <paramref name="to"/>, then a small fire burst at the impact of <paramref name="burstRadius"/> (a
+        /// presentation size for the single-target hit).</summary>
+        void OnFireballImpact(Vector3 from, Vector3 to, float burstRadius);
+
+        /// <summary>A Combustion detonation: a distinct fire burst at <paramref name="center"/> sized to the
+        /// ACTUAL current Combustion tier <paramref name="radius"/> (fired on Burn-expiry detonation).</summary>
+        void OnCombustion(Vector3 center, float radius);
+
+        /// <summary>A Spreading Flame jump: a brief travelling ember/spark from a dying Burning enemy at
+        /// <paramref name="from"/> to a newly-ignited enemy at <paramref name="to"/>.</summary>
+        void OnSpreadingFlame(Vector3 from, Vector3 to);
+
+        /// <summary>Begin the persistent Firewall visual over the full-width band on Z in
+        /// [<paramref name="bandMinZ"/>, <paramref name="bandMaxZ"/>], returning a handle the zone drives
+        /// (Inferno Surge flares via Pulse, Wildfire-Spread cooling patches via SpawnCoolingPatch, teardown via
+        /// Dispose). Returns null when no fire presenter is present.</summary>
+        IFireZoneVisual BeginFireWall(float bandMinZ, float bandMaxZ);
+
+        // --- Task 52: Marksman kinetic VFX (warm-white tracers + gray sparks). Driven from the SAME shot
+        // execution points as the gameplay, with COUNTS/positions/intensity straight from the runtime (one tracer
+        // per actual shot, one spark per actually-pierced enemy, brightness from the current damage tier). Non-
+        // kinetic presenters no-op these. ---
+
+        /// <summary>An instant bullet tracer from <paramref name="from"/> (muzzle) to <paramref name="to"/> (the
+        /// deepest target along the shot line), plus a muzzle flash at the firing point. <paramref name="intensity"/>
+        /// scales brightness/width with the current damage tier (Heavy Rounds); <paramref name="sustained"/> marks a
+        /// Minigun shot (adds a brass casing ejection and feeds the heat-shimmer build-up).</summary>
+        void OnTracer(Vector3 from, Vector3 to, float intensity, bool sustained);
+
+        /// <summary>A metallic spark-burst at <paramref name="point"/> — one per ACTUALLY pierced enemy, so the
+        /// number of bursts always matches the real Piercing Rounds pierce count for the shot.</summary>
+        void OnPierceImpact(Vector3 point);
+
+        /// <summary>Show/refresh the Armor Shredder debuff indicator on <paramref name="target"/> at
+        /// <paramref name="stacks"/>/<paramref name="maxStacks"/> for <paramref name="duration"/>s — gray/white
+        /// fracture lines whose density grows with stacks (distinct from Piercing Bolt's gold spokes and Burn's
+        /// glow). Refreshes in place per target and fades as stacks expire (Task 49 stack-duration rules).</summary>
+        void OnArmorShred(Transform target, int stacks, int maxStacks, float duration);
+
+        /// <summary>The Minigun spin-up moment at <paramref name="at"/> (the muzzle) just before sustained fire
+        /// begins — a brief ramp-up flash, sized by <paramref name="intensity"/> (current damage tier), that also
+        /// primes the heat-shimmer build-up for the channel.</summary>
+        void OnMinigunSpinUp(Vector3 at, float intensity);
     }
 }

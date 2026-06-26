@@ -156,6 +156,7 @@ namespace Wavekeep.EditorTools
             so.FindProperty("_damageType").enumValueIndex = (int)DamageType.Physical;
             so.FindProperty("_hitCount").intValue = 1;
             so.FindProperty("_hitDamageFraction").floatValue = 1f;
+            so.FindProperty("_vfxStyle").enumValueIndex = (int)AbilityVfxStyle.Kinetic; // Task 52: tracers
             so.ApplyModifiedPropertiesWithoutUndo();
             return a;
         }
@@ -175,6 +176,7 @@ namespace Wavekeep.EditorTools
             so.FindProperty("_channelDuration").floatValue = duration;
             so.FindProperty("_channelShotInterval").floatValue = shotInterval;
             so.FindProperty("_channelSpreadAngle").floatValue = 0f; // 0 = sweep across the width (random aim)
+            so.FindProperty("_vfxStyle").enumValueIndex = (int)AbilityVfxStyle.Kinetic; // Task 52: minigun tracers
             so.ApplyModifiedPropertiesWithoutUndo();
             return a;
         }

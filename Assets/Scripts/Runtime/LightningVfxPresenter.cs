@@ -73,6 +73,18 @@ namespace Wavekeep.Runtime
         public void OnApexImpact(Vector3 center, float radius, ApexVfxStyle style) { }
         public void OnComboFrozenLightning(Vector3 center) { }
 
+        // Task 51: Pyromancer fire VFX is handled by FireVfxPresenter (no-op here).
+        public void OnFireballImpact(Vector3 from, Vector3 to, float burstRadius) { }
+        public void OnCombustion(Vector3 center, float radius) { }
+        public void OnSpreadingFlame(Vector3 from, Vector3 to) { }
+        public IFireZoneVisual BeginFireWall(float bandMinZ, float bandMaxZ) => null;
+
+        // Task 52: Marksman kinetic VFX is handled by KineticVfxPresenter (no-op here).
+        public void OnTracer(Vector3 from, Vector3 to, float intensity, bool sustained) { }
+        public void OnPierceImpact(Vector3 point) { }
+        public void OnArmorShred(Transform target, int stacks, int maxStacks, float duration) { }
+        public void OnMinigunSpinUp(Vector3 at, float intensity) { }
+
         public void OnLightningStrike(Vector3 from, Vector3 to, LightningStrikeFlags flags)
         {
             if (!_ready) return;
