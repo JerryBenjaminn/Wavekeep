@@ -16,6 +16,12 @@ namespace Wavekeep.Data
         [Tooltip("Pooled 3D prefab (Collider/Rigidbody as appropriate). Spawned via EnemyPoolManager.")]
         [SerializeField] private GameObject _prefab;
 
+        [Tooltip("Task 54: Y the prefab ROOT rests at so its pivot sits on the y=0 ground plane (the spawn " +
+                 "marker's own Y is not used for height). 0 for models pivoted at the feet (e.g. Synty " +
+                 "characters); the collider half-height for center-pivot capsule placeholders. Per-prefab so " +
+                 "models with different pivots don't float or sink.")]
+        [SerializeField, Min(0f)] private float _spawnGroundOffset;
+
         [Header("Base Stats")]
         [SerializeField] private float _maxHealth = 10f;
         [SerializeField] private float _moveSpeed = 3f;
@@ -41,6 +47,10 @@ namespace Wavekeep.Data
 
         public string EnemyName => _enemyName;
         public GameObject Prefab => _prefab;
+
+        /// <summary>Task 54: Y the prefab root rests at so its pivot sits on the y=0 ground plane (accounts for
+        /// feet-pivot models vs. center-pivot capsule placeholders). Used by the spawner instead of the marker's Y.</summary>
+        public float SpawnGroundOffset => _spawnGroundOffset;
         public float MaxHealth => _maxHealth;
         public float MoveSpeed => _moveSpeed;
         public float ContactDamage => _contactDamage;

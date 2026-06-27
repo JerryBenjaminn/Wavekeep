@@ -14,6 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.EnemyDefinitionSO
   _enemyName: Goblin
   _prefab: {fileID: 7918376937390905401, guid: 009974aa98794334aad087e3b9afea9e, type: 3}
+  _spawnGroundOffset: 1
   _maxHealth: 10
   _moveSpeed: 3
   _contactDamage: 5

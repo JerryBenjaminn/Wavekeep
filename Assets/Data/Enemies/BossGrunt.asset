@@ -14,6 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.EnemyDefinitionSO
   _enemyName: Boss Grunt
   _prefab: {fileID: 3714166565995746822, guid: 56a01df3cb0c4bc4da1e335fa2a99250, type: 3}
+  _spawnGroundOffset: 1
   _maxHealth: 200
   _moveSpeed: 1.5
   _contactDamage: 30

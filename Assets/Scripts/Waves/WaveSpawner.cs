@@ -334,7 +334,13 @@ namespace Wavekeep.Waves
             _spawnMarkerCursor = (_spawnMarkerCursor + 1) % _spawnMarkers.Length;
 
             var instance = _pool.Get(definition.Prefab);
-            instance.transform.position = marker.position;
+            // Task 54: spawn at the marker's X/Z (the far-side spawn line) but at the enemy's own resting height
+            // above the y=0 ground plane — per-prefab, so feet-pivot models (Synty Skeleton, offset 0) and
+            // center-pivot capsule placeholders (offset = half-height) both sit on the ground instead of
+            // floating/sinking. The marker's own Y is intentionally NOT used as the height baseline: it predates
+            // the real models (it was calibrated to the old capsule's half-height), so reusing it would float
+            // feet-pivot models. Movement (EnemyRuntime.Tick) preserves this Y thereafter.
+            instance.transform.position = new Vector3(marker.position.x, definition.SpawnGroundOffset, marker.position.z);
 
             var enemy = new EnemyRuntime();
             enemy.Initialize(definition, instance, multiplier, _wall, _events, _arrivalThreshold, _attackInterval,

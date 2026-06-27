@@ -40,7 +40,10 @@ namespace Wavekeep.EditorTools
         private const int SpawnMarkerCount = 6;
         private const float SpawnLineZ = 20f;          // far side, opposite the player
         private const float SpawnLineHalfWidth = 12f;  // markers spread across X
-        private const float EnemyGroundHeight = 1f;    // capsule half-height so it rests on the ground
+        // Markers sit on the ground (y=0). Task 54: per-prefab resting height now comes from
+        // EnemyDefinitionSO.SpawnGroundOffset (the spawner ignores the marker's Y for height), so this no
+        // longer needs the old capsule half-height calibration that floated feet-pivot models.
+        private const float EnemyGroundHeight = 0f;
 
         private const float WallZ = 0f;                // wall between enemies (+Z) and player (-Z)
         private static readonly Vector3 WallSize = new Vector3(26f, 3f, 1f);

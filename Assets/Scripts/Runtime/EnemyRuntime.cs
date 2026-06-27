@@ -36,6 +36,10 @@ namespace Wavekeep.Runtime
         private float _attackTimer;
         private bool _isAttacking;
         private bool _isResolved;
+        // Task 54: true from the moment death starts until the death animation finishes and the enemy is
+        // resolved/released. Distinct from _isResolved so a dying enemy stays in the spawner's active list
+        // (and out of the pool) while its Death clip plays out (§2.7), but no longer moves/attacks/takes hits.
+        private bool _isDying;
 
         // Task 13: the loot table resolved for THIS spawn (regular = its definition's; boss = the wave's
         // boss table). Carried only so Die() can hand it to the kill event — EnemyRuntime never rolls/
@@ -151,6 +155,12 @@ namespace Wavekeep.Runtime
         // tick scaled by the current Burn stack count so more stacks read as a hotter fire (not just longer).
         private FireVfxController _fireVfx;
 
+        // Task 54: drives this enemy's Animator (Run/Attack/Death) and is the Animation-Event target for the
+        // attack impact frame. Resolved from the pooled GameObject in Initialize; null for enemies that have no
+        // Animator (placeholder capsules, Goblin), which keep the original timer-driven attack / immediate
+        // release. A driver WITHOUT a usable Animator is treated as null so those paths stay unchanged.
+        private EnemyAnimationDriver _animDriver;
+
         public EnemyDefinitionSO Definition { get; private set; }
         public GameObject GameObject { get; private set; }
         public Transform Transform { get; private set; }
@@ -198,6 +208,7 @@ namespace Wavekeep.Runtime
             _isAttacking = false;
             _onResolved = onResolved;
             _isResolved = false;
+            _isDying = false; // Task 54: reset the death-animation gate on pooled reuse
             _lootTable = lootTable; // Task 13: resolved per spawn (regular def table / wave boss table)
             _statusEffects.Clear(); // reset per-run status state on pooled reuse (Task 11)
             _stackingEffects.Clear(); // reset stacking-effect state on pooled reuse (Task 19)
@@ -233,12 +244,28 @@ namespace Wavekeep.Runtime
             }
             _fireVfx.EnsureInitialized();
             _fireVfx.ResetImmediate();
+
+            // Task 54: bind the Animator driver if this prefab has one with a usable Animator (Skeleton). A driver
+            // without an Animator is ignored so unanimated enemies keep their original behaviour. Reset it here —
+            // the same per-enemy reset path that just reset the Frost/Fire overlays (§2.6, no parallel reset path)
+            // — so a recycled enemy snaps back to Run instead of flashing a leftover Death/Attack pose. Bind the
+            // attack-impact callback so wall damage is applied from the clip's impact frame, not the trigger (§2.3).
+            _animDriver = pooledInstance.GetComponent<EnemyAnimationDriver>();
+            if (_animDriver != null && !_animDriver.HasAnimator) _animDriver = null;
+            if (_animDriver != null)
+            {
+                _animDriver.ResetForPooling();
+                _animDriver.BindAttackImpact(ApplyWallAttackDamage);
+            }
         }
 
         /// <summary>Advance status effects, then movement or wall-attack by <paramref name="deltaTime"/> seconds.</summary>
         public void Tick(float deltaTime)
         {
             if (_isResolved) return;
+            // Task 54: while the death animation plays the enemy is "dying" but not yet resolved — stop all
+            // simulation (movement, wall attacks, DoTs) so a corpse never drifts or keeps hitting the wall.
+            if (_isDying) return;
 
             // Task 48: Burn (its own DoT model) ticks first; like the old Burn it deals damage through the
             // normal TakeDamage path, which can resolve this enemy mid-tick — bail immediately if so.
@@ -273,8 +300,14 @@ namespace Wavekeep.Runtime
 
             if (Mathf.Abs(Transform.position.z - targetZ) <= _arrivalThreshold)
             {
+                // Task 54 (§2.4): movement halts the instant we enter the attack state — once _isAttacking is set,
+                // Tick returns after TickAttack and never writes position again (this enemy never moves again per
+                // §2.2), so there is no slide/drift during Attack/AttackRecovery.
                 _isAttacking = true;
                 _attackTimer = 0f;
+                // Task 54 (§2.2): fire the Attack trigger ONCE; the Attack↔AttackRecovery loop then self-sustains
+                // via the controller's exit-time transitions. Each Attack clip applies damage from its impact frame.
+                _animDriver?.PlayAttack();
             }
         }
 
@@ -811,12 +844,28 @@ namespace Wavekeep.Runtime
         {
             if (_wall.IsDestroyed) return;
 
+            // Task 54: animated enemies deal their wall damage from the Attack clip's impact frame
+            // (ApplyWallAttackDamage via OnAttackImpactFrame), paced by the Attack/AttackRecovery animation loop —
+            // NOT by this fixed interval timer. The timer path remains for unanimated enemies (no driver).
+            if (_animDriver != null) return;
+
             _attackTimer += deltaTime;
             if (_attackTimer >= _attackInterval)
             {
                 _attackTimer -= _attackInterval;
                 _wall.TakeDamage(ContactDamage);
             }
+        }
+
+        // Task 54 (§2.3): the single wall-damage point for an animated attack, invoked from the Attack clip's
+        // impact-frame Animation Event (OnAttackImpactFrame → driver → here). Decouples "attack started" (trigger)
+        // from "weapon lands" (this). Guarded so a queued impact event can't damage the wall once the enemy has
+        // started dying, has resolved, has left the attack state, or after the wall is already destroyed.
+        private void ApplyWallAttackDamage()
+        {
+            if (_isResolved || _isDying || !_isAttacking) return;
+            if (_wall == null || _wall.IsDestroyed) return;
+            _wall.TakeDamage(ContactDamage);
         }
 
         /// <summary>Apply damage. Reaching zero health triggers <see cref="Die"/>. Works in any state
@@ -827,7 +876,9 @@ namespace Wavekeep.Runtime
         /// vulnerability) here — the last stage, so it amplifies EVERY source after ability-side mitigation.</summary>
         public void TakeDamage(float amount)
         {
-            if (_isResolved || amount <= 0f) return;
+            // Task 54: ignore damage once the enemy has begun dying so a corpse can't be "killed" twice
+            // (which would re-publish EnemyKilledEvent) during its Death animation.
+            if (_isResolved || _isDying || amount <= 0f) return;
 
             amount *= IncomingDamageMultiplier; // Task 35: Overload vulnerability (1 when none active)
             CurrentHealth -= amount;
@@ -840,12 +891,26 @@ namespace Wavekeep.Runtime
 
         private void Die()
         {
-            if (_isResolved) return;
+            if (_isResolved || _isDying) return;
             // Carry the definition (Task 03 currency/xp) AND the resolved loot table (Task 13 drops).
             // Loot rolling/granting happens in LootService listening to this same event — this death
-            // path is unchanged otherwise (no new currency/xp/pool-release logic).
+            // path is unchanged otherwise (no new currency/xp/pool-release logic). The kill event is
+            // published immediately at death; only the pool-RELEASE is deferred for the death animation.
             _events?.Publish(new EnemyKilledEvent(Definition, _lootTable));
-            Resolve();
+
+            // Task 54 (§2.7): for animated enemies, play the Death clip and defer Resolve (pool-release +
+            // active-list removal) until the clip finishes, so a corpse never pops out mid-animation. The enemy
+            // stays in the spawner's active list but stops simulating (_isDying). Unanimated enemies (no driver)
+            // resolve immediately, exactly as before.
+            if (_animDriver != null)
+            {
+                _isDying = true;
+                _animDriver.PlayDeath(Resolve);
+            }
+            else
+            {
+                Resolve();
+            }
         }
 
         // Marks the enemy done and hands it back to its owner exactly once (owner releases to pool).
