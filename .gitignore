@@ -104,3 +104,7 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# Synty third-party assets (large, imported from packages — keep out of VCS)
+/[Aa]ssets/Synty/
+/[Aa]ssets/Synty.meta

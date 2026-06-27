@@ -92,6 +92,27 @@ namespace Wavekeep.Waves
             }
         }
 
+        /// <summary>Task 53: the enemy spawn edge's Z (far side of the arena), averaged across the spawn markers.
+        /// Lets a full-width zone (Firewall) center itself at mid-arena depth between the wall and this edge.
+        /// Falls back to <see cref="DefendedLineZ"/> when no markers are wired (so callers degrade to a near-wall
+        /// band rather than placing the zone off-arena).</summary>
+        public float SpawnLineZ
+        {
+            get
+            {
+                if (_spawnMarkers == null || _spawnMarkers.Length == 0) return DefendedLineZ;
+                float sum = 0f;
+                int count = 0;
+                for (int i = 0; i < _spawnMarkers.Length; i++)
+                {
+                    if (_spawnMarkers[i] == null) continue;
+                    sum += _spawnMarkers[i].position.z;
+                    count++;
+                }
+                return count > 0 ? sum / count : DefendedLineZ;
+            }
+        }
+
         private void Start()
         {
             if (_bootstrap == null || _bootstrap.Session == null)

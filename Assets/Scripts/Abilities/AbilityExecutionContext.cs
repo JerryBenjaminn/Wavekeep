@@ -41,6 +41,12 @@ namespace Wavekeep.Abilities
         public readonly float DefendedLineZ;
         public readonly float ApproachDirectionZ;
 
+        /// <summary>Task 53: the enemy spawn edge's Z (far side of the arena). Lets a full-width zone center
+        /// itself at mid-arena depth (between wall and spawn edge) rather than hugging the wall — used by
+        /// Firewall so advancing enemies walk through it. 0 / equal to <see cref="DefendedLineZ"/> when the
+        /// spawn edge is unknown, in which case callers fall back to the near-wall band.</summary>
+        public readonly float SpawnLineZ;
+
         /// <summary>Task 35: caster-scoped combat state (Static Charge combo) shared across the hero's
         /// abilities — the basic builds it, the Lethal Surge apex consumes it. Null when no hero owns one.</summary>
         public readonly HeroCombatState CombatState;
@@ -61,6 +67,7 @@ namespace Wavekeep.Abilities
             GroundZoneManager zones = null,
             float defendedLineZ = 0f,
             float approachDirectionZ = 1f,
+            float spawnLineZ = 0f,
             HeroCombatState combatState = null,
             ComboApexState comboApex = null)
         {
@@ -74,6 +81,7 @@ namespace Wavekeep.Abilities
             Zones = zones;
             DefendedLineZ = defendedLineZ;
             ApproachDirectionZ = approachDirectionZ;
+            SpawnLineZ = spawnLineZ;
             CombatState = combatState;
             ComboApex = comboApex;
         }

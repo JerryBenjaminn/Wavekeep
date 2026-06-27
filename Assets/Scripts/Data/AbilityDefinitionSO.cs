@@ -131,6 +131,11 @@ namespace Wavekeep.Data
         [SerializeField, Min(0f)] private float _fireWallTickDamage;
         [Tooltip("Firewall active duration in seconds (Lingering Embers adds via the UltimateDuration modifier).")]
         [SerializeField, Min(0f)] private float _fireWallDuration;
+        [Tooltip("Task 53: Burn DoT PER TICK applied ONCE when an enemy first enters the Firewall band (a strong " +
+                 "Fireball-tier Burn lingering as they cross), on top of the per-tick band DoT. 0 = no entry Burn.")]
+        [SerializeField, Min(0f)] private float _fireWallEntryBurnPerTick = 4f;
+        [Tooltip("Task 53: duration (s) of the on-entry Burn applied when an enemy first enters the Firewall band.")]
+        [SerializeField, Min(0f)] private float _fireWallEntryBurnDuration = 3f;
 
         [Header("Bonus vs Burning (Task 48 — Cataclysm apex; extra damage to currently-Burning targets)")]
         [Tooltip("Extra fraction [0..1] of damage dealt to a target that is currently Burning. 0 = none.")]
@@ -229,6 +234,8 @@ namespace Wavekeep.Data
         public float FireWallTickInterval => _fireWallTickInterval;
         public float FireWallTickDamage => _fireWallTickDamage;
         public float FireWallDuration => _fireWallDuration;
+        public float FireWallEntryBurnPerTick => _fireWallEntryBurnPerTick; // Task 53: on-entry Burn application
+        public float FireWallEntryBurnDuration => _fireWallEntryBurnDuration;
 
         /// <summary>Task 48 (Cataclysm): extra damage fraction vs currently-Burning targets (0 = none).</summary>
         public float BonusDamageVsBurningFraction => _bonusDamageVsBurningFraction;

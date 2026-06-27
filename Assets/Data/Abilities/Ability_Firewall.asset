@@ -54,5 +54,7 @@ MonoBehaviour:
   _fireWallTickInterval: 0.5
   _fireWallTickDamage: 6
   _fireWallDuration: 5
+  _fireWallEntryBurnPerTick: 4
+  _fireWallEntryBurnDuration: 3
   _bonusDamageVsBurningFraction: 0
   _vfxStyle: 3

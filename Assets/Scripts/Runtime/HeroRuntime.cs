@@ -364,6 +364,7 @@ namespace Wavekeep.Runtime
                 transform.position, _waveSpawner.ActiveEnemies, _upgrades, _consumables,
                 _equippedModifiers, _feedback, basicDamage, _zones,
                 _waveSpawner.DefendedLineZ, _waveSpawner.ApproachDirectionZ, // Task 33: full-width Frost Zone band
+                _waveSpawner.SpawnLineZ, // Task 53: spawn edge, so Firewall can center at mid-arena depth
                 _combatState, // Task 35: shared Static Charge combo
                 _comboApex);  // Task 38: cross-hero combo apex resolver (Frozen Lightning prime/consume)
         }

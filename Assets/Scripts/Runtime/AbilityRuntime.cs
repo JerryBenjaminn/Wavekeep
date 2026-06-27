@@ -808,12 +808,21 @@ namespace Wavekeep.Runtime
                 }
             }
 
-            // Band of `depth` extending from the wall toward the spawn side (mirrors SpawnFrostZone).
+            // Task 53: unlike Frost Zone (which hugs the wall), Firewall is centered at the arena's MID-depth —
+            // halfway between the wall and the enemy spawn edge — so advancing enemies must walk THROUGH it (and
+            // take the on-entry Burn below) before reaching the wall. Same full-arena-width geometry and band
+            // depth (AoeRadius) as Frost Zone; only the depth-axis center moves. When the spawn edge is unknown
+            // (SpawnLineZ falls back to the wall), midZ collapses to the wall and we degrade to the near-wall band.
             float depth = Definition.AoeRadius > 0f ? Definition.AoeRadius : 6f;
             float wallZ = context.DefendedLineZ;
-            float sign = context.ApproachDirectionZ >= 0f ? 1f : -1f;
-            float minZ = Mathf.Min(wallZ, wallZ + sign * depth);
-            float maxZ = Mathf.Max(wallZ, wallZ + sign * depth);
+            float spawnZ = context.SpawnLineZ;
+            float midZ = (wallZ + spawnZ) * 0.5f;
+            float minZ = midZ - depth * 0.5f;
+            float maxZ = midZ + depth * 0.5f;
+
+            // Task 53: lingering on-entry Burn (a strong Fireball-tier Burn) applied once as an enemy crosses in.
+            float entryBurnPerTick = Mathf.Max(0f, Definition.FireWallEntryBurnPerTick);
+            float entryBurnDuration = Mathf.Max(0f, Definition.FireWallEntryBurnDuration);
 
             // Task 51: persistent wall-of-fire band visual — sweep-up activation flash + ambient flame for the
             // band's lifetime. Owned by the zone so Inferno Surge flares ride its REAL burst cadence (Pulse) and
@@ -823,7 +832,8 @@ namespace Wavekeep.Runtime
 
             context.Zones.Spawn(GroundZone.FireBox(
                 minZ, maxZ, duration, tickInterval, tickDamage,
-                burstInterval, burstFraction, patchDuration, patchTickDamage, context.Zones.Spawn, wallVisual));
+                burstInterval, burstFraction, patchDuration, patchTickDamage, context.Zones.Spawn, wallVisual,
+                entryBurnPerTick, entryBurnDuration));
 
             Debug.Log($"[AbilityRuntime] {Definition.AbilityName}: Firewall (band z=[{minZ:0.#},{maxZ:0.#}], " +
                       $"tick={tickDamage:0.#}/{tickInterval:0.##}s, dur={duration:0.#}s, burst={burstFraction:0.##}×basic" +

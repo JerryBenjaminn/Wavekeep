@@ -20,7 +20,9 @@ namespace Wavekeep.Runtime
     /// full-width <see cref="Box"/> Z-band (Frost Zone — spans the whole arena width across a fixed depth in
     /// front of the wall; X is unconstrained, so it is a true full-width rectangle, not a big circle).
     ///
-    /// Pure CC + area DPS, no damage-over-time on the enemy. A plain C# object ticked by a
+    /// The frost variants are pure CC + area DPS with no following damage-over-time. The Firewall fire variant
+    /// (<see cref="FireBox"/>) additionally applies a lingering Burn DoT the moment an enemy ENTERS the band
+    /// (Task 53), on top of its area-tied per-tick DoT. A plain C# object ticked by a
     /// <see cref="GroundZoneManager"/>; it never touches SOs. Death-inside detection is reliable because
     /// <c>WaveSpawner</c> creates a NEW <see cref="EnemyRuntime"/> per spawn (the GameObject is pooled, the
     /// runtime isn't), so a dead enemy's <c>IsAlive</c> stays false — a death is counted exactly once.
@@ -60,6 +62,12 @@ namespace Wavekeep.Runtime
         private readonly float _deathPatchTickDamage;   // absolute per-tick damage of the spawned patch
         private readonly System.Action<GroundZone> _spawnSibling; // how a patch is added to the manager
 
+        // Task 53 (Firewall): a one-shot Burn DoT applied the moment an enemy first ENTERS the band (a strong
+        // Fireball-tier lingering Burn for "walking through and getting burned for it"), separate from the
+        // per-tick band DoT above. 0 = none. Applied non-stacking, refreshed on each fresh entry.
+        private readonly float _entryBurnPerTick;
+        private readonly float _entryBurnDuration;
+
         // Task 45: optional persistent visual for this zone (Frost Zone band). The zone OWNS its handle so
         // the visual's pulse rhythm + teardown are driven by the SAME object that runs the gameplay — pulses
         // flash on the real damage ticks, and the band disappears exactly when the zone expires.
@@ -79,7 +87,8 @@ namespace Wavekeep.Runtime
             float fireTickInterval = 0f, float fireTickDamage = 0f,
             float burstInterval = 0f, float burstBasicFraction = 0f,
             float deathPatchDuration = 0f, float deathPatchTickDamage = 0f,
-            System.Action<GroundZone> spawnSibling = null)
+            System.Action<GroundZone> spawnSibling = null,
+            float entryBurnPerTick = 0f, float entryBurnDuration = 0f)
         {
             _visual = visual;
             _shape = shape;
@@ -102,6 +111,8 @@ namespace Wavekeep.Runtime
             _deathPatchDuration = Mathf.Max(0f, deathPatchDuration);
             _deathPatchTickDamage = Mathf.Max(0f, deathPatchTickDamage);
             _spawnSibling = spawnSibling;
+            _entryBurnPerTick = Mathf.Max(0f, entryBurnPerTick);
+            _entryBurnDuration = Mathf.Max(0f, entryBurnDuration);
         }
 
         /// <summary>Caster/impact-centred circular zone (Frozen Ground patches).</summary>
@@ -129,18 +140,22 @@ namespace Wavekeep.Runtime
         /// every <paramref name="burstInterval"/>), and Wildfire-Spread death-patches (when an enemy dies inside,
         /// spawn a fire patch lasting <paramref name="patchDuration"/> dealing <paramref name="patchTickDamage"/>
         /// per tick — added via <paramref name="spawnSibling"/> so it is a separate zone that OUTLIVES this band).
-        /// No slow (fire only CCs through Burn elsewhere); the depth band is on Z, X is full arena width.</summary>
+        /// No slow (fire only CCs through Burn elsewhere); the depth band is on Z, X is full arena width.
+        /// Task 53: <paramref name="entryBurnPerTick"/>/<paramref name="entryBurnDuration"/> apply a lingering Burn
+        /// the moment an enemy first enters the band (in addition to the per-tick DoT).</summary>
         public static GroundZone FireBox(
             float bandMinZ, float bandMaxZ, float duration,
             float tickInterval, float tickDamage,
             float burstInterval, float burstBasicFraction,
             float patchDuration, float patchTickDamage, System.Action<GroundZone> spawnSibling,
-            IZoneVisual visual = null)
+            IZoneVisual visual = null,
+            float entryBurnPerTick = 0f, float entryBurnDuration = 0f)
         {
             return new GroundZone(Shape.Box, Vector3.zero, 0f, bandMinZ, bandMaxZ, duration, 0f,
                 0f, 0.5f, 0f, 0f, 0f, visual,
                 tickInterval, tickDamage, burstInterval, burstBasicFraction,
-                patchDuration, patchTickDamage, spawnSibling);
+                patchDuration, patchTickDamage, spawnSibling,
+                entryBurnPerTick, entryBurnDuration);
         }
 
         /// <summary>Task 48: a small circular FIRE patch (Wildfire-Spread leftover): sustained DoT only, no burst,
@@ -182,6 +197,19 @@ namespace Wavekeep.Runtime
             {
                 for (int i = 0; i < _inside.Count; i++)
                     _inside[i].ApplyStatusEffect(StatusEffectType.Slow, _slowMagnitude, _slowRefresh);
+            }
+
+            // Task 53 (Firewall on-entry Burn): an enemy that is inside NOW but was not last tick just crossed
+            // into the band — apply a lingering Burn once on entry (non-stacking; refreshed on a later re-entry),
+            // on top of the per-tick band DoT below. Runs while _insideLastTick still holds the previous set.
+            if (_entryBurnPerTick > 0f && _entryBurnDuration > 0f)
+            {
+                for (int i = 0; i < _inside.Count; i++)
+                {
+                    var e = _inside[i];
+                    if (!_insideLastTick.Contains(e))
+                        e.ApplyBurn(_entryBurnPerTick, _entryBurnDuration, maxStacks: 0, perStackBonus: 0f);
+                }
             }
 
             // Area-tied pulse: damage whoever is inside at the moment the pulse fires.

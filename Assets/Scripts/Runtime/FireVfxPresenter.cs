@@ -14,10 +14,12 @@ namespace Wavekeep.Runtime
     /// spread origin/target), never hardcoded gameplay numbers.
     ///
     /// Covers: the Fireball projectile + impact burst, the Combustion detonation burst, the Spreading Flame ember
-    /// streak, and the persistent Firewall wall-of-fire band (with Inferno Surge flares ridden off the zone's real
-    /// pulse, and Wildfire Spread cooling-ember after-patches). Self-contained — all meshes/materials are built at
-    /// runtime, pooled and reused, animated in <see cref="Update"/>; the generic/frost/lightning/apex calls no-op
-    /// here. Inert (no allocation) for heroes whose abilities never call the fire methods.
+    /// streak, and the persistent Firewall wall-of-fire band. Task 53: the Firewall band is a layered Unity
+    /// Particle System (base rising flame puffs + faster embers, emitted from a full-width box) with a reused
+    /// heat-shimmer haze — Inferno Surge flares ride the zone's real pulse (emission spike + burst) and Wildfire
+    /// Spread leaves cooling-ember after-patches. Self-contained — all meshes/materials/particle systems are built
+    /// at runtime, pooled and reused, animated in <see cref="Update"/>; the generic/frost/lightning/apex calls
+    /// no-op here. Inert (no allocation) for heroes whose abilities never call the fire methods.
     /// </summary>
     [AddComponentMenu("Wavekeep/Runtime/Fire VFX Presenter")]
     public sealed class FireVfxPresenter : MonoBehaviour, IAbilityFeedback
@@ -37,15 +39,21 @@ namespace Wavekeep.Runtime
 
         private Material _projectileMat;
         private Material _burstMat;
-        private Material _wallMat;
         private Material _patchMat;
         private Material _trailMat;
         private Material _lineMat;
         private bool _ready;
 
+        // Task 53: the Firewall is now a layered Particle System wall (base flames + embers) instead of a flat
+        // cube mesh. These back the two emission layers + an optional heat-shimmer haze quad behind the wall.
+        private Material _baseFlameMat;
+        private Material _emberMat;
+        private Material _hazeMat;     // optional (HeatHaze, reused from Task 52); null if shader missing
+        private Mesh _quadMesh;
+        private bool _wallParticlesReady;
+
         private Mesh _sphereMesh;
         private Mesh _diskMesh;
-        private Mesh _bandMesh;
 
         private readonly List<Projectile> _projectiles = new List<Projectile>();
         private readonly List<Burst> _bursts = new List<Burst>();
@@ -77,9 +85,6 @@ namespace Wavekeep.Runtime
             // Expanding impact / combustion shell — flame-heavy, bright rim.
             _burstMat = MakeFx(shader, new Color(1f, 0.42f, 0.06f), new Color(1f, 0.85f, 0.35f),
                 fill: 0.2f, noise: 4f, flameSpeed: 2.6f, fresnelBoost: 1f, ember: 0.5f, softEdge: 0.55f);
-            // Firewall band — a tall, full wall of flame with rich rising fire + embers.
-            _wallMat = MakeFx(shader, new Color(1f, 0.38f, 0.05f), new Color(1f, 0.82f, 0.32f),
-                fill: 0.35f, noise: 3f, flameSpeed: 1.8f, fresnelBoost: 0.5f, ember: 0.6f, softEdge: 0.5f);
             // Wildfire cooling patch — dim, low embers, NO full flame (a smoldering after-effect).
             _patchMat = MakeFx(shader, new Color(0.6f, 0.18f, 0.04f), new Color(0.95f, 0.5f, 0.15f),
                 fill: 0.18f, noise: 5f, flameSpeed: 0.6f, fresnelBoost: 0.15f, ember: 0.7f, softEdge: 0.7f);
@@ -89,8 +94,32 @@ namespace Wavekeep.Runtime
 
             _sphereMesh = GetPrimitiveMesh(PrimitiveType.Sphere);
             _diskMesh = GetPrimitiveMesh(PrimitiveType.Cylinder);
-            _bandMesh = GetPrimitiveMesh(PrimitiveType.Cube);
             _ready = true;
+
+            // Task 53: build the Particle System wall materials. Additive flame puffs (FireParticle) coloured by
+            // each layer's Color-over-Lifetime gradient, plus the reused heat-shimmer haze. Gated separately so a
+            // missing particle shader only disables the wall, not the rest of the fire VFX.
+            var particleShader = Resources.Load<Shader>("FireParticle");
+            if (particleShader != null)
+            {
+                _baseFlameMat = MakeParticleMat(particleShader, softness: 2.4f, boost: 1.0f);
+                _emberMat = MakeParticleMat(particleShader, softness: 3.5f, boost: 1.5f);
+                _quadMesh = BuildQuadMesh();
+                var hazeShader = Resources.Load<Shader>("HeatHaze");
+                if (hazeShader != null)
+                {
+                    _hazeMat = new Material(hazeShader);
+                    _hazeMat.SetColor("_Color", new Color(1f, 0.62f, 0.4f, 1f)); // warm fire-tinted shimmer
+                    _hazeMat.SetFloat("_MaxAlpha", 0.22f);
+                    _hazeMat.SetFloat("_Speed", 2.2f);
+                }
+                _wallParticlesReady = true;
+            }
+            else
+            {
+                Debug.LogWarning("[FireVfxPresenter] 'FireParticle' shader not found in Resources; Firewall " +
+                                 "particle wall disabled (other fire VFX unaffected).");
+            }
         }
 
         // --- IAbilityFeedback: everything except the fire calls belongs to other presenters (no-op). ---
@@ -163,7 +192,7 @@ namespace Wavekeep.Runtime
 
         public IFireZoneVisual BeginFireWall(float bandMinZ, float bandMaxZ)
         {
-            if (!_ready) return null;
+            if (!_ready || !_wallParticlesReady) return null;
 
             float depth = Mathf.Max(0.2f, bandMaxZ - bandMinZ);
             float centerZ = (bandMinZ + bandMaxZ) * 0.5f;
@@ -173,13 +202,14 @@ namespace Wavekeep.Runtime
             wall.Disposing = false;
             wall.FadeOut = 1f;
             wall.PulseFlash = 0f;
-            wall.Activation = 1f; // establish/sweep flash + vertical grow on cast
+            wall.Activation = 1f; // establish flash + emission spike on cast
             wall.Depth = depth;
             wall.CenterZ = centerZ;
-            wall.Fx.Transform.position = new Vector3(0f, _groundY + _wallHeight * 0.5f, centerZ);
-            wall.Fx.Transform.localScale = new Vector3(_wallWidth, _wallHeight, depth);
-            wall.Fx.SetAlphaEmission(0.7f, 1.4f);
-            wall.Fx.Activate(true);
+
+            // Position the wall over its band and size the emitter boxes to the actual band width/depth.
+            wall.Root.transform.position = new Vector3(0f, _groundY, centerZ);
+            wall.Configure(_wallWidth, depth, _wallHeight);
+            wall.Restart();
             return wall;
         }
 
@@ -285,33 +315,40 @@ namespace Wavekeep.Runtime
 
         private void TickWalls(float dt)
         {
+            var cam = Camera.main;
             for (int i = _walls.Count - 1; i >= 0; i--)
             {
                 var w = _walls[i];
                 if (w.Activation > 0f) w.Activation = Mathf.MoveTowards(w.Activation, 0f, dt / 0.35f);
                 if (w.PulseFlash > 0f) w.PulseFlash = Mathf.MoveTowards(w.PulseFlash, 0f, dt / 0.4f);
 
-                // Vertical "sweep up" on establish: the wall grows to full height as the activation flash decays.
-                float heightK = Mathf.Lerp(1f, 0.35f, w.Activation); // 0.35→1 height as Activation 1→0
-                w.Fx.Transform.localScale = new Vector3(_wallWidth, _wallHeight * heightK, w.Depth);
-                w.Fx.Transform.position = new Vector3(0f, _groundY + _wallHeight * heightK * 0.5f, w.CenterZ);
+                // The Particle Systems animate the flames themselves; here we drive emission intensity (activation
+                // ramp-up + Inferno Surge flare) and the heat-shimmer level, and run the fade-out on dispose.
+                float intensity = 1f + w.Activation * 0.6f + w.PulseFlash * 0.9f;
+                float life = w.Disposing ? w.FadeOut : 1f;
+                w.SetEmissionScale(intensity * life);
 
-                float ambientAlpha = 0.7f;
-                if (w.Disposing)
+                // Heat-shimmer haze: face the camera, ramp to a steady level while active, fade out on dispose.
+                if (w.HazeRenderer != null)
                 {
-                    w.FadeOut = Mathf.MoveTowards(w.FadeOut, 0f, dt / 0.5f);
-                    ambientAlpha *= w.FadeOut;
+                    if (cam != null)
+                    {
+                        Vector3 hp = w.HazeRenderer.transform.position;
+                        w.HazeRenderer.transform.rotation = Quaternion.LookRotation(hp - cam.transform.position);
+                    }
+                    w.SetHazeLevel((0.5f + w.PulseFlash * 0.4f) * life);
                 }
 
-                // Steady ambient (the shader animates the flames); activation + Inferno Surge pulse add flare.
-                float emission = 1.2f + w.Activation * 1.0f + w.PulseFlash * 1.6f;
-                w.Fx.SetAlphaEmission(ambientAlpha, emission * (w.Disposing ? w.FadeOut : 1f));
-
-                if (w.Disposing && w.FadeOut <= 0f)
+                if (w.Disposing)
                 {
-                    w.Fx.Activate(false);
-                    _walls.RemoveAt(i);
-                    _wallFree.Push(w);
+                    w.FadeOut = Mathf.MoveTowards(w.FadeOut, 0f, dt / 0.6f);
+                    // Once faded AND all in-flight particles have died, recycle the wall.
+                    if (w.FadeOut <= 0f && w.IsDrained)
+                    {
+                        w.Deactivate();
+                        _walls.RemoveAt(i);
+                        _wallFree.Push(w);
+                    }
                 }
             }
         }
@@ -374,9 +411,122 @@ namespace Wavekeep.Runtime
 
         private WallVisual AcquireWall()
         {
-            var w = _wallFree.Count > 0 ? _wallFree.Pop() : new WallVisual { Fx = NewFx("FirewallBand", _bandMesh, _wallMat) };
+            var w = _wallFree.Count > 0 ? _wallFree.Pop() : BuildParticleWall();
             _walls.Add(w);
             return w;
+        }
+
+        // Task 53: build a layered Particle-System wall of fire: a base layer of large, slow rising flame puffs
+        // and a secondary layer of smaller, faster embers, both emitted from a long thin box matching the band.
+        private WallVisual BuildParticleWall()
+        {
+            var root = new GameObject("FirewallParticles");
+            root.transform.SetParent(transform, false);
+
+            var baseFlames = BuildFlameSystem("BaseFlames", root.transform, _baseFlameMat,
+                lifeMin: 0.75f, lifeMax: 1.25f, sizeMin: 1.2f, sizeMax: 2.2f,
+                rise: -0.35f, rate: 90f, maxParticles: 500, emitYOffset: 0.25f,
+                a: new Color(1f, 0.55f, 0.12f), b: new Color(1f, 0.30f, 0.05f), c: new Color(0.55f, 0.08f, 0.02f),
+                peakAlpha: 0.9f);
+
+            var embers = BuildFlameSystem("Embers", root.transform, _emberMat,
+                lifeMin: 0.9f, lifeMax: 1.6f, sizeMin: 0.08f, sizeMax: 0.2f,
+                rise: -0.95f, rate: 55f, maxParticles: 300, emitYOffset: 0.4f,
+                a: new Color(1f, 0.92f, 0.5f), b: new Color(1f, 0.6f, 0.18f), c: new Color(0.9f, 0.3f, 0.05f),
+                peakAlpha: 1f);
+
+            MeshRenderer haze = null;
+            if (_hazeMat != null)
+            {
+                var hgo = new GameObject("HeatHaze");
+                hgo.transform.SetParent(root.transform, false);
+                hgo.AddComponent<MeshFilter>().sharedMesh = _quadMesh;
+                haze = hgo.AddComponent<MeshRenderer>();
+                haze.sharedMaterial = _hazeMat;
+                haze.shadowCastingMode = ShadowCastingMode.Off;
+                haze.receiveShadows = false;
+                haze.lightProbeUsage = LightProbeUsage.Off;
+                haze.reflectionProbeUsage = ReflectionProbeUsage.Off;
+            }
+
+            return new WallVisual
+            {
+                Root = root,
+                BaseFlames = baseFlames,
+                Embers = embers,
+                BaseRate = 90f,
+                EmberRate = 55f,
+                HazeRenderer = haze,
+                HazeBlock = haze != null ? new MaterialPropertyBlock() : null,
+            };
+        }
+
+        private ParticleSystem BuildFlameSystem(
+            string name, Transform parent, Material mat,
+            float lifeMin, float lifeMax, float sizeMin, float sizeMax,
+            float rise, float rate, int maxParticles, float emitYOffset,
+            Color a, Color b, Color c, float peakAlpha)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            var ps = go.AddComponent<ParticleSystem>();
+            ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+            var main = ps.main;
+            main.loop = true;
+            main.duration = 1f;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(lifeMin, lifeMax);
+            main.startSpeed = 0f;
+            main.startSize = new ParticleSystem.MinMaxCurve(sizeMin, sizeMax);
+            main.startColor = Color.white; // colour comes from Color-over-Lifetime
+            main.gravityModifier = rise;   // negative = rise
+            main.maxParticles = maxParticles;
+            main.simulationSpace = ParticleSystemSimulationSpace.Local;
+            main.playOnAwake = false;
+
+            var emission = ps.emission;
+            emission.enabled = true;
+            emission.rateOverTime = rate;
+
+            var shape = ps.shape;
+            shape.enabled = true;
+            shape.shapeType = ParticleSystemShapeType.Box;
+            shape.scale = new Vector3(1f, 0.2f, 1f); // resized per-cast in WallVisual.Configure
+            shape.position = new Vector3(0f, emitYOffset, 0f);
+
+            var colOverLife = ps.colorOverLifetime;
+            colOverLife.enabled = true;
+            var grad = new Gradient();
+            grad.SetKeys(
+                new[] { new GradientColorKey(a, 0f), new GradientColorKey(b, 0.5f), new GradientColorKey(c, 1f) },
+                new[]
+                {
+                    new GradientAlphaKey(0f, 0f), new GradientAlphaKey(peakAlpha, 0.2f),
+                    new GradientAlphaKey(peakAlpha * 0.8f, 0.6f), new GradientAlphaKey(0f, 1f)
+                });
+            colOverLife.color = new ParticleSystem.MinMaxGradient(grad);
+
+            var sizeOverLife = ps.sizeOverLifetime;
+            sizeOverLife.enabled = true;
+            sizeOverLife.size = new ParticleSystem.MinMaxCurve(1f,
+                new AnimationCurve(new Keyframe(0f, 0.35f), new Keyframe(0.3f, 1f), new Keyframe(1f, 0.15f)));
+
+            var noise = ps.noise;
+            noise.enabled = true;
+            noise.strength = 0.45f;
+            noise.frequency = 0.6f;
+            noise.scrollSpeed = 0.5f;
+
+            var renderer = ps.GetComponent<ParticleSystemRenderer>();
+            renderer.renderMode = ParticleSystemRenderMode.Billboard;
+            renderer.sharedMaterial = mat;
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.lightProbeUsage = LightProbeUsage.Off;
+            renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
+            renderer.sortMode = ParticleSystemSortMode.None;
+
+            return ps;
         }
 
         private Spark AcquireSpark()
@@ -401,6 +551,32 @@ namespace Wavekeep.Runtime
             m.SetFloat("_EmberAmount", ember);
             m.SetFloat("_SoftEdge", softEdge);
             return m;
+        }
+
+        // Task 53: an additive flame-puff material (FireParticle) for a Particle System layer. Colour/alpha come
+        // from each particle's vertex colour (the layer's Color-over-Lifetime), so one material serves a whole layer.
+        private static Material MakeParticleMat(Shader shader, float softness, float boost)
+        {
+            var m = new Material(shader);
+            m.SetFloat("_Softness", softness);
+            m.SetFloat("_Boost", boost);
+            return m;
+        }
+
+        // Task 53: a unit quad (XY plane, facing +Z) for the heat-shimmer haze billboard.
+        private static Mesh BuildQuadMesh()
+        {
+            var mesh = new Mesh { name = "FirewallHazeQuad" };
+            mesh.vertices = new[]
+            {
+                new Vector3(-0.5f, -0.5f, 0f), new Vector3(0.5f, -0.5f, 0f),
+                new Vector3(0.5f, 0.5f, 0f), new Vector3(-0.5f, 0.5f, 0f)
+            };
+            mesh.uv = new[] { new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(0f, 1f) };
+            mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
         }
 
         private static Material CreateUnlitMaterial(Color color)
@@ -518,16 +694,82 @@ namespace Wavekeep.Runtime
         private sealed class Patch { public FxInstance Fx; public float Age, Life; }
         private sealed class Spark { public LineRenderer Line; public Vector3 From, To; public float Age; }
 
-        // The persistent Firewall band visual + its IFireZoneVisual handle (driven by the GroundZone).
+        // Task 53: the persistent Firewall band visual (a layered Particle System wall) + its IFireZoneVisual
+        // handle (driven by the GroundZone). The zone drives Inferno Surge flares (Pulse → emission spike + extra
+        // burst) and teardown (Dispose → stop emitting + fade), and requests Wildfire cooling patches.
         private sealed class WallVisual : IFireZoneVisual
         {
-            public FxInstance Fx;
+            public GameObject Root;
+            public ParticleSystem BaseFlames;
+            public ParticleSystem Embers;
+            public MeshRenderer HazeRenderer;
+            public MaterialPropertyBlock HazeBlock;
             public FireVfxPresenter Owner;
+            public float BaseRate, EmberRate;
             public float Activation, PulseFlash, FadeOut, Depth, CenterZ;
             public bool Disposing;
 
-            public void Pulse() => PulseFlash = 1f;                       // Inferno Surge flare across the wall
-            public void Dispose() => Disposing = true;                    // begin fade-out (band expiry)
+            private static readonly int _idLevel = Shader.PropertyToID("_Level");
+
+            // True once the wall has stopped emitting and all in-flight particles have died.
+            public bool IsDrained => BaseFlames.particleCount == 0 && Embers.particleCount == 0;
+
+            // Size the emitter boxes to the actual band width/depth, and place the haze quad over the wall.
+            public void Configure(float width, float depth, float height)
+            {
+                Depth = depth;
+                var bs = BaseFlames.shape; bs.scale = new Vector3(width, 0.2f, depth);
+                var es = Embers.shape; es.scale = new Vector3(width, 0.2f, depth);
+                if (HazeRenderer != null)
+                {
+                    HazeRenderer.transform.localPosition = new Vector3(0f, height * 0.5f, 0f);
+                    HazeRenderer.transform.localScale = new Vector3(width, height, 1f);
+                }
+            }
+
+            public void Restart()
+            {
+                Root.SetActive(true);
+                BaseFlames.Clear();
+                Embers.Clear();
+                BaseFlames.Play();
+                Embers.Play();
+                // Establish flash: a one-shot burst on cast so the wall slams in rather than fading up.
+                BaseFlames.Emit(Mathf.RoundToInt(BaseRate * 0.6f));
+                Embers.Emit(Mathf.RoundToInt(EmberRate * 0.6f));
+            }
+
+            public void SetEmissionScale(float scale)
+            {
+                var be = BaseFlames.emission; be.rateOverTime = BaseRate * Mathf.Max(0f, scale);
+                var ee = Embers.emission; ee.rateOverTime = EmberRate * Mathf.Max(0f, scale);
+            }
+
+            public void SetHazeLevel(float level)
+            {
+                if (HazeRenderer == null) return;
+                HazeBlock.SetFloat(_idLevel, Mathf.Clamp01(level));
+                HazeRenderer.SetPropertyBlock(HazeBlock);
+            }
+
+            public void Deactivate() => Root.SetActive(false);
+
+            // Inferno Surge flare: a brief emission spike plus an extra burst across the whole wall.
+            public void Pulse()
+            {
+                PulseFlash = 1f;
+                BaseFlames.Emit(Mathf.RoundToInt(BaseRate * 0.5f));
+                Embers.Emit(Mathf.RoundToInt(EmberRate * 0.5f));
+            }
+
+            // Band expiry: stop spawning new flame and begin the fade — existing particles burn out naturally.
+            public void Dispose()
+            {
+                Disposing = true;
+                BaseFlames.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+                Embers.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+            }
+
             public void SpawnCoolingPatch(float x, float z, float radius, float life)
                 => Owner?.SpawnCoolingPatch(new Vector3(x, 0f, z), radius, life);
         }
