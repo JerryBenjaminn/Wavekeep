@@ -67,6 +67,6 @@ MonoBehaviour:
   _globalStatMultiplier: 1.2
   _milestoneWaveInterval: 5
   _milestoneStep: 0.5
-  _bossWaveInterval: 10
-  _bossDefinition: {fileID: 11400000, guid: cd1eda20c8182b04ba280d95e14feef0, type: 2}
+  _bossWaveInterval: 5
+  _bossDefinition: {fileID: 11400000, guid: 0e6395c9db97ad145b5bbcf8d293a861, type: 2}
   _bossCount: 1

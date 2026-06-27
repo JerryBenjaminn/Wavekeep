@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c46c14cfc3be3314db4453960f4c8466, type: 3}
+  m_Name: EvilGod
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.EnemyDefinitionSO
+  _enemyName: EvilGod
+  _prefab: {fileID: 1870912557112684, guid: fc469b2d4ae90f6408eedaaa707d812f, type: 3}
+  _spawnGroundOffset: 0
+  _maxHealth: 200
+  _moveSpeed: 2.5
+  _contactDamage: 5
+  _armor: 30
+  _magicResist: 30
+  _currencyReward: 5
+  _xpReward: 50
+  _lootTable: {fileID: 11400000, guid: 4a445aef7a20b4f4382697a5bcd2f5ef, type: 2}

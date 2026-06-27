@@ -31,8 +31,15 @@ namespace Wavekeep.EditorTools
         private const string AttackFbxPath =
             "Assets/Synty/AnimationSwordCombat/Animations/Sidekick/Attack/HeavyCombo01/A_MOD_SWD_Attack_HeavyCombo01A_Neut.fbx";
         private const string AttackClipName = "A_MOD_SWD_Attack_HeavyCombo01A_Neut";
-        private const string SkeletonPrefabPath =
-            "Assets/Synty/PolygonGeneric/Prefabs/Characters/SM_Gen_Chr_Skeleton_01.prefab";
+        // Every enemy prefab that drives the shared Skeleton_AnimatorController needs the same wiring (controller
+        // assigned, root motion OFF so EnemyRuntime owns movement, EnemyAnimationDriver added + configured). The
+        // EvilGod boss reuses the controller, so it is wired here too. Scaling is never touched, so a boss scaled
+        // up in its prefab keeps its size.
+        private static readonly string[] EnemyPrefabPaths =
+        {
+            "Assets/Synty/PolygonGeneric/Prefabs/Characters/SM_Gen_Chr_Skeleton_01.prefab",
+            "Assets/Synty/PolygonFantasyRivals/Prefabs/Characters/SM_Chr_EvilGod_01.prefab",
+        };
 
         private const string RunState = "Run";
         private const string AttackState = "Attack";
@@ -93,7 +100,8 @@ namespace Wavekeep.EditorTools
 
             float impactTime = AddAttackImpactEvent();
             float deathLen = ResolveDeathClipLength(death);
-            WireSkeletonPrefab(controller, deathLen);
+            foreach (var prefabPath in EnemyPrefabPaths)
+                WireEnemyPrefab(prefabPath, controller, deathLen);
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
@@ -101,6 +109,7 @@ namespace Wavekeep.EditorTools
             Debug.Log($"[Task54] Skeleton animator setup complete. Params: Attack/Die. Transitions: AnyState→Attack, " +
                       $"Attack↔AttackRecovery (exitTime 1.0), AnyState→Death (priority). Impact event '{ImpactEventMethod}' " +
                       $"@ {impactTime:0.000}s on '{AttackClipName}'. Death clip length ≈ {deathLen:0.000}s. " +
+                      $"Wired {EnemyPrefabPaths.Length} enemy prefab(s) (controller + root-motion-off + driver). " +
                       "VERIFY: the impact frame timing and the auto-picked bone anchors (see warnings above, if any).");
         }
 
@@ -249,12 +258,12 @@ namespace Wavekeep.EditorTools
 
         // ---- Skeleton prefab: controller + driver + anchors --------------------------------------------------
 
-        private static void WireSkeletonPrefab(AnimatorController controller, float deathClipLength)
+        private static void WireEnemyPrefab(string prefabPath, AnimatorController controller, float deathClipLength)
         {
-            var root = PrefabUtility.LoadPrefabContents(SkeletonPrefabPath);
+            var root = PrefabUtility.LoadPrefabContents(prefabPath);
             if (root == null)
             {
-                Debug.LogError($"[Task54] Skeleton prefab not found at '{SkeletonPrefabPath}'. Prefab wiring skipped — " +
+                Debug.LogError($"[Task54] Enemy prefab not found at '{prefabPath}'. Prefab wiring skipped — " +
                                "assign the controller + EnemyAnimationDriver manually (see task response).");
                 return;
             }
@@ -264,12 +273,15 @@ namespace Wavekeep.EditorTools
                 var animator = root.GetComponent<Animator>();
                 if (animator == null)
                 {
-                    Debug.LogError("[Task54] Skeleton prefab root has no Animator component. Prefab wiring skipped.");
+                    Debug.LogError($"[Task54] Prefab '{prefabPath}' root has no Animator component. Prefab wiring skipped.");
                     return;
                 }
 
                 animator.runtimeAnimatorController = controller;
-                animator.applyRootMotion = false; // §2.4: EnemyRuntime owns movement — no animation-driven drift
+                // §2.4: EnemyRuntime owns movement. Leaving root motion ON makes the Run clip's root translation
+                // fight/override the transform-driven movement, so the enemy never settles at the wall (the boss
+                // "won't react to the wall"). Must be off for every enemy using this controller.
+                animator.applyRootMotion = false;
 
                 var driver = root.GetComponent<EnemyAnimationDriver>();
                 if (driver == null) driver = root.AddComponent<EnemyAnimationDriver>();
@@ -278,16 +290,16 @@ namespace Wavekeep.EditorTools
                 var deathAnchor = FindFirstBone(root.transform, DeathAnchorBoneCandidates);
 
                 if (hitAnchor == null)
-                    Debug.LogWarning($"[Task54] No hit-VFX bone found ({string.Join("/", HitAnchorBoneCandidates)}); " +
+                    Debug.LogWarning($"[Task54] {root.name}: no hit-VFX bone found ({string.Join("/", HitAnchorBoneCandidates)}); " +
                                      "anchor falls back to the root. Assign a chest/head bone in the inspector.");
                 if (deathAnchor == null)
-                    Debug.LogWarning($"[Task54] No death-VFX bone found ({string.Join("/", DeathAnchorBoneCandidates)}); " +
+                    Debug.LogWarning($"[Task54] {root.name}: no death-VFX bone found ({string.Join("/", DeathAnchorBoneCandidates)}); " +
                                      "anchor falls back to the root. Assign a hips/root bone in the inspector.");
 
                 driver.EditorConfigure(animator, hitAnchor, deathAnchor, deathClipLength);
 
-                PrefabUtility.SaveAsPrefabAsset(root, SkeletonPrefabPath);
-                Debug.Log($"[Task54] Skeleton prefab wired: controller assigned, root motion off, " +
+                PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
+                Debug.Log($"[Task54] Prefab '{root.name}' wired: controller assigned, root motion off, " +
                           $"EnemyAnimationDriver(hit='{(hitAnchor != null ? hitAnchor.name : "root")}', " +
                           $"death='{(deathAnchor != null ? deathAnchor.name : "root")}').");
             }

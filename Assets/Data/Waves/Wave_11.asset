@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.WaveConfigSO
   _waveNumber: 11
   _spawnEntries:
-  - _enemyType: {fileID: 11400000, guid: b4c54f8f848fc154eb0105193c70beac, type: 2}
+  - _enemyType: {fileID: 11400000, guid: a3a96c80d1740c2408844a635fed86cb, type: 2}
     _count: 31
     _spawnInterval: 0.15
   _statMultiplier: 2
