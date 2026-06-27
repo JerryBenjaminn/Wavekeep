@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.HeroDefinitionSO
   _heroName: Marksman
   _icon: {fileID: 0}
-  _prefab: {fileID: 1689319375201618287, guid: 856c0d2e31dfdd643981fc9ad1593195, type: 3}
+  _prefab: {fileID: 1664101817984758, guid: 099791a23777ad8479106c27268a4fd1, type: 3}
   _tint: {r: 0.55, g: 0.5, b: 0.32, a: 1}
   _baseHealth: 95
   _baseLuck: 5
@@ -32,3 +32,10 @@ MonoBehaviour:
   _apexTalents:
   - {fileID: 11400000, guid: 641920b5a678a1a448cdd9fba7824f90, type: 2}
   - {fileID: 11400000, guid: 7239abcaf1fb0ab428a844a635d69443, type: 2}
+  _ultimateCastOverlay:
+    _sprite: {fileID: 0}
+    _tint: {r: 0.6, g: 0.85, b: 1, a: 1}
+    _fadeInDuration: 0.1
+    _holdDuration: 0.3
+    _fadeOutDuration: 0.1
+    _maxOpacity: 0

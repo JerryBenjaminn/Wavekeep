@@ -178,8 +178,17 @@ namespace Wavekeep.Runtime
             {
                 kineticPresenter = gameObject.AddComponent<KineticVfxPresenter>();
             }
+
+            // Task 58 (revised): Bolt Striker's crackle presenter joins the composite too — it flares the model's
+            // permanent-crackle overlay only on lightning strikes (OnLightningStrike), so the surface effect shows
+            // while attacking rather than always. Inert for heroes whose model has no crackle overlay material.
+            if (!TryGetComponent(out BoltStrikerCracklePresenter cracklePresenter))
+            {
+                cracklePresenter = gameObject.AddComponent<BoltStrikerCracklePresenter>();
+            }
             _feedback = new CompositeAbilityFeedback(
-                presenter, frostPresenter, lightningPresenter, apexPresenter, firePresenter, kineticPresenter);
+                presenter, frostPresenter, lightningPresenter, apexPresenter, firePresenter, kineticPresenter,
+                cracklePresenter);
 
             Basic = definition.BasicAbility != null
                 ? new AbilityRuntime(definition.BasicAbility, AbilityRole.Basic) : null;

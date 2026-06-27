@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 525674b068b609c4ca1001501e0677ed, type: 3}
+  m_Name: WavekeepAudioConfig
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Audio.AudioConfigSO
+  _musicGroup: {fileID: 3043212860713565560, guid: 61eb302de20479e4dace2bf12df6753f, type: 2}
+  _sfxGroup: {fileID: 0}
+  _uiGroup: {fileID: 0}
+  _sfxPoolSize: 16
+  _loopSourcePoolSize: 4
+  _musicCrossfadeDuration: 1.5
+  _backgroundMusicCue: {fileID: 11400000, guid: 4bd52535723eb5843bb9b068dea68396, type: 2}
+  _ambientCue: {fileID: 11400000, guid: 8b686ad76823bfc4aa33f40bebde5fa2, type: 2}
+  _enemyKilledCue: {fileID: 11400000, guid: e6980c4f79e9d7642ad014e37173cce2, type: 2}
+  _waveStartedCue: {fileID: 11400000, guid: 7d20f54a705ea27439d7520b1d4957ec, type: 2}
+  _waveCompletedCue: {fileID: 11400000, guid: 38c14acf9256c42468a5ca24152a6cac, type: 2}
+  _levelUpCue: {fileID: 11400000, guid: d422faace21b28e4ba328e553e8bbd54, type: 2}
+  _victoryCue: {fileID: 11400000, guid: 1cbc5212f589d224a910e6a8e9fbb51f, type: 2}
+  _defeatCue: {fileID: 11400000, guid: 7d4e89a6c56b7604ab075a5e475eb6f2, type: 2}

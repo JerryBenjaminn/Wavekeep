@@ -30,7 +30,9 @@ namespace Wavekeep.Runtime
         private static bool _materialLoadAttempted;
         private static int _idAmount;
 
-        private MeshRenderer[] _overlays;
+        private const string OverlayName = "FireOverlay";
+
+        private Renderer[] _overlays; // Task 60: Renderer (not MeshRenderer) so skinned overlays are supported too
         private MaterialPropertyBlock _mpb;
         private bool _initialized;
 
@@ -48,33 +50,77 @@ namespace Wavekeep.Runtime
             _mpb = new MaterialPropertyBlock();
             if (_sharedMaterial == null) return;
 
+            var overlays = new List<Renderer>();
+
+            // Task 60: same fix as FrostVfxController — the Synty enemy models are SKINNED meshes (no MeshFilter),
+            // which is why only-handling MeshFilter made the Burn effect vanish on Skeleton/EvilGod. Duplicate each
+            // skinned renderer as an overlay sharing the SAME mesh + bones + rootBone so it deforms with animation;
+            // cover all submeshes so multi-material parts are fully tinted.
+            var skinned = GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            foreach (var smr in skinned)
+            {
+                if (smr == null || smr.sharedMesh == null || IsOverlay(smr.gameObject)) continue;
+
+                var go = NewOverlayObject(smr.transform);
+                var overlay = go.AddComponent<SkinnedMeshRenderer>();
+                overlay.sharedMesh = smr.sharedMesh;
+                overlay.bones = smr.bones;
+                overlay.rootBone = smr.rootBone;
+                overlay.localBounds = smr.localBounds;
+                overlay.updateWhenOffscreen = smr.updateWhenOffscreen;
+                ConfigureOverlayRenderer(overlay, smr.sharedMesh.subMeshCount);
+                overlays.Add(overlay);
+            }
+
+            // Static meshes (e.g. a separate weapon mesh, or the legacy capsule) → a static overlay duplicate.
             var filters = GetComponentsInChildren<MeshFilter>(true);
-            var overlays = new List<MeshRenderer>(filters.Length);
             foreach (var mf in filters)
             {
-                if (mf == null || mf.sharedMesh == null) continue;
-                // Skip any frost overlay that may also have been added — only duplicate the base meshes.
-                if (mf.gameObject.name == "FrostOverlay" || mf.gameObject.name == "FireOverlay") continue;
+                if (mf == null || mf.sharedMesh == null || IsOverlay(mf.gameObject)) continue;
 
-                var go = new GameObject("FireOverlay");
-                var t = go.transform;
-                t.SetParent(mf.transform, false);
-                t.localPosition = Vector3.zero;
-                t.localRotation = Quaternion.identity;
-                t.localScale = Vector3.one;
-                go.layer = mf.gameObject.layer;
-
+                var go = NewOverlayObject(mf.transform);
                 go.AddComponent<MeshFilter>().sharedMesh = mf.sharedMesh;
                 var mr = go.AddComponent<MeshRenderer>();
-                mr.sharedMaterial = _sharedMaterial;
-                mr.shadowCastingMode = ShadowCastingMode.Off;
-                mr.receiveShadows = false;
-                mr.lightProbeUsage = LightProbeUsage.Off;
-                mr.reflectionProbeUsage = ReflectionProbeUsage.Off;
+                ConfigureOverlayRenderer(mr, mf.sharedMesh.subMeshCount);
                 overlays.Add(mr);
             }
 
             _overlays = overlays.ToArray();
+        }
+
+        // Skip the frost/fire overlays themselves so the two controllers never duplicate each other's overlays.
+        private static bool IsOverlay(GameObject go) =>
+            go.name == OverlayName || go.name == "FrostOverlay";
+
+        private GameObject NewOverlayObject(Transform parent)
+        {
+            var go = new GameObject(OverlayName);
+            var t = go.transform;
+            t.SetParent(parent, false);
+            t.localPosition = Vector3.zero;
+            t.localRotation = Quaternion.identity;
+            t.localScale = Vector3.one;
+            go.layer = parent.gameObject.layer;
+            return go;
+        }
+
+        private void ConfigureOverlayRenderer(Renderer r, int subMeshCount)
+        {
+            if (subMeshCount <= 1)
+            {
+                r.sharedMaterial = _sharedMaterial;
+            }
+            else
+            {
+                var mats = new Material[subMeshCount];
+                for (int i = 0; i < subMeshCount; i++) mats[i] = _sharedMaterial;
+                r.sharedMaterials = mats;
+            }
+            r.shadowCastingMode = ShadowCastingMode.Off;
+            r.receiveShadows = false;
+            r.lightProbeUsage = LightProbeUsage.Off;
+            r.reflectionProbeUsage = ReflectionProbeUsage.Off;
+            r.enabled = false; // hidden until there's visible Burn
         }
 
         /// <summary>Snap all Burn VFX state to "clean" with no fade. Called on pooled reuse so a freshly spawned
@@ -108,8 +154,15 @@ namespace Wavekeep.Runtime
         {
             if (_overlays == null || _mpb == null) return;
             _mpb.SetFloat(_idAmount, _displayedAmount);
+
+            // Only render/skin the overlay while there's visible Burn — keeps un-burning enemies cheap.
+            bool visible = _displayedAmount > 0.001f;
             for (int i = 0; i < _overlays.Length; i++)
-                if (_overlays[i] != null) _overlays[i].SetPropertyBlock(_mpb);
+            {
+                if (_overlays[i] == null) continue;
+                _overlays[i].enabled = visible;
+                if (visible) _overlays[i].SetPropertyBlock(_mpb);
+            }
         }
 
         private static void EnsureSharedMaterial()

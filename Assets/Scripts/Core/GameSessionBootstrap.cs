@@ -68,6 +68,11 @@ namespace Wavekeep.Core
                  "all hero cast overlays. Wired by the Task 57 setup menu.")]
         [SerializeField] private Wavekeep.UI.ScreenCastOverlayController _screenCastOverlay;
 
+        [Header("Audio (Task 59 — data-driven audio system)")]
+        [Tooltip("WavekeepAudioConfig (mixer groups + pool sizes + per-event placeholder cues). Optional — leave " +
+                 "null to disable audio. Created/wired by the Task 59 setup menu.")]
+        [SerializeField] private Wavekeep.Audio.AudioConfigSO _audioConfig;
+
         /// <summary>The assembled session for this scene. Available after Awake.</summary>
         public GameSession Session { get; private set; }
 
@@ -125,11 +130,35 @@ namespace Wavekeep.Core
             var discoveryPath = Path.Combine(Application.persistentDataPath, TalentDiscoveryManager.DefaultSaveFileName);
             var talentDiscovery = new TalentDiscoveryManager(eventBus, comboApex, discoveryPath);
 
+            // Task 59: audio engine. Subscribes its own event listener in the ctor (like the managers above), so
+            // a kill/wave/level-up the first frame already plays. Sources are parented under this bootstrap.
+            var audioManager = new Wavekeep.Audio.AudioManager(eventBus, transform, _audioConfig);
+
             Session = new GameSession(
                 eventBus, enemyPool, interactionInput, currencyManager, xpManager,
                 upgradeInventory, consumableInventory, pauseState, rerollManager, gearManager, lootService,
                 luckState, heroes, comboApex, heroSlotUnlocks, talentDiscovery,
-                _screenCastOverlay); // Task 57: scene overlay UI (null-safe if unwired)
+                _screenCastOverlay, // Task 57: scene overlay UI (null-safe if unwired)
+                audioManager);       // Task 59: audio engine (null-safe config)
+        }
+
+        // Task 59: start this scene's looping background music + ambient bed once the session is built (Awake).
+        // Both no-op for null/clip-less cues, so it's harmless until the developer assigns clips. The victory/
+        // defeat cues crossfade over the music on run end; the ambient loop runs until the scene unloads
+        // (AudioManager.Dispose stops it). Scene-specific music selection can grow from here later.
+        private void Start()
+        {
+            var audio = Session?.AudioManager;
+            if (audio == null || _audioConfig == null) return;
+            audio.PlayMusicTrack(_audioConfig.BackgroundMusicCue, crossfade: false);
+            audio.StartLoopingCue(_audioConfig.AmbientCue);
+        }
+
+        // Task 59: drive the music crossfade (AudioManager has no Update of its own). Unscaled so audio is
+        // unaffected by any timescale changes; cheap no-op when nothing is crossfading.
+        private void Update()
+        {
+            Session?.AudioManager?.Tick(Time.unscaledDeltaTime);
         }
 
         private void OnDestroy()

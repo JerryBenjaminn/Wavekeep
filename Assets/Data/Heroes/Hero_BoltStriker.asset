@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.HeroDefinitionSO
   _heroName: Bolt Striker
   _icon: {fileID: 0}
-  _prefab: {fileID: 1689319375201618287, guid: 856c0d2e31dfdd643981fc9ad1593195, type: 3}
+  _prefab: {fileID: 1297717960451648, guid: 10b964f589d35eb4c8ed8441ddc13ceb, type: 3}
   _tint: {r: 0.3, g: 0.6, b: 1, a: 1}
   _baseHealth: 100
   _baseLuck: 5
@@ -32,3 +32,10 @@ MonoBehaviour:
   _apexTalents:
   - {fileID: 11400000, guid: 23eeada09a2bdab4cad1c09e49606fa2, type: 2}
   - {fileID: 11400000, guid: 1be05e8e79b4be54ab765c7d8915c6ce, type: 2}
+  _ultimateCastOverlay:
+    _sprite: {fileID: 0}
+    _tint: {r: 0.6, g: 0.85, b: 1, a: 1}
+    _fadeInDuration: 0.1
+    _holdDuration: 0.3
+    _fadeOutDuration: 0.1
+    _maxOpacity: 0

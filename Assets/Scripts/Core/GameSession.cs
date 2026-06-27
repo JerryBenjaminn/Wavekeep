@@ -1,4 +1,5 @@
 using Wavekeep.Abilities;
+using Wavekeep.Audio;
 using Wavekeep.Economy;
 using Wavekeep.Gear;
 using Wavekeep.Input;
@@ -82,6 +83,11 @@ namespace Wavekeep.Core
         /// than a static singleton (§3.5). Null in scenes/tests that don't wire one — callers null-check.</summary>
         public IScreenCastOverlay ScreenCastOverlay { get; }
 
+        /// <summary>Task 59: the run's audio playback engine (data-driven cues, AudioSource pooling, music
+        /// crossfade), built by the bootstrap from an AudioConfigSO. Null in scenes/tests that don't wire audio —
+        /// callers null-check. Disposed in <see cref="Teardown"/>.</summary>
+        public AudioManager AudioManager { get; }
+
         // Task 02 note: WaveSpawner is a scene MonoBehaviour that *consumes* this session
         // (pulls Events + EnemyPool from it) rather than being held here, so Core has no
         // dependency on the Waves layer. Dependency flow still originates from GameSession (§3.5).
@@ -103,7 +109,8 @@ namespace Wavekeep.Core
             ComboApexState comboApex,
             HeroSlotUnlockManager heroSlotUnlocks,
             TalentDiscoveryManager talentDiscovery,
-            IScreenCastOverlay screenCastOverlay = null) // Task 57: optional so existing callers/tests are unaffected
+            IScreenCastOverlay screenCastOverlay = null, // Task 57: optional so existing callers/tests are unaffected
+            AudioManager audioManager = null)            // Task 59: optional, same reason
         {
             Events = eventBus;
             EnemyPool = enemyPool;
@@ -122,6 +129,7 @@ namespace Wavekeep.Core
             HeroSlotUnlocks = heroSlotUnlocks;
             TalentDiscovery = talentDiscovery;
             ScreenCastOverlay = screenCastOverlay;
+            AudioManager = audioManager;
         }
 
         /// <summary>Release all session-scoped state. Call when the run/scene ends.</summary>
@@ -135,6 +143,7 @@ namespace Wavekeep.Core
             HeroSlotUnlocks?.Dispose(); // Task 42: unsubscribe wave/run listeners (§3.5 lifecycle)
             TalentDiscovery?.Dispose(); // Task 43: unsubscribe apex-unlocked listener (§3.5 lifecycle)
             Heroes?.Clear(); // Task 36: drop hero references so none leak across a scene reload (§3.5)
+            AudioManager?.Dispose(); // Task 59: unsubscribe the audio listener + destroy pooled AudioSources
             Events.UnsubscribeAll();
             EnemyPool.Clear();
         }
