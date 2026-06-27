@@ -77,6 +77,11 @@ namespace Wavekeep.Core
         /// it to show discovered talents in full and undiscovered ones as "???".</summary>
         public TalentDiscoveryManager TalentDiscovery { get; }
 
+        /// <summary>Task 57: the scene's screen-space cast-overlay system (a UI MonoBehaviour passed in by the
+        /// bootstrap), exposed here so any hero can flash its Ultimate-cast overlay through the session rather
+        /// than a static singleton (§3.5). Null in scenes/tests that don't wire one — callers null-check.</summary>
+        public IScreenCastOverlay ScreenCastOverlay { get; }
+
         // Task 02 note: WaveSpawner is a scene MonoBehaviour that *consumes* this session
         // (pulls Events + EnemyPool from it) rather than being held here, so Core has no
         // dependency on the Waves layer. Dependency flow still originates from GameSession (§3.5).
@@ -97,7 +102,8 @@ namespace Wavekeep.Core
             HeroRegistry heroes,
             ComboApexState comboApex,
             HeroSlotUnlockManager heroSlotUnlocks,
-            TalentDiscoveryManager talentDiscovery)
+            TalentDiscoveryManager talentDiscovery,
+            IScreenCastOverlay screenCastOverlay = null) // Task 57: optional so existing callers/tests are unaffected
         {
             Events = eventBus;
             EnemyPool = enemyPool;
@@ -115,6 +121,7 @@ namespace Wavekeep.Core
             ComboApex = comboApex;
             HeroSlotUnlocks = heroSlotUnlocks;
             TalentDiscovery = talentDiscovery;
+            ScreenCastOverlay = screenCastOverlay;
         }
 
         /// <summary>Release all session-scoped state. Call when the run/scene ends.</summary>

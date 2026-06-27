@@ -34,6 +34,11 @@ namespace Wavekeep.Runtime
                  "so two heroes from the same prefab don't fight over one key.")]
         [SerializeField] private bool _autoUltimate = true;
 
+        [Tooltip("Task 56: fail-safe (seconds). If a basic attack's impact-frame Animation Event never arrives " +
+                 "(e.g. it's missing/misplaced on the clip), the basic's damage/VFX is applied anyway after this " +
+                 "long so the attack can't get permanently stuck. Only used on the animation-gated path.")]
+        [SerializeField, Min(0.1f)] private float _basicAttackImpactTimeout = 1.2f;
+
         public HeroDefinitionSO Definition { get; private set; }
         public IAbility Basic { get; private set; }
         public IAbility Ultimate { get; private set; }
@@ -53,10 +58,20 @@ namespace Wavekeep.Runtime
         private ConsumableInventory _consumables;
         private ComboApexState _comboApex; // Task 38: cross-hero combo resolver (shared run-scoped service)
         private PauseState _pause;
+        private IScreenCastOverlay _screenOverlay; // Task 57: hero Ultimate-cast full-screen flash (may be null)
         private IAbilityFeedback _feedback;
         private IReadOnlyList<StatModifier> _equippedModifiers;
         private LuckState _luck;
         private bool _initialized;
+
+        // Task 56: animation-gated basic auto-attack. When the hero's model has a usable Attack animation, the
+        // basic's damage/VFX is deferred from "ready + target in range" to the Attack clip's impact frame. When
+        // it doesn't (controller empty/unassigned, or a non-animated placeholder hero), _animationGatedBasic is
+        // false and the basic keeps its original immediate auto-fire — so this can never regress the attack.
+        private HeroAnimationDriver _animDriver;
+        private bool _animationGatedBasic;
+        private bool _basicAttackPending;   // an Attack clip is playing; its impact hasn't applied yet
+        private float _basicPendingElapsed; // counts up while pending; drives the impact fail-safe timeout
 
         // Task 29: per-line tier state (0 = not yet picked, 1–3 = current tier). This IS the line
         // progression model — there is no flat list of picked upgrade ids. The picked tier's effect is
@@ -105,6 +120,7 @@ namespace Wavekeep.Runtime
             _consumables = session.ConsumableInventory;
             _comboApex = session.ComboApex; // Task 38: same resolver for every hero; reads the shared registry
             _pause = session.PauseState;
+            _screenOverlay = session.ScreenCastOverlay; // Task 57: triggered on this hero's Ultimate cast (null-safe)
 
             // Task 12: this hero's equipped gear/artifact modifiers (a live view of the loadout's
             // aggregated list) feed AbilityRuntime's existing modifier pipeline. Equip happens between
@@ -194,6 +210,26 @@ namespace Wavekeep.Runtime
             // Task 36: register into the run's hero set so the team input, level-up pool, and cooldown HUD
             // can reach every active hero through GameSession (no static singleton). Idempotent.
             session.Heroes?.Register(this);
+
+            // Task 56: find the model's Animator (it may sit on a child of the hero root) and attach the generic
+            // HeroAnimationDriver to ITS GameObject so Unity's Animation Events reach it. Bind the basic's impact
+            // callback and cache whether this hero can actually drive an Attack animation (controller assigned +
+            // Attack state + Attack trigger). If not, the basic stays on the original immediate path below.
+            _basicAttackPending = false;
+            _basicPendingElapsed = 0f;
+            var animator = GetComponentInChildren<Animator>(true);
+            if (animator != null)
+            {
+                _animDriver = animator.GetComponent<HeroAnimationDriver>();
+                if (_animDriver == null) _animDriver = animator.gameObject.AddComponent<HeroAnimationDriver>();
+                _animDriver.BindBasicAttackImpact(HandleBasicAttackImpact);
+                _animationGatedBasic = _animDriver.CanDriveAttack;
+            }
+            else
+            {
+                _animDriver = null;
+                _animationGatedBasic = false;
+            }
 
             ApplyTint(definition.Tint);
             _initialized = true;
@@ -326,7 +362,7 @@ namespace Wavekeep.Runtime
             if (Basic != null)
             {
                 Basic.Tick(Time.deltaTime);
-                Basic.Execute(context); // no-ops unless ready AND a target is in range (auto-fire)
+                TickBasicAutoAttack(context); // Task 56: animation-gated when possible, else immediate auto-fire
             }
 
             if (Ultimate != null)
@@ -341,7 +377,7 @@ namespace Wavekeep.Runtime
                 // frame regardless of the auto toggle, so the active burst fires its queued shots either way.
                 if (Ultimate.IsChanneling || (AutoUltimate && Ultimate.IsReady))
                 {
-                    Ultimate.Execute(context);
+                    ExecuteUltimateWithOverlay(context); // Task 57: flash the cast overlay on a successful cast
                 }
             }
 
@@ -354,6 +390,63 @@ namespace Wavekeep.Runtime
                 apex.Tick(Time.deltaTime);
                 apex.Execute(context); // no-ops unless ready AND a target is in range
             }
+        }
+
+        // Task 56: drive the basic auto-attack. On the original immediate path the basic fires (damage+VFX) the
+        // moment it's ready and a target is in range. On the animation-gated path it instead plays the Attack clip
+        // and defers the hit to that clip's impact frame (HandleBasicAttackImpact), so damage/VFX land on the
+        // visual swing — and Idle plays whenever no target is in range.
+        private void TickBasicAutoAttack(AbilityExecutionContext context)
+        {
+            if (!_animationGatedBasic)
+            {
+                Basic.Execute(context); // no-ops unless ready AND a target is in range
+                return;
+            }
+
+            if (_basicAttackPending)
+            {
+                // Fail-safe: if the impact Animation Event never arrives (missing/misplaced on the clip), apply
+                // the basic after the timeout so an animation-gated attack can't get permanently stuck.
+                _basicPendingElapsed += Time.deltaTime;
+                if (_basicPendingElapsed >= _basicAttackImpactTimeout) ResolveDeferredBasic();
+                return;
+            }
+
+            // Only start an attack when the basic is off cooldown AND something is in range — otherwise stay Idle.
+            if (Basic.IsReady && Basic.HasTargetInRange(context))
+            {
+                _animDriver.TriggerAttack();
+                _basicAttackPending = true;
+                _basicPendingElapsed = 0f;
+            }
+        }
+
+        // Task 56: invoked from the Attack clip's impact-frame Animation Event (via HeroAnimationDriver) — the
+        // single point where the deferred basic's damage/VFX is applied. Guarded against firing while paused
+        // (the Animator keeps playing during a PauseState pause) and against stray events when nothing is pending.
+        private void HandleBasicAttackImpact()
+        {
+            if (!_basicAttackPending) return;
+            if (_pause != null && _pause.IsPaused)
+            {
+                _basicAttackPending = false;
+                _basicPendingElapsed = 0f;
+                return;
+            }
+            ResolveDeferredBasic();
+        }
+
+        // Apply the deferred basic now, with a context rebuilt at THIS moment so targeting reflects current
+        // positions. Execute consumes the cooldown on hit, which stops the auto-attacker re-triggering until the
+        // basic is ready again. Idempotent per attack (pending is cleared first, so the fail-safe and the event
+        // can never both apply the same swing).
+        private void ResolveDeferredBasic()
+        {
+            _basicAttackPending = false;
+            _basicPendingElapsed = 0f;
+            if (Basic == null) return;
+            Basic.Execute(BuildContext(BasicStats?.Damage ?? 0f));
         }
 
         // Task 36: build the per-frame execution context (extracted so the manual TryCastUltimate path can
@@ -377,9 +470,21 @@ namespace Wavekeep.Runtime
             if (!_initialized || Ultimate == null || !Ultimate.IsReady) return false;
             if (_pause != null && _pause.IsPaused) return false;
 
-            Ultimate.Execute(BuildContext(BasicStats?.Damage ?? 0f));
+            ExecuteUltimateWithOverlay(BuildContext(BasicStats?.Damage ?? 0f));
             Debug.Log($"[HeroRuntime] {Definition.HeroName}: ultimate triggered (manual).");
             return true;
+        }
+
+        // Task 57: run the ultimate and, if it actually CAST this call, flash this hero's screen overlay. A
+        // successful instant cast (Frost Warden's Frost Zone) flips the ability ready→not-ready as it consumes
+        // its cooldown — that edge is the cast moment. (Channeled ultimates stay "ready" while channelling, so
+        // they don't surface here yet; their overlays are out of scope until those heroes are wired — flagged.)
+        private void ExecuteUltimateWithOverlay(AbilityExecutionContext context)
+        {
+            bool wasReady = Ultimate.IsReady;
+            Ultimate.Execute(context);
+            if (wasReady && !Ultimate.IsReady)
+                _screenOverlay?.Trigger(Definition.UltimateCastOverlay);
         }
 
         private void ApplyTint(Color tint)

@@ -20,6 +20,11 @@ namespace Wavekeep.Abilities
         /// <summary>True when the cooldown has elapsed and the ability may execute.</summary>
         bool IsReady { get; }
 
+        /// <summary>Task 56: true if at least one valid target is within this ability's cast range right now,
+        /// WITHOUT firing or mutating any state. Lets an animation-gated auto-attacker decide whether to play
+        /// its attack animation (vs. idle) before committing the actual hit on the clip's impact frame.</summary>
+        bool HasTargetInRange(AbilityExecutionContext context);
+
         /// <summary>Task 49: true while a sustained shot-burst ability (Minigun) is mid-channel, so the hero
         /// keeps driving its Execute every frame regardless of the auto-cast toggle. Always false for
         /// instant abilities.</summary>

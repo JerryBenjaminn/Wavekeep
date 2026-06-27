@@ -121,6 +121,30 @@ namespace Wavekeep.Runtime
             return damage;
         }
 
+        /// <summary>Task 56: read-only "is anything worth attacking in range?" check used by the animation-gated
+        /// auto-attacker (HeroRuntime) to choose attack vs. idle, WITHOUT casting. Mirrors the cast-range logic in
+        /// Execute: for TargetedAreaOfEffect the cast-to-target distance is the raw SO Range (the resolved range
+        /// is that mode's blast radius); every other mode uses the resolved range. Allocates nothing.</summary>
+        public bool HasTargetInRange(AbilityExecutionContext context)
+        {
+            if (context.Enemies == null) return false;
+
+            ComputeStats(context.Upgrades, context.Consumables, context.EquippedModifiers,
+                out _, out _, out float range);
+            float castRange = Definition.TargetingType == AbilityTargetingType.TargetedAreaOfEffect
+                ? Definition.Range : range;
+            float sqr = castRange * castRange;
+
+            var enemies = context.Enemies;
+            for (int i = 0; i < enemies.Count; i++)
+            {
+                var enemy = enemies[i];
+                if (enemy == null || !enemy.IsAlive) continue;
+                if ((enemy.Transform.position - context.CasterPosition).sqrMagnitude <= sqr) return true;
+            }
+            return false;
+        }
+
         public void Execute(AbilityExecutionContext context)
         {
             if (!IsReady || context.Enemies == null) return;
@@ -747,13 +771,28 @@ namespace Wavekeep.Runtime
         private void SpawnFrostZone(AbilityExecutionContext context)
         {
             ResolveZonePayload(context.Upgrades, context.Consumables, out float slow, out float duration, out _);
-            float depth = Definition.AoeRadius > 0f ? Definition.AoeRadius : 6f;
 
-            // Band of `depth` extending from the defended line (wall) toward the spawn side.
+            // Task 57 (Part A): the Frost Zone now spans the FULL playable arena depth — from the defended line
+            // (wall) to the enemy spawn edge — instead of a fixed AoeRadius-deep band. Both Z references come
+            // from the spawner (context), so this stays positional with no new magic number. Falls back to the
+            // old AoeRadius depth only when the spawn edge isn't available (no markers wired → SpawnLineZ == wallZ),
+            // so a degenerate scene still gets a usable band rather than a zero-depth one. Gameplay (slow/freeze/
+            // pulse) is unchanged — only the band's Z extent grows.
             float wallZ = context.DefendedLineZ;
-            float sign = context.ApproachDirectionZ >= 0f ? 1f : -1f;
-            float minZ = Mathf.Min(wallZ, wallZ + sign * depth);
-            float maxZ = Mathf.Max(wallZ, wallZ + sign * depth);
+            float spawnZ = context.SpawnLineZ;
+            float minZ, maxZ;
+            if (Mathf.Abs(spawnZ - wallZ) > 0.01f)
+            {
+                minZ = Mathf.Min(wallZ, spawnZ);
+                maxZ = Mathf.Max(wallZ, spawnZ);
+            }
+            else
+            {
+                float depth = Definition.AoeRadius > 0f ? Definition.AoeRadius : 6f;
+                float sign = context.ApproachDirectionZ >= 0f ? 1f : -1f;
+                minZ = Mathf.Min(wallZ, wallZ + sign * depth);
+                maxZ = Mathf.Max(wallZ, wallZ + sign * depth);
+            }
 
             float pulseInterval = 0f, pulseFraction = 0f;
             float extendPerDeath = 0f, capBonus = 0f;

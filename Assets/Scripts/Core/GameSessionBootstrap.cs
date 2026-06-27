@@ -63,6 +63,11 @@ namespace Wavekeep.Core
                  "unlocked. Tunable here, not hardcoded in the manager.")]
         [SerializeField] private int[] _heroSlotWaveMilestones = { 15, 30, 50 };
 
+        [Header("Screen Cast Overlay (Task 57 — hero Ultimate-cast full-screen flash)")]
+        [Tooltip("Scene's ScreenCastOverlayController (on the overlay Canvas). Optional — leave null to disable " +
+                 "all hero cast overlays. Wired by the Task 57 setup menu.")]
+        [SerializeField] private Wavekeep.UI.ScreenCastOverlayController _screenCastOverlay;
+
         /// <summary>The assembled session for this scene. Available after Awake.</summary>
         public GameSession Session { get; private set; }
 
@@ -123,7 +128,8 @@ namespace Wavekeep.Core
             Session = new GameSession(
                 eventBus, enemyPool, interactionInput, currencyManager, xpManager,
                 upgradeInventory, consumableInventory, pauseState, rerollManager, gearManager, lootService,
-                luckState, heroes, comboApex, heroSlotUnlocks, talentDiscovery);
+                luckState, heroes, comboApex, heroSlotUnlocks, talentDiscovery,
+                _screenCastOverlay); // Task 57: scene overlay UI (null-safe if unwired)
         }
 
         private void OnDestroy()

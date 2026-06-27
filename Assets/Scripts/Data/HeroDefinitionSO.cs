@@ -45,6 +45,11 @@ namespace Wavekeep.Data
         [Tooltip("Apex talents this hero can unlock once enough of its lines reach max tier.")]
         [SerializeField] private List<ApexTalentDefinitionSO> _apexTalents = new List<ApexTalentDefinitionSO>();
 
+        [Header("Ultimate Cast Overlay (Task 57 — brief full-screen flash on Ultimate cast)")]
+        [Tooltip("This hero's screen-space cast overlay, shown via the generic ScreenCastOverlayController when " +
+                 "its Ultimate fires. Leave inactive (MaxOpacity 0) for heroes without one. Keep it brief/subtle.")]
+        [SerializeField] private ScreenCastOverlayConfig _ultimateCastOverlay = new ScreenCastOverlayConfig();
+
         public string HeroName => _heroName;
         public Sprite Icon => _icon;
         public GameObject Prefab => _prefab;
@@ -59,5 +64,9 @@ namespace Wavekeep.Data
 
         /// <summary>Task 29: apex talents this hero can unlock when its required lines all reach max tier.</summary>
         public IReadOnlyList<ApexTalentDefinitionSO> ApexTalents => _apexTalents;
+
+        /// <summary>Task 57: this hero's brief full-screen overlay shown on Ultimate cast (or an inactive
+        /// config when the hero has none). Triggered by HeroRuntime through the session's overlay system.</summary>
+        public ScreenCastOverlayConfig UltimateCastOverlay => _ultimateCastOverlay;
     }
 }

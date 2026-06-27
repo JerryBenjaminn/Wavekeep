@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.HeroDefinitionSO
   _heroName: Frost Warden
   _icon: {fileID: 0}
-  _prefab: {fileID: 1689319375201618287, guid: 856c0d2e31dfdd643981fc9ad1593195, type: 3}
+  _prefab: {fileID: 1209543301476556, guid: 953667ada6702494d8d9c1a11b7c9142, type: 3}
   _tint: {r: 1, g: 0.5, b: 0.1, a: 1}
   _baseHealth: 120
   _baseLuck: 5
@@ -32,3 +32,10 @@ MonoBehaviour:
   _apexTalents:
   - {fileID: 11400000, guid: 3acc5d086b54e424c83842f05b706acc, type: 2}
   - {fileID: 11400000, guid: b36411f827c50fd46859190a6eb73bb7, type: 2}
+  _ultimateCastOverlay:
+    _sprite: {fileID: 0}
+    _tint: {r: 0.6, g: 0.85, b: 1, a: 1}
+    _fadeInDuration: 0.1
+    _holdDuration: 0.3
+    _fadeOutDuration: 0.1
+    _maxOpacity: 0.35
