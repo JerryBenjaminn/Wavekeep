@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ca262ce2c57035540b0079d34687360f, type: 3}
   m_Name: LootTable_Regular
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.LootTableSO
-  _dropChance: 0.028
+  _dropChance: 0.038
   _entries:
   - _item: {fileID: 11400000, guid: c117d08b2e51e994bb5bfb211c6c6998, type: 2}
     _weight: 12

@@ -9,22 +9,31 @@ using Wavekeep.Gear;
 namespace Wavekeep.Runtime
 {
     /// <summary>
-    /// Debug stand-in for the real loot/hub flow (Task 13/14), mirroring how Task 04 granted upgrades by
-    /// key before the card picker existed. Provides keyboard triggers to grant sample gear, equip/unequip
-    /// it on the active hero, and inspect state — enough to verify the full data/equip/persistence/stat
-    /// pipeline. Drives nothing in normal play; gated behind <see cref="_enableDebugKeys"/>.
+    /// Debug stand-in for the real loot/hub flow (Task 13/14), updated for the Task 67 instance model. Provides
+    /// keyboard triggers to SPAWN a test <see cref="GearInstance"/>, equip/unequip it on the active hero, and
+    /// inspect state — enough to verify the full data/equip/persistence/stat pipeline. Drives nothing in normal
+    /// play; gated behind <see cref="_enableDebugKeys"/>.
     ///
-    /// Keys: G = grant a random sample item; J = equip the first owned item on the active hero; L =
-    /// unequip everything back to inventory; K = log inventory + loadout + the basic ability's
-    /// gear-inclusive effective damage (proving stats flow through the AbilityRuntime pipeline).
-    /// (K, not I: Task 36 bound I to hero 2's manual ultimate.)
+    /// Keys: G = spawn a random debug instance (random base + rarity, affixes rolled at their midpoint — this is
+    /// a MINIMAL debug spawn, NOT the real weighted drop generation, which is a later task); J = equip the first
+    /// owned instance on the active hero; L = unequip everything; K = log inventory + loadout + the basic
+    /// ability's gear-inclusive effective damage (proving stats flow through the unchanged AbilityRuntime pipeline).
     /// </summary>
     [AddComponentMenu("Wavekeep/Debug/Gear Debug Controller")]
     public sealed class GearDebugController : MonoBehaviour
     {
         [SerializeField] private bool _enableDebugKeys = true;
         [SerializeField] private GameSessionBootstrap _bootstrap;
-        [Tooltip("Sample gear/artifact items the G key grants from (authored by the Task 12 setup).")]
+
+        [Header("Task 67 — instance spawn")]
+        [Tooltip("Gear bases the G key spawns instances from (authored by the Task 67 setup).")]
+        [SerializeField] private List<GearBaseSO> _debugBases = new List<GearBaseSO>();
+        [Tooltip("Affix-count config + shared pool used to roll the spawned instance's affixes (Task 67 setup).")]
+        [SerializeField] private GearAffixCountConfigSO _affixConfig;
+
+        [Header("Legacy (Task 12) — retained for older setup wiring; granted via the temporary drop bridge")]
+        [Tooltip("Legacy finished items. DEAD as an ownership source (see GearCatalogSO); kept so older setup " +
+                 "scripts that wire this field don't break, and so G can still grant something if no bases are wired.")]
         [SerializeField] private List<LootItemSO> _sampleItems = new List<LootItemSO>();
 
         private EventBus _events;
@@ -66,20 +75,64 @@ namespace Wavekeep.Runtime
 
         private void GrantRandom()
         {
-            if (_sampleItems.Count == 0) { Debug.LogWarning("[GearDebugController] No sample items wired."); return; }
-            var item = _sampleItems[Random.Range(0, _sampleItems.Count)];
-            if (item == null) return;
-            _gear.Grant(item);
-            Debug.Log($"[GearDebugController] Granted '{item.ItemName}' ({item.Rarity}, slot {item.Slot}). Saved.");
+            var instance = BuildDebugInstance();
+            if (instance != null)
+            {
+                _gear.Grant(instance);
+                Debug.Log($"[GearDebugController] Spawned '{instance.ItemName}' (slot {instance.Slot}, " +
+                          $"{instance.Affixes.Count} affix(es)). Saved.");
+                return;
+            }
+
+            // Fallback: no bases wired → grant a legacy sample through the temporary drop bridge so G still works.
+            if (_sampleItems.Count > 0)
+            {
+                var legacy = _sampleItems[Random.Range(0, _sampleItems.Count)];
+                if (legacy != null) { _gear.Grant(legacy); Debug.Log($"[GearDebugController] Granted legacy '{legacy.ItemName}' via bridge."); }
+                return;
+            }
+
+            Debug.LogWarning("[GearDebugController] No debug bases or sample items wired — nothing to spawn.");
+        }
+
+        // Minimal debug instance assembly (NOT the real generation): random base, random rarity (Common..Legendary;
+        // Unique is hand-authored, never debug-rolled), and affix-count distinct affixes from the eligible pool at
+        // their midpoint value.
+        private GearInstance BuildDebugInstance()
+        {
+            if (_debugBases == null || _debugBases.Count == 0) return null;
+            var baseTemplate = _debugBases[Random.Range(0, _debugBases.Count)];
+            if (baseTemplate == null) return null;
+
+            var rarity = (Rarity)Random.Range(0, (int)Rarity.Legendary + 1);
+
+            var affixes = new List<RolledAffix>();
+            if (_affixConfig != null)
+            {
+                int count = _affixConfig.AffixCountFor(rarity);
+                var eligible = new List<AffixDefinitionSO>();
+                var pool = _affixConfig.AffixPool;
+                for (int i = 0; i < pool.Count; i++)
+                    if (pool[i] != null && pool[i].IsEligibleFor(baseTemplate.Slot)) eligible.Add(pool[i]);
+
+                for (int i = 0; i < count && eligible.Count > 0; i++)
+                {
+                    int idx = Random.Range(0, eligible.Count);
+                    var def = eligible[idx];
+                    eligible.RemoveAt(idx); // distinct affix types per item
+                    affixes.Add(new RolledAffix(def, def.MidValue));
+                }
+            }
+
+            return GearInstance.Create(baseTemplate, rarity, affixes);
         }
 
         private void EquipFirstOwned()
         {
             if (_activeHero == null) { Debug.LogWarning("[GearDebugController] No active hero yet (pick a hero first)."); return; }
 
-            LootItemSO first = null;
-            foreach (var pair in _gear.Inventory.Owned) { first = pair.Key; break; }
-            if (first == null) { Debug.LogWarning("[GearDebugController] Inventory empty — press G to grant first."); return; }
+            var first = _gear.Inventory.Count > 0 ? _gear.Inventory.Items[0] : null;
+            if (first == null) { Debug.LogWarning("[GearDebugController] Inventory empty — press G to spawn first."); return; }
 
             if (_gear.Equip(_activeHero, first))
             {
@@ -101,9 +154,7 @@ namespace Wavekeep.Runtime
 
         private void LogState()
         {
-            int distinct = 0;
-            foreach (var pair in _gear.Inventory.Owned) distinct += pair.Value;
-            Debug.Log($"[GearDebugController] Inventory: {distinct} owned item(s).");
+            Debug.Log($"[GearDebugController] Inventory: {_gear.Inventory.Count} owned instance(s). Dust: {_gear.SalvageDust}.");
 
             if (_activeHero == null) return;
 

@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Greater Whetstone
   _icon: {fileID: 0}
   _description: Permanent +30 ability damage. One per run.
-  _price: 40
+  _price: 150
   _stackable: 0
   _tier: 2
   _effectType: 0

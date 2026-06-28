@@ -4,39 +4,40 @@ using Wavekeep.Data;
 namespace Wavekeep.Gear
 {
     /// <summary>
-    /// One hero's equipped items, one per <see cref="GearSlot"/> (Task 12). A non-static plain C# class.
-    /// Pure slot state — inventory moves and persistence are orchestrated by <c>GearManager</c>; this
-    /// class only knows which item sits in each slot and the aggregated stat modifiers that result.
+    /// One hero's equipped items, one per <see cref="GearSlot"/> (Task 67: now <see cref="GearInstance"/>
+    /// references, not shared SOs). A non-static plain C# class. <see cref="Equip"/>/<see cref="Unequip"/> RETURN
+    /// the displaced instance (never destroy it), so the caller can return it to inventory.
     ///
-    /// <see cref="Equip"/>/<see cref="Unequip"/> RETURN the displaced item (never destroy it), so the
-    /// caller can return it to inventory. The aggregated <see cref="AggregatedModifiers"/> are rebuilt
-    /// on any change and fed to <c>AbilityRuntime</c>'s existing modifier pipeline (not a parallel path).
+    /// The aggregated <see cref="AggregatedModifiers"/> + <see cref="TotalLuckBonus"/> are rebuilt on any change
+    /// and fed to <c>AbilityRuntime</c>'s existing modifier pipeline. That CONTRACT is unchanged from Task 12 —
+    /// <c>HeroRuntime</c> still reads an <see cref="IReadOnlyList{StatModifier}"/> + a Luck float — so the combat
+    /// side needs no changes; only the per-slot storage moved from SO to instance.
     /// </summary>
     public sealed class HeroLoadout
     {
         private static readonly int SlotCount = System.Enum.GetValues(typeof(GearSlot)).Length;
 
-        private readonly LootItemSO[] _slots;
+        private readonly GearInstance[] _slots;
         private readonly List<StatModifier> _aggregated = new List<StatModifier>();
         private float _totalLuckBonus;
 
         public HeroLoadout()
         {
-            _slots = new LootItemSO[SlotCount];
+            _slots = new GearInstance[SlotCount];
         }
 
-        /// <summary>All stat modifiers from every equipped item, recomputed on change. Empty when bare.</summary>
+        /// <summary>All stat modifiers from every equipped instance, recomputed on change. Empty when bare.</summary>
         public IReadOnlyList<StatModifier> AggregatedModifiers => _aggregated;
 
-        /// <summary>Task 24: summed <see cref="LootItemSO.LuckBonus"/> across all equipped slots, recomputed on
-        /// change (not per-frame). Feeds the gear-derived portion of the hero's Luck via <c>HeroRuntime</c>.</summary>
+        /// <summary>Summed <see cref="GearInstance.LuckBonus"/> across all equipped slots, recomputed on change
+        /// (not per-frame). Feeds the gear-derived portion of the hero's Luck via <c>HeroRuntime</c>.</summary>
         public float TotalLuckBonus => _totalLuckBonus;
 
-        public LootItemSO GetEquipped(GearSlot slot) => _slots[(int)slot];
+        public GearInstance GetEquipped(GearSlot slot) => _slots[(int)slot];
 
-        /// <summary>Place <paramref name="item"/> in its own slot. Returns whatever was there before
-        /// (or null) so the caller can return it to inventory — never destroyed.</summary>
-        public LootItemSO Equip(LootItemSO item)
+        /// <summary>Place <paramref name="item"/> in its own slot. Returns whatever was there before (or null)
+        /// so the caller can return it to inventory — never destroyed.</summary>
+        public GearInstance Equip(GearInstance item)
         {
             if (item == null) return null;
 
@@ -47,8 +48,8 @@ namespace Wavekeep.Gear
             return previous;
         }
 
-        /// <summary>Clear a slot, returning the item that was there (or null).</summary>
-        public LootItemSO Unequip(GearSlot slot)
+        /// <summary>Clear a slot, returning the instance that was there (or null).</summary>
+        public GearInstance Unequip(GearSlot slot)
         {
             int index = (int)slot;
             var previous = _slots[index];
@@ -73,7 +74,7 @@ namespace Wavekeep.Gear
                 if (item == null) continue;
                 var mods = item.StatModifiers;
                 for (int m = 0; m < mods.Count; m++) _aggregated.Add(mods[m]);
-                _totalLuckBonus += item.LuckBonus; // Task 24: non-combat, kept separate from stat modifiers
+                _totalLuckBonus += item.LuckBonus;
             }
         }
     }

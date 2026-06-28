@@ -4,27 +4,36 @@ using System.Collections.Generic;
 namespace Wavekeep.Gear
 {
     /// <summary>
-    /// Plain serializable DTOs for the gear save file (Task 12). Designed for Unity's
-    /// <c>JsonUtility</c>: only fields, only [Serializable] types and Lists. Kept separate from the
-    /// runtime <c>GearInventory</c>/<c>HeroLoadout</c> so the on-disk shape can evolve independently.
-    ///
-    /// <see cref="SaveVersion"/> is the FIRST field so future migrations can branch on it without
-    /// breaking older saves (this is the project's first persistence format — keep it simple + versioned).
-    /// Items/heroes are stored as stable string ids, resolved back to SOs via the <c>GearCatalogSO</c>.
+    /// Plain serializable DTOs for the gear save file (Task 67 — format v2). v2 stores UNIQUE per-item instances
+    /// (instanceId + baseId + rarity + rolled affixes) instead of v1's stacked {itemId, count}, plus the
+    /// persistent Salvage Dust total (the salvage feature lands in a later task, but the field exists now).
+    /// <see cref="instances"/> holds EVERY instance the player owns (inventory + equipped); <see cref="loadouts"/>
+    /// reference equipped ones by instanceId. A save below the current version is WIPED on load — there is NO
+    /// v1→v2 converter, by design (see <c>GearManager.Load</c>).
     /// </summary>
     [Serializable]
     public sealed class GearSaveData
     {
         public int saveVersion;
-        public List<OwnedItemEntry> owned = new List<OwnedItemEntry>();
+        public int salvageDust;
+        public List<GearInstanceData> instances = new List<GearInstanceData>();
         public List<LoadoutEntry> loadouts = new List<LoadoutEntry>();
     }
 
     [Serializable]
-    public sealed class OwnedItemEntry
+    public sealed class GearInstanceData
     {
-        public string itemId;
-        public int count;
+        public string instanceId;
+        public string baseId;
+        public int rarity;                                       // (int)Rarity
+        public List<RolledAffixData> affixes = new List<RolledAffixData>();
+    }
+
+    [Serializable]
+    public sealed class RolledAffixData
+    {
+        public string affixId;
+        public float value;
     }
 
     [Serializable]
@@ -37,7 +46,7 @@ namespace Wavekeep.Gear
     [Serializable]
     public sealed class EquippedSlotEntry
     {
-        public string slot;   // GearSlot enum name
-        public string itemId; // the equipped item's id
+        public string slot;        // GearSlot enum name
+        public string instanceId;  // the equipped instance's id (resolved against GearSaveData.instances)
     }
 }

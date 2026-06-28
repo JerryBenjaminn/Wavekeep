@@ -15,8 +15,9 @@ MonoBehaviour:
   _displayName: Wall Repair Kit
   _icon: {fileID: 0}
   _description: Instantly restore 100 wall HP.
-  _price: 15
+  _price: 30
   _stackable: 1
+  _tier: 0
   _effectType: 2
   _effectValue: 100
   _duration: 0

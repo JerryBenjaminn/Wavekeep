@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Honed Elixir
   _icon: {fileID: 0}
   _description: Permanent +20 ability damage.
-  _price: 25
+  _price: 33
   _stackable: 1
   _tier: 1
   _effectType: 0

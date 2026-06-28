@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c1bea70fa50f76e4f8e1c56977f84561, type: 3}
+  m_Name: GearBase_Boots
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.GearBaseSO
+  _baseId: base_feet
+  _displayName: Boots
+  _icon: {fileID: 0}
+  _slot: 4
+  _implicitStat: 1
+  _implicitValueByRarity:
+  - 6
+  - 10
+  - 14
+  - 18
+  - 24
+  - 32

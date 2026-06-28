@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Basic Attack Damage Potion II
   _icon: {fileID: 0}
   _description: +10 basic attack damage (permanent).
-  _price: 30
+  _price: 48
   _stackable: 1
   _tier: 1
   _effectType: 9

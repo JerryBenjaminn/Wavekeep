@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Blast Radius Potion II
   _icon: {fileID: 0}
   _description: +2m ability AoE/blast radius (permanent).
-  _price: 28
+  _price: 47
   _stackable: 1
   _tier: 1
   _effectType: 11

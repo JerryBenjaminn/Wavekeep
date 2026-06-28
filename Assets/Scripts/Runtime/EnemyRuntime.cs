@@ -161,6 +161,14 @@ namespace Wavekeep.Runtime
         // release. A driver WITHOUT a usable Animator is treated as null so those paths stay unchanged.
         private EnemyAnimationDriver _animDriver;
 
+        // Task 65: the shared run pause signal (Task 28's PauseState — the SAME instance that gates enemy
+        // MOVEMENT in WaveSpawner.Update and the shop intermission). Injected so the animation-driven attack
+        // path can also honour the pause: the Attack↔AttackRecovery loop self-sustains via Animator exit-time
+        // transitions and fires OnAttackImpactFrame outside the (paused) Tick, so without this check an enemy
+        // already at the wall kept damaging it during the level-up/shop pause. Null for unanimated enemies'
+        // tests / legacy callers — their attack is timer-driven inside Tick, which is already pause-gated.
+        private PauseState _pauseState;
+
         public EnemyDefinitionSO Definition { get; private set; }
         public GameObject GameObject { get; private set; }
         public Transform Transform { get; private set; }
@@ -198,11 +206,13 @@ namespace Wavekeep.Runtime
             float attackInterval,
             Action<EnemyRuntime> onResolved,
             LootTableSO lootTable = null,
-            ComboApexState comboApex = null)
+            ComboApexState comboApex = null,
+            PauseState pauseState = null)
         {
             Definition = definition;
             GameObject = pooledInstance;
             Transform = pooledInstance.transform;
+            _pauseState = pauseState; // Task 65: gate the animation-driven wall attack on the shared pause signal
             _wall = wall;
             _events = events;
             _comboApex = comboApex; // Task 50 (Frostburn): run combo resolver for per-tick Burn amp under Frost CC
@@ -865,8 +875,25 @@ namespace Wavekeep.Runtime
         // impact-frame Animation Event (OnAttackImpactFrame → driver → here). Decouples "attack started" (trigger)
         // from "weapon lands" (this). Guarded so a queued impact event can't damage the wall once the enemy has
         // started dying, has resolved, has left the attack state, or after the wall is already destroyed.
+        /// <summary>Task 65 follow-up: forward the shared gameplay pause to this enemy's Animator (visual freeze),
+        /// so a paused enemy stops its walk/attack animation instead of animating with no effect. Called by
+        /// <c>WaveSpawner</c> on each pause transition for every active enemy (enemies have no Update of their own,
+        /// CLAUDE.md §3.4). No-op for unanimated enemies. Wall damage is separately gated in
+        /// <see cref="ApplyWallAttackDamage"/>, so the freeze is purely cosmetic.</summary>
+        public void SetAnimatorPaused(bool paused)
+        {
+            _animDriver?.SetPaused(paused);
+        }
+
         private void ApplyWallAttackDamage()
         {
+            // Task 65: honour the shared pause (level-up card pick / shop intermission). The Attack animation
+            // keeps looping while paused (matching how an approaching enemy's walk animation keeps playing —
+            // only its POSITION is frozen by the paused Tick), but an impact frame that lands during the pause
+            // must NOT damage the wall. Checked at the moment of impact, so a swing already mid-animation when
+            // the pause begins deals nothing if its impact frame fires after the freeze, and damage simply
+            // resumes on the next impact once unpaused — no skipped/doubled hits, no stuck state.
+            if (_pauseState != null && _pauseState.IsPaused) return;
             if (_isResolved || _isDying || !_isAttacking) return;
             if (_wall == null || _wall.IsDestroyed) return;
             _wall.TakeDamage(ContactDamage);

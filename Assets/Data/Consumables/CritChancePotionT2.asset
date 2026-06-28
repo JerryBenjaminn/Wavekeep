@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Crit Chance Potion II
   _icon: {fileID: 0}
   _description: +10% crit chance (permanent).
-  _price: 30
+  _price: 42
   _stackable: 1
   _tier: 1
   _effectType: 4

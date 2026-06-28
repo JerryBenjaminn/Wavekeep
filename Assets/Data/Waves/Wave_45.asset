@@ -17,5 +17,5 @@ MonoBehaviour:
   - _enemyType: {fileID: 11400000, guid: a3a96c80d1740c2408844a635fed86cb, type: 2}
     _count: 32
     _spawnInterval: 0.25
-  _statMultiplier: 3.2
+  _statMultiplier: 5.5
   _bossLootTable: {fileID: 11400000, guid: ef5947d3fd4ee53438975d71725fbc8c, type: 2}

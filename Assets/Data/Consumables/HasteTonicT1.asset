@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Brisk Tonic
   _icon: {fileID: 0}
   _description: "Permanent ability cooldown \xD70.85."
-  _price: 12
+  _price: 42
   _stackable: 1
   _tier: 0
   _effectType: 1

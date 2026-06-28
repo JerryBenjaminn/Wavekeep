@@ -65,6 +65,7 @@ namespace Wavekeep.Waves
         private bool _runEnded;
         private bool _awaitingContinue;
         private int _currentWaveNumber;
+        private bool _animatorsFrozen; // Task 65 follow-up: tracks the last-applied enemy-Animator pause state
 
         /// <summary>1-based number of the wave currently in progress (or last reached). 0 before the run
         /// starts. Surfaced for the Task 08 end screen's minimal stats.</summary>
@@ -152,7 +153,22 @@ namespace Wavekeep.Waves
 
             // Task 07: freeze the whole active-enemy simulation (movement + wall attacks + debug kill)
             // while the level-up card picker is up. Spawning is frozen separately in SpawnWaveRoutine.
-            if (_pause != null && _pause.IsPaused) return;
+            bool paused = _pause != null && _pause.IsPaused;
+
+            // Task 65 follow-up: on each pause transition, freeze/unfreeze every active enemy's Animator so the
+            // world visibly stops during the level-up/shop pause — an enemy at the wall halts mid-swing instead
+            // of animating harmlessly (which read as "the wall is still being attacked"), and approaching enemies
+            // stop their walk cycle. Centralised here because enemies have no Update of their own (CLAUDE.md §3.4).
+            // Only fires on the edge, not every frame. Wall damage is independently gated in EnemyRuntime, and no
+            // enemy is added mid-pause (spawning is pause-gated in SpawnWaveRoutine), so this set stays complete.
+            if (paused != _animatorsFrozen)
+            {
+                _animatorsFrozen = paused;
+                for (int i = 0; i < _activeEnemies.Count; i++)
+                    _activeEnemies[i].SetAnimatorPaused(paused);
+            }
+
+            if (paused) return;
 
             // Single centralised tick for all active enemies (CLAUDE.md §3.4). Iterate backwards:
             // an enemy dying mid-tick removes itself from the list via the callback. An enemy's
@@ -344,7 +360,7 @@ namespace Wavekeep.Waves
 
             var enemy = new EnemyRuntime();
             enemy.Initialize(definition, instance, multiplier, _wall, _events, _arrivalThreshold, _attackInterval,
-                OnEnemyResolved, lootTable, _comboApex);
+                OnEnemyResolved, lootTable, _comboApex, _pause); // Task 65: gate animated wall attacks on the shared pause
             _activeEnemies.Add(enemy);
 
             Debug.Log($"[WaveSpawner] Spawned '{definition.EnemyName}' mult={multiplier:0.00} maxHP={enemy.MaxHealth:0.0}");

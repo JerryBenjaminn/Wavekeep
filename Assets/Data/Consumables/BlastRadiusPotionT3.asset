@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Blast Radius Potion III
   _icon: {fileID: 0}
   _description: +3m ability AoE/blast radius (permanent).
-  _price: 45
+  _price: 62
   _stackable: 1
   _tier: 2
   _effectType: 11

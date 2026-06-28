@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Swift Tonic
   _icon: {fileID: 0}
   _description: "Permanent ability cooldown \xD70.7."
-  _price: 20
+  _price: 70
   _stackable: 1
   _tier: 1
   _effectType: 1

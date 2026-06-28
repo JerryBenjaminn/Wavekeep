@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Reroll Potion II
   _icon: {fileID: 0}
   _description: +2 reroll points.
-  _price: 20
+  _price: 40
   _stackable: 1
   _tier: 1
   _effectType: 3

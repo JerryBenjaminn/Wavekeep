@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Reroll Potion III
   _icon: {fileID: 0}
   _description: +3 reroll points.
-  _price: 35
+  _price: 50
   _stackable: 1
   _tier: 2
   _effectType: 3

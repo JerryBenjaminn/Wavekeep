@@ -150,6 +150,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Runtime.GearDebugController
   _enableDebugKeys: 1
   _bootstrap: {fileID: 1169181627}
+  _debugBases:
+  - {fileID: 11400000, guid: 321bdf2bbf37f8046bd819c1e5b51122, type: 2}
+  - {fileID: 11400000, guid: f458e21fc5c411e4babec5687b30340d, type: 2}
+  - {fileID: 11400000, guid: 55486395d48e0ae409a0266012612513, type: 2}
+  - {fileID: 11400000, guid: a28c562de18ad8e49be3a8224516cd30, type: 2}
+  - {fileID: 11400000, guid: 795bc61cc780f554c9c48d8dc9399760, type: 2}
+  - {fileID: 11400000, guid: f36588a9c1b72dc44bc822fa08064717, type: 2}
+  _affixConfig: {fileID: 11400000, guid: 8f0d810bafea3f84e9f1d3d9d62cebd9, type: 2}
   _sampleItems:
   - {fileID: 11400000, guid: 2bc3009e7c7fd614196e4f2aec360d13, type: 2}
   - {fileID: 11400000, guid: 09b972e1d36b7bb41ab7e8309e2ac502, type: 2}

@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Ultimate Duration Potion III
   _icon: {fileID: 0}
   _description: +6s ultimate zone duration (permanent).
-  _price: 45
+  _price: 64
   _stackable: 1
   _tier: 2
   _effectType: 8

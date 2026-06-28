@@ -15,7 +15,7 @@ MonoBehaviour:
   _displayName: Crit Damage Potion III
   _icon: {fileID: 0}
   _description: +60% crit damage (permanent).
-  _price: 45
+  _price: 64
   _stackable: 1
   _tier: 2
   _effectType: 5

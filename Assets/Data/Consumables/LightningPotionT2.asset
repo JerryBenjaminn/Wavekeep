@@ -16,7 +16,7 @@ MonoBehaviour:
   _icon: {fileID: 0}
   _description: "+8 ability damage (Lightning \u2014 placeholder until a Lightning
     hero exists)."
-  _price: 30
+  _price: 48
   _stackable: 1
   _tier: 1
   _effectType: 7

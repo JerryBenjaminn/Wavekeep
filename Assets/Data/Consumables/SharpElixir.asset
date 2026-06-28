@@ -15,8 +15,9 @@ MonoBehaviour:
   _displayName: Sharp Elixir
   _icon: {fileID: 0}
   _description: Permanent +10 ability damage.
-  _price: 10
+  _price: 50
   _stackable: 1
+  _tier: 0
   _effectType: 0
   _effectValue: 10
   _duration: 0

@@ -87,10 +87,22 @@ namespace Wavekeep.Runtime
             _onDeathComplete = null;
 
             if (_animator == null) return;
+            _animator.speed = 1f; // Task 65 follow-up: clear any pause-freeze so a recycled enemy never spawns frozen
             _animator.ResetTrigger(AttackTrigger);
             _animator.ResetTrigger(DieTrigger);
             _animator.Play(RunStateName, 0, 0f);
             _animator.Update(0f); // apply immediately so the first visible frame is Run, not the recycled pose
+        }
+
+        /// <summary>Task 65 follow-up: freeze (or resume) the whole Animator for the shared gameplay pause, so an
+        /// enemy at the wall visibly stops mid-swing and approaching enemies stop their walk cycle — instead of
+        /// animating with no effect, which read to players as "the wall is still being attacked". Purely visual:
+        /// wall damage is independently gated in <see cref="EnemyRuntime"/>. No-op without an Animator; speed is
+        /// restored to 1 here on resume and also on pooled reuse (see <see cref="ResetForPooling"/>).</summary>
+        public void SetPaused(bool paused)
+        {
+            if (_animator == null) return;
+            _animator.speed = paused ? 0f : 1f;
         }
 
         /// <summary>Fire the Attack trigger ONCE on wall arrival (§2.2). The Attack→AttackRecovery→Attack loop is

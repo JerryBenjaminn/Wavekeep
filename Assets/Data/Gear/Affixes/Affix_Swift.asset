@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d239ef30f1a98904f89d0001e5870b14, type: 3}
+  m_Name: Affix_Swift
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.AffixDefinitionSO
+  _affixId: affix_swift
+  _displayName: Swift
+  _effect:
+    _kind: 0
+    _stat: 2
+  _minValue: 0.8
+  _maxValue: 0.95
+  _eligibleSlots: 
+  _drawWeight: 6
+  _hasTag: 0
+  _tag: 0

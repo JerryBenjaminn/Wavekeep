@@ -76,7 +76,8 @@ namespace Wavekeep.UI
 
         // Task 25: the item currently shown in the detail panel (null = panel closed). Clicking this same
         // item again toggles the panel closed; clicking a different item re-targets the panel.
-        private LootItemSO _selectedItem;
+        // Task 67: now a unique GearInstance (identity by reference), not a shared SO.
+        private GearInstance _selectedItem;
         private TooltipPresenter _tooltip;
 
         // Task 26: how the current selection was opened. true = clicked an equipped slot (an already-equipped
@@ -262,7 +263,7 @@ namespace Wavekeep.UI
             }
         }
 
-        private void BuildSlotRow(GearSlot slot, LootItemSO equipped)
+        private void BuildSlotRow(GearSlot slot, GearInstance equipped)
         {
             var row = CreateRow(_slotContainer, new Vector2(560f, 44f));
 
@@ -312,14 +313,13 @@ namespace Wavekeep.UI
             if (_equipPickerTitle != null) _equipPickerTitle.text = $"Equip — {slot}";
 
             bool any = false;
-            foreach (var pair in _gear.Inventory.Owned)
+            foreach (var item in _gear.Inventory.Items)
             {
-                var item = pair.Key;
                 if (item == null || item.Slot != slot) continue; // valid-for-slot filter
                 any = true;
 
                 var capturedItem = item;
-                string label = $"<color=#{RarityHex(item.Rarity)}>[{item.Rarity}]</color> {item.ItemName} ×{pair.Value}";
+                string label = $"<color=#{RarityHex(item.Rarity)}>[{item.Rarity}]</color> {item.ItemName}";
                 CreateButton(_equipPickerContainer, label, new Color(0.18f, 0.18f, 0.24f), Color.white,
                     new Vector2(420f, 40f), () => OnEquipFromPicker(slot, capturedItem));
             }
@@ -332,7 +332,7 @@ namespace Wavekeep.UI
             _equipPickerPanel.SetActive(true);
         }
 
-        private void OnEquipFromPicker(GearSlot slot, LootItemSO item)
+        private void OnEquipFromPicker(GearSlot slot, GearInstance item)
         {
             // Task 12 path: consumes from inventory, returns any displaced item, persists. The item's own
             // Slot decides placement (== the slot we filtered by), so no extra validation is needed.
@@ -357,13 +357,14 @@ namespace Wavekeep.UI
             if (_inventoryContainer == null) return;
             ClearChildren(_inventoryContainer);
 
-            // Group/sort: by slot, then rarity (descending) — simple grouping per the task.
-            var items = new List<KeyValuePair<LootItemSO, int>>(_gear.Inventory.Owned);
+            // Group/sort: by slot, then rarity (descending) — simple grouping per the task. Task 67: each entry
+            // is now a unique instance (no stack counts).
+            var items = new List<GearInstance>(_gear.Inventory.Items);
             items.Sort((a, b) =>
             {
-                int bySlot = ((int)a.Key.Slot).CompareTo((int)b.Key.Slot);
+                int bySlot = ((int)a.Slot).CompareTo((int)b.Slot);
                 if (bySlot != 0) return bySlot;
-                return ((int)b.Key.Rarity).CompareTo((int)a.Key.Rarity);
+                return ((int)b.Rarity).CompareTo((int)a.Rarity);
             });
 
             if (items.Count == 0)
@@ -374,9 +375,9 @@ namespace Wavekeep.UI
 
             for (int i = 0; i < items.Count; i++)
             {
-                var item = items[i].Key;
+                var item = items[i];
                 string text = $"<color=#{RarityHex(item.Rarity)}>[{item.Rarity}]</color> {item.ItemName} " +
-                              $"<size=80%>({item.Slot})</size> ×{items[i].Value}";
+                              $"<size=80%>({item.Slot})</size>";
                 // Task 25/26: clicking an inventory item opens its detail panel (Equip available there).
                 // fromSlot=false → the panel compares it against the slot's currently equipped item.
                 var captured = item;
@@ -386,7 +387,7 @@ namespace Wavekeep.UI
 
         // --- Gear detail panel (Task 25) ----------------------------------------------------------
 
-        private void OnItemClicked(LootItemSO item, bool fromSlot)
+        private void OnItemClicked(GearInstance item, bool fromSlot)
         {
             if (item == null) return;
             // Toggle: clicking the already-selected item from the same source again closes the panel.
@@ -458,7 +459,7 @@ namespace Wavekeep.UI
             var equippedStats = new Dictionary<int, float>();
             if (compare)
             {
-                LootItemSO equipped = _activeHero != null
+                GearInstance equipped = _activeHero != null
                     ? _gear.GetLoadout(_activeHero).GetEquipped(_selectedItem.Slot) : null;
                 if (equipped == _selectedItem) compare = false; // owned-and-equipped duplicate → nothing to compare
                 else CollectStats(equipped, equippedStats); // equipped == null → empty → zero baseline (criterion 3)
@@ -489,7 +490,7 @@ namespace Wavekeep.UI
 
         // Single stat-access path (reused by the plain list AND the comparison) — reads StatModifiers +
         // luckBonus straight off the SO, summing any duplicate-typed modifiers into one comparable value.
-        private static void CollectStats(LootItemSO item, Dictionary<int, float> dest)
+        private static void CollectStats(GearInstance item, Dictionary<int, float> dest)
         {
             if (item == null) return;
             var mods = item.StatModifiers;
@@ -561,7 +562,7 @@ namespace Wavekeep.UI
             if (_selectedItem == null) return;
             var loadout = _activeHero != null ? _gear.GetLoadout(_activeHero) : null;
             bool equippedOnHero = loadout != null && loadout.GetEquipped(_selectedItem.Slot) == _selectedItem;
-            bool ownsUnequipped = _gear.Inventory.CountOf(_selectedItem) > 0;
+            bool ownsUnequipped = _gear.Inventory.Contains(_selectedItem);
 
             if (_detailEquipButton != null) _detailEquipButton.interactable = ownsUnequipped;
             if (_detailUnequipButton != null) _detailUnequipButton.interactable = equippedOnHero;
