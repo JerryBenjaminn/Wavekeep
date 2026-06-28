@@ -171,9 +171,13 @@ namespace Wavekeep.Runtime
         public float MoveSpeed { get; private set; }
         public float ContactDamage { get; private set; }
 
-        // Task 34: defensive stats, scaled by the same wave/difficulty multiplier as HP/contact damage.
-        // Armor mitigates Physical damage, MagicResist mitigates Magical damage (see EffectiveArmor /
-        // the mitigation step in AbilityRuntime). 0 = no mitigation (full damage), preserving old behaviour.
+        // Task 34: defensive stats. Armor mitigates Physical damage, MagicResist mitigates Magical damage
+        // (see EffectiveArmor / the mitigation step in AbilityRuntime). 0 = no mitigation (full damage).
+        // Task 64 follow-up: these are taken at BASE value and NOT scaled by the wave multiplier — in the
+        // 100/(100+def) model, scaling defence double-dips against the player's growing damage (the same
+        // compounding class Task 64 fixed for contact damage), which made EvilGod ~54 MagicResist at wave 5,
+        // a hidden ~35% tax on every Magical hero. Flat defence keeps a CONSTANT mitigation %, so a boss's
+        // "tank" identity comes from its (still-scaling) HP, not from progressively hard-countering a damage type.
         public float Armor { get; private set; }
         public float MagicResist { get; private set; }
 
@@ -222,8 +226,8 @@ namespace Wavekeep.Runtime
             CurrentHealth = MaxHealth;
             ContactDamage = definition.ContactDamage * statMultiplier;
             MoveSpeed = definition.MoveSpeed;
-            Armor = definition.Armor * statMultiplier;       // Task 34: scales like HP
-            MagicResist = definition.MagicResist * statMultiplier;
+            Armor = definition.Armor;             // Task 64 follow-up: base value, NOT wave-scaled (see Armor docs)
+            MagicResist = definition.MagicResist; // → constant mitigation %, no double-dip vs growing player damage
 
             // Task 44: ensure a Frost VFX driver exists on this pooled GameObject (added once, reused after),
             // and reset it to a clean state so a previously-frozen enemy doesn't spawn back showing frost.

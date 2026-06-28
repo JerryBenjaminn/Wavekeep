@@ -18,6 +18,6 @@ MonoBehaviour:
   _rarity: 1
   _statModifiers:
   - _modifierType: 1
-    _value: 10
+    _value: 12
   _luckBonus: 2
   _slot: 4

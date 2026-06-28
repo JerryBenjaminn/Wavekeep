@@ -10,9 +10,13 @@ namespace Wavekeep.Economy
     ///
     /// Subscribes to <see cref="EnemyKilledEvent"/> and adds the dead enemy's <c>XpReward</c>
     /// (read from the <see cref="Wavekeep.Data.EnemyDefinitionSO"/>, never written). The per-level
-    /// threshold follows a simple configurable curve: <c>threshold(level) = baseXP + level*increment</c>.
-    /// <c>baseXP</c>/<c>increment</c> are injected (serialized on the bootstrap) — not hardcoded
-    /// magic numbers — so they're easy to tune.
+    /// threshold follows a configurable quadratic curve (Task 63):
+    /// <c>threshold(level) = baseXP + level*increment + quadratic*level²</c>.
+    /// <c>baseXP</c>/<c>increment</c>/<c>quadratic</c> are injected (serialized on the bootstrap) —
+    /// not hardcoded magic numbers — so they're easy to tune. The quadratic term keeps early levels
+    /// quick while preventing the player from blowing through 6+ levels in a single early wave
+    /// (the linear curve front-loaded progression — Task 61 audit). Setting quadratic to 0 reduces
+    /// it back to the original linear curve.
     ///
     /// A single XP gain may cross several thresholds at once: the level-up loop runs until the
     /// remaining XP is below the current threshold, carrying the remainder over (never discarded)
@@ -23,6 +27,7 @@ namespace Wavekeep.Economy
         private readonly EventBus _events;
         private readonly int _baseXP;
         private readonly int _increment;
+        private readonly int _quadratic;
 
         public int CurrentLevel { get; private set; } = 1;
 
@@ -32,11 +37,12 @@ namespace Wavekeep.Economy
         /// <summary>XP required to advance from the current level to the next.</summary>
         public int XPToNextLevel { get; private set; }
 
-        public XPManager(EventBus events, int baseXP, int increment)
+        public XPManager(EventBus events, int baseXP, int increment, int quadratic = 0)
         {
             _events = events;
             _baseXP = baseXP;
             _increment = increment;
+            _quadratic = quadratic;
             XPToNextLevel = ComputeThreshold(CurrentLevel);
             _events.Subscribe<EnemyKilledEvent>(OnEnemyKilled);
         }
@@ -64,7 +70,10 @@ namespace Wavekeep.Economy
         }
 
         // Guarded to at least 1 so a misconfigured curve (e.g. 0/negative) can't cause an infinite loop.
-        private int ComputeThreshold(int level) => Math.Max(1, _baseXP + level * _increment);
+        // Task 63: quadratic term (quadratic*level²) flattens early front-loading without slowing the
+        // first couple of levels noticeably. quadratic=0 → original linear curve.
+        private int ComputeThreshold(int level) =>
+            Math.Max(1, _baseXP + level * _increment + _quadratic * level * level);
 
         public void Dispose()
         {

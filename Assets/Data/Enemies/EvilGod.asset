@@ -16,10 +16,10 @@ MonoBehaviour:
   _prefab: {fileID: 1870912557112684, guid: fc469b2d4ae90f6408eedaaa707d812f, type: 3}
   _spawnGroundOffset: 0
   _maxHealth: 200
-  _moveSpeed: 2.5
-  _contactDamage: 5
+  _moveSpeed: 1.6
+  _contactDamage: 15
   _armor: 30
   _magicResist: 30
-  _currencyReward: 5
+  _currencyReward: 50
   _xpReward: 50
   _lootTable: {fileID: 11400000, guid: 4a445aef7a20b4f4382697a5bcd2f5ef, type: 2}

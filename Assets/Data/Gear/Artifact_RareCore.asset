@@ -18,5 +18,5 @@ MonoBehaviour:
   _rarity: 2
   _statModifiers:
   - _modifierType: 0
-    _value: 1.35
+    _value: 1.45
   _luckBonus: 3

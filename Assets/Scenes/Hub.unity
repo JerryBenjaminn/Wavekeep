@@ -1854,6 +1854,7 @@ MonoBehaviour:
   _inputModeOverride: 0
   _xpBaseAmount: 10
   _xpIncrementPerLevel: 5
+  _xpQuadraticPerLevel: 2
   _startingRerollPoints: 3
   _gearCatalog: {fileID: 11400000, guid: 9b4b153f377a3b3408fae0cce4d14410, type: 2}
   _tierWeightingConfig: {fileID: 0}

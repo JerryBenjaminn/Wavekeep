@@ -13,7 +13,6 @@ MonoBehaviour:
   m_Name: TalentCatalog
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.TalentCatalogSO
   _apexTalents:
-  - {fileID: 11400000, guid: f31b532cfe9a4ad4692b5b16f1feea0a, type: 2}
   - {fileID: 11400000, guid: 641920b5a678a1a448cdd9fba7824f90, type: 2}
   - {fileID: 11400000, guid: 3ccbf9b989c42204298917dcfa903a52, type: 2}
   - {fileID: 11400000, guid: 7239abcaf1fb0ab428a844a635d69443, type: 2}

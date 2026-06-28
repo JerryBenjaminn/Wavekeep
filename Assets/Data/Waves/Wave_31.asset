@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9e8fe1f4bc1e4df4eb320e4816b96300, type: 3}
+  m_Name: Wave_31
+  m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.WaveConfigSO
+  _waveNumber: 31
+  _spawnEntries:
+  - _enemyType: {fileID: 11400000, guid: a3a96c80d1740c2408844a635fed86cb, type: 2}
+    _count: 49
+    _spawnInterval: 0.32
+  _statMultiplier: 2.5
+  _bossLootTable: {fileID: 0}
