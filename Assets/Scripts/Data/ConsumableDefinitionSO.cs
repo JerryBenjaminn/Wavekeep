@@ -31,6 +31,9 @@ namespace Wavekeep.Data
         [SerializeField] private float _effectValue;
         [Tooltip("Seconds the effect lasts. <= 0 means permanent for the run; instant effects ignore this.")]
         [SerializeField] private float _duration;
+        [Tooltip("Task 80: for ARENA-ZONE effects (Tar Field / Glacial Choke), the band DEPTH in metres along the " +
+                 "enemy approach axis. Ignored by wall effects and by Flash Freeze (which covers the whole arena).")]
+        [SerializeField, Min(0f)] private float _areaExtent;
 
         public string DisplayName => _displayName;
         public Sprite Icon => _icon;
@@ -41,6 +44,8 @@ namespace Wavekeep.Data
         public ConsumableEffectType EffectType => _effectType;
         public float EffectValue => _effectValue;
         public float Duration => _duration;
+        /// <summary>Task 80: band depth (metres) for arena-zone effects; ignored by other effect types.</summary>
+        public float AreaExtent => _areaExtent;
 
         /// <summary>True when this effect persists for the whole run rather than expiring on a timer.</summary>
         public bool IsPermanent => _duration <= 0f;

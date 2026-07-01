@@ -62,6 +62,35 @@ namespace Wavekeep.Data
         /// <summary>Adds a FLAT bonus to every hero ability's AoE/blast radius (value in metres). The migrated
         /// generic "AoE radius / burst" upgrade. Aggregated by ConsumableInventory and added to the resolved
         /// radius in AbilityRuntime's existing ComputeStats pipeline — no parallel path.</summary>
-        AoeRadiusBoost
+        AoeRadiusBoost,
+
+        // --- Task 80 (utility-only shop redesign) -------------------------------------------------
+        // The shop is now a boss-death "pick one free" utility reward. These effects act on the WALL or the
+        // ARENA (via WallRuntime / the existing GroundZoneManager + status-effect system), never on hero stats.
+        // The legacy stat/luck/reroll values above are retained in the enum only so old code compiles; no shop
+        // asset references them anymore (all removed in Task 80).
+
+        /// <summary>Reinforced Barricade: the wall takes (1 − value) of incoming damage for <c>Duration</c> seconds,
+        /// applied at the start of the next wave via <c>WallRuntime.SetDamageReduction</c>. Value is the reduction
+        /// fraction [0..1].</summary>
+        WallDamageReduction,
+
+        /// <summary>Aegis Shield: grants the wall a temporary absorb buffer (value HP) that soaks hits before wall
+        /// HP for <c>Duration</c> seconds, via <c>WallRuntime.AddShield</c>. Applied at the next wave's start.</summary>
+        WallShield,
+
+        /// <summary>Tar Field: spawns a persistent SLOW GroundZone across the approach lane for the next wave
+        /// (value = slow fraction [0..1], Duration = zone lifetime, AreaExtent = band depth in metres). Reuses the
+        /// existing GroundZone/GroundZoneManager Slow path — no parallel arena system.</summary>
+        ArenaSlowZone,
+
+        /// <summary>Glacial Choke: spawns a FREEZE GroundZone near the wall for the next wave (Duration = lifetime,
+        /// AreaExtent = band depth). Freeze = movement→0 (the de-facto stun). Reuses GroundZone with the status
+        /// type set to Freeze.</summary>
+        ArenaFreezeZone,
+
+        /// <summary>Flash Freeze: a one-time full-arena FREEZE for a short fixed <c>Duration</c> at the start of the
+        /// next wave (implemented as a short-lived full-width Freeze GroundZone), then thaws.</summary>
+        FlashFreeze
     }
 }

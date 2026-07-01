@@ -1,104 +1,106 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Wavekeep.Core;
+using Wavekeep.Core.Events;
 using Wavekeep.Data;
 using Wavekeep.Runtime;
+using Wavekeep.Waves;
 
 namespace Wavekeep.Economy
 {
     /// <summary>
-    /// Between-wave shop purchase + offer logic (Task 06 §3, extended in Task 09). A non-static plain
-    /// C# class (no <c>Instance</c>), constructed by the shop UI from <c>GameSession</c> services plus
-    /// the scene's <see cref="WallRuntime"/>. Holds no UI — the UI renders <see cref="CurrentOffer"/>
-    /// and calls <see cref="TryPurchase"/> / <see cref="TryReroll"/>.
+    /// Boss-reward utility shop (Task 80 redesign). The old between-wave currency shop with stat-boosting
+    /// potions is gone: the shop now opens ONLY after a boss wave is cleared and offers a small OFFER of
+    /// UTILITY items from which the player picks exactly ONE, for FREE (no Currency, no reroll, no stacking).
     ///
-    /// Task 09 adds a per-visit OFFER: a fixed-size random subset (<see cref="_offerSize"/>, = Task 06's
-    /// display count) drawn from the full consumable pool, re-drawable via <see cref="TryReroll"/> at the
-    /// cost of one reroll point. Offer draw is uniform random across all tiers (tier-weighted probability
-    /// is a documented follow-up that hooks into the separate wave-scaling task). Generating a new offer
-    /// on shop open is FREE — only the explicit reroll spends a point, so opening the shop never resets
-    /// the reroll pool.
-    ///
-    /// Effect routing (Task 06 §2) goes through EXISTING systems, never a parallel path:
+    /// All effects act on the WALL or the ARENA, never on hero stats:
     /// <list type="bullet">
-    /// <item><see cref="ConsumableEffectType.FlatDamageBoost"/> / <see cref="ConsumableEffectType.CooldownReduction"/>
-    ///   are added to <see cref="ConsumableInventory"/>, read by <c>AbilityRuntime.ComputeStats</c>.</item>
-    /// <item><see cref="ConsumableEffectType.HealWall"/> calls <see cref="WallRuntime.Heal"/>.</item>
-    /// <item><see cref="ConsumableEffectType.GainRerollPoints"/> calls <see cref="RerollManager.Add"/> —
-    ///   the Reroll Potion is just another consumable on the same <see cref="TryPurchase"/> path.</item>
+    /// <item><see cref="ConsumableEffectType.HealWall"/> — instant <c>WallRuntime.Heal</c> on pick.</item>
+    /// <item><see cref="ConsumableEffectType.WallDamageReduction"/> / <see cref="ConsumableEffectType.WallShield"/>
+    ///   — armed on pick and applied at the START of the next wave (so their timers cover that wave rather than
+    ///   draining during the intermission), via <c>WallRuntime.SetDamageReduction</c> / <c>AddShield</c>.</item>
+    /// <item><see cref="ConsumableEffectType.ArenaSlowZone"/> / <see cref="ConsumableEffectType.ArenaFreezeZone"/> /
+    ///   <see cref="ConsumableEffectType.FlashFreeze"/> — armed on pick and spawned at the next wave's start into
+    ///   the WaveSpawner's <c>ArenaZones</c> (the EXISTING <c>GroundZoneManager</c>/<c>GroundZone</c> + status-effect
+    ///   system — no parallel arena path).</item>
     /// </list>
+    /// Arena/wall-buff picks are ARMED (applied on the next <see cref="WaveStartedEvent"/>) because the shop opens
+    /// during the between-wave intermission, when no enemies exist and the sim is paused; arming makes "one wave"
+    /// precise and avoids draining a timer or ticking a zone through the pause.
+    ///
+    /// A non-static plain C# class (CLAUDE.md §3.5) built by the shop UI from <see cref="GameSession"/> services +
+    /// the scene <see cref="WallRuntime"/>/<see cref="WaveSpawner"/> — injected, never static.
     /// </summary>
     public sealed class ShopController
     {
-        private readonly CurrencyManager _currency;
-        private readonly ConsumableInventory _inventory;
         private readonly WallRuntime _wall;
-        private readonly RerollManager _reroll;
+        private readonly WaveSpawner _waveSpawner;
+        private readonly EventBus _events;
         private readonly IReadOnlyList<ConsumableDefinitionSO> _pool;
         private readonly int _offerSize;
 
-        // Task 24: Luck-driven tier weighting for the offer draw. Both optional — when either is null the
-        // draw falls back to a uniform distinct subset (the Task 09 behaviour), so older scenes still work.
+        // Optional Luck/wave tier weighting for the offer draw (same as the old shop). Null → uniform draw.
         private readonly LuckState _luck;
         private readonly TierWeightingConfigSO _weightingConfig;
         private static readonly int ConsumableTierCount = System.Enum.GetValues(typeof(ConsumableTier)).Length;
 
         private readonly List<ConsumableDefinitionSO> _offer = new List<ConsumableDefinitionSO>();
-        private readonly List<int> _drawIndices = new List<int>(); // scratch for the distinct draw
-        private readonly List<float> _drawWeights = new List<float>(); // scratch parallel weights (Task 24)
+        private readonly List<int> _drawIndices = new List<int>();
+        private readonly List<float> _drawWeights = new List<float>();
 
-        // Task 17: which items of the CURRENT offer have already been bought this offer. Keyed by the SO
-        // reference — an offer holds distinct items (GenerateOffer draws a distinct subset), so this is
-        // exactly per-item-in-offer tracking, NOT a single global purchase counter. Cleared by
-        // GenerateOffer, so both a reroll and a fresh shop visit naturally start with nothing purchased.
-        private readonly HashSet<ConsumableDefinitionSO> _purchasedThisOffer = new HashSet<ConsumableDefinitionSO>();
+        // Task 80: at most one free pick per offer.
+        private bool _picked;
+
+        // Task 80: the pick whose effect is armed to apply at the START of the next wave (wall buff / arena zone).
+        // Applied and cleared by the persistent WaveStarted handler; instant effects (HealWall) never sit here.
+        private ConsumableDefinitionSO _pendingNextWave;
+
+        // Zone geometry defaults (metres) — flagged for tuning. AreaExtent on the SO overrides band depth per item.
+        private const float DefaultBandDepth = 12f;
+        private const float ZoneStatusRefresh = 0.5f; // re-applied each tick so CC lapses shortly after leaving
 
         public ShopController(
-            CurrencyManager currency,
-            ConsumableInventory inventory,
             WallRuntime wall,
-            RerollManager reroll,
+            WaveSpawner waveSpawner,
+            EventBus events,
             IReadOnlyList<ConsumableDefinitionSO> pool,
             int offerSize,
             LuckState luck = null,
             TierWeightingConfigSO weightingConfig = null)
         {
-            _currency = currency;
-            _inventory = inventory;
             _wall = wall;
-            _reroll = reroll;
+            _waveSpawner = waveSpawner;
+            _events = events;
             _pool = pool;
-            _offerSize = Mathf.Max(1, offerSize);
+            _offerSize = Mathf.Clamp(offerSize, 1, 4); // "3–4 items" per the design; hard-cap at 4
             _luck = luck;
             _weightingConfig = weightingConfig;
+
+            // Persistent arming hook: a single subscription applies whatever pick was armed this intermission at
+            // the next wave's start. Disposed by the UI's OnDestroy (and by EventBus.UnsubscribeAll on teardown).
+            _events?.Subscribe<WaveStartedEvent>(OnWaveStarted);
         }
 
-        /// <summary>The items currently offered this visit (read-only). Re-populated by
-        /// <see cref="GenerateOffer"/> / <see cref="TryReroll"/>.</summary>
+        /// <summary>Release the arming subscription (call from the owning UI's OnDestroy).</summary>
+        public void Dispose()
+        {
+            _events?.Unsubscribe<WaveStartedEvent>(OnWaveStarted);
+        }
+
+        /// <summary>The items offered this boss-reward visit (read-only).</summary>
         public IReadOnlyList<ConsumableDefinitionSO> CurrentOffer => _offer;
 
-        /// <summary>Reroll points available this run (separate resource from currency).</summary>
-        public int RerollPoints => _reroll != null ? _reroll.CurrentPoints : 0;
+        /// <summary>True once the player has taken their single free pick this offer.</summary>
+        public bool HasPicked => _picked;
 
-        /// <summary>True while a reroll can be spent (used to enable/disable the reroll button).</summary>
-        public bool CanReroll => _reroll != null && _reroll.CanReroll;
-
-        /// <summary>Draw a fresh offer (FREE — does not touch reroll points). Called on each shop open.
-        ///
-        /// Task 24: the draw is now TIER-WEIGHTED — each pool item's draw weight is its configured base
-        /// tier odds × the shared <see cref="TierWeighting"/> multiplier for current Luck + wave progress,
-        /// so higher tiers grow progressively more likely as Luck/wave rise (Luck the stronger factor).
-        /// The lowest tier's weight is never reduced, so it always remains reachable (no zero odds). When
-        /// no Luck/config is wired the weights collapse to the base odds (still tier-weighted, but static),
-        /// and a missing config means uniform — i.e. the original Task 09 behaviour.</summary>
+        /// <summary>Draw a fresh offer of up to <see cref="_offerSize"/> distinct utility items (tier-weighted by
+        /// Luck/wave when a config is wired, else uniform). Resets the single-pick gate.</summary>
         public void GenerateOffer()
         {
             _offer.Clear();
-            // A freshly rolled offer has nothing purchased yet (Task 17) — this single reset covers both
-            // the per-visit open AND a reroll (which calls through here), so no redundant reset is needed.
-            _purchasedThisOffer.Clear();
+            _picked = false;
             if (_pool == null) return;
 
-            // Collect valid pool indices + their Luck-adjusted draw weights (parallel lists).
             _drawIndices.Clear();
             _drawWeights.Clear();
             for (int i = 0; i < _pool.Count; i++)
@@ -108,8 +110,6 @@ namespace Wavekeep.Economy
                 _drawWeights.Add(OfferWeight(_pool[i]));
             }
 
-            // Weighted sampling WITHOUT replacement: pick by weight, then swap the chosen entry out of the
-            // remaining range (mirrors the old partial Fisher–Yates, but weighted instead of uniform).
             int want = Mathf.Min(_offerSize, _drawIndices.Count);
             for (int k = 0; k < want; k++)
             {
@@ -120,12 +120,131 @@ namespace Wavekeep.Economy
             }
         }
 
-        // Draw weight for one item: base tier odds × Luck/wave tier multiplier. Always > 0 so every item
-        // stays reachable. Falls back to uniform (1) when no weighting config is wired.
+        /// <summary>True while <paramref name="item"/> is a valid, not-yet-taken pick from the current offer.</summary>
+        public bool CanPick(ConsumableDefinitionSO item) =>
+            item != null && !_picked && _offer.Contains(item);
+
+        /// <summary>Take the single free pick: apply its effect and lock further picks this offer. Returns false
+        /// (no change) if a pick was already taken or the item isn't in the offer.</summary>
+        public bool Pick(ConsumableDefinitionSO item)
+        {
+            if (!CanPick(item)) return false;
+            _picked = true;
+            ApplyPick(item);
+            Debug.Log($"[ShopController] Picked utility reward '{item.DisplayName}'.");
+            return true;
+        }
+
+        private void ApplyPick(ConsumableDefinitionSO item)
+        {
+            switch (item.EffectType)
+            {
+                case ConsumableEffectType.HealWall:
+                    // Repair the wall NOW — the boss wave just damaged it.
+                    if (_wall != null) _wall.Heal(item.EffectValue);
+                    else Debug.LogWarning("[ShopController] HealWall picked but no WallRuntime wired.");
+                    break;
+
+                // Wall buffs + arena zones protect/affect the NEXT wave → arm them for its start (§ arming note).
+                case ConsumableEffectType.WallDamageReduction:
+                case ConsumableEffectType.WallShield:
+                case ConsumableEffectType.ArenaSlowZone:
+                case ConsumableEffectType.ArenaFreezeZone:
+                case ConsumableEffectType.FlashFreeze:
+                    _pendingNextWave = item;
+                    break;
+
+                default:
+                    Debug.LogWarning($"[ShopController] '{item.DisplayName}' has non-utility effect " +
+                                     $"{item.EffectType}; ignored (utility-only shop, Task 80).");
+                    break;
+            }
+        }
+
+        private void OnWaveStarted(WaveStartedEvent _)
+        {
+            var item = _pendingNextWave;
+            if (item == null) return;
+            _pendingNextWave = null;
+            ApplyNextWaveEffect(item);
+        }
+
+        private void ApplyNextWaveEffect(ConsumableDefinitionSO item)
+        {
+            switch (item.EffectType)
+            {
+                case ConsumableEffectType.WallDamageReduction:
+                    _wall?.SetDamageReduction(item.EffectValue, item.Duration);
+                    break;
+
+                case ConsumableEffectType.WallShield:
+                    _wall?.AddShield(item.EffectValue, item.Duration);
+                    break;
+
+                case ConsumableEffectType.ArenaSlowZone:
+                    SpawnLaneZone(StatusEffectType.Slow, item.EffectValue, item.Duration, BandDepth(item), centerLane: true);
+                    break;
+
+                case ConsumableEffectType.ArenaFreezeZone:
+                    SpawnLaneZone(StatusEffectType.Freeze, 0f, item.Duration, BandDepth(item), centerLane: false);
+                    break;
+
+                case ConsumableEffectType.FlashFreeze:
+                    SpawnFullArenaFreeze(item.Duration);
+                    break;
+            }
+        }
+
+        // --- Arena geometry (reuses the WaveSpawner's wall/spawn Z, like Frost Zone / Firewall) ---------
+
+        private float BandDepth(ConsumableDefinitionSO item) =>
+            item.AreaExtent > 0f ? item.AreaExtent : DefaultBandDepth;
+
+        // A full-width Z-band. centerLane=true → centred in the middle of the approach (Tar Field, wide slow);
+        // false → hugging the wall (Glacial Choke freeze — enemies are frozen as they reach the choke).
+        private void SpawnLaneZone(StatusEffectType status, float slowMagnitude, float duration, float depth, bool centerLane)
+        {
+            if (_waveSpawner == null || duration <= 0f) return;
+            float wallZ = _waveSpawner.DefendedLineZ;
+            float spawnZ = _waveSpawner.SpawnLineZ;
+            float dir = Mathf.Sign(spawnZ - wallZ == 0f ? 1f : spawnZ - wallZ);
+
+            float minZ, maxZ;
+            if (centerLane)
+            {
+                float center = (wallZ + spawnZ) * 0.5f;
+                minZ = center - depth * 0.5f;
+                maxZ = center + depth * 0.5f;
+            }
+            else
+            {
+                // Near-wall band: from the wall outward toward the spawn edge by `depth`.
+                minZ = wallZ;
+                maxZ = wallZ + dir * depth;
+            }
+
+            _waveSpawner.ArenaZones.Spawn(
+                GroundZone.ControlBox(minZ, maxZ, duration, status, slowMagnitude, ZoneStatusRefresh));
+            Debug.Log($"[ShopController] Arena {status} zone z=[{Mathf.Min(minZ, maxZ):0.#},{Mathf.Max(minZ, maxZ):0.#}] " +
+                      $"for {duration:0.#}s.");
+        }
+
+        // Flash Freeze: a short-lived FULL-ARENA freeze band at the wave's start (covers wall→spawn depth).
+        private void SpawnFullArenaFreeze(float duration)
+        {
+            if (_waveSpawner == null || duration <= 0f) return;
+            float wallZ = _waveSpawner.DefendedLineZ;
+            float spawnZ = _waveSpawner.SpawnLineZ;
+            _waveSpawner.ArenaZones.Spawn(
+                GroundZone.ControlBox(wallZ, spawnZ, duration, StatusEffectType.Freeze, 0f, ZoneStatusRefresh));
+            Debug.Log($"[ShopController] Flash Freeze (full arena) for {duration:0.#}s.");
+        }
+
+        // --- Offer draw weighting (unchanged from the previous shop) ------------------------------------
+
         private float OfferWeight(ConsumableDefinitionSO item)
         {
             if (_weightingConfig == null) return 1f;
-
             int ordinal = (int)item.Tier;
             float baseWeight = _weightingConfig.ShopBaseTierWeight(ordinal);
             float normTier = ConsumableTierCount > 1 ? (float)ordinal / (ConsumableTierCount - 1) : 0f;
@@ -133,13 +252,10 @@ namespace Wavekeep.Economy
             return baseWeight * multiplier;
         }
 
-        // Weighted pick over the still-available range [start.._drawIndices.Count). Returns the chosen
-        // index into the scratch lists. Degrades to a uniform pick if all remaining weights are zero.
         private int PickWeighted(int start)
         {
             float total = 0f;
             for (int i = start; i < _drawWeights.Count; i++) total += Mathf.Max(0f, _drawWeights[i]);
-
             if (total <= 0f) return Random.Range(start, _drawIndices.Count);
 
             float roll = Random.value * total;
@@ -149,102 +265,6 @@ namespace Wavekeep.Economy
                 if (roll < 0f) return i;
             }
             return _drawIndices.Count - 1;
-        }
-
-        /// <summary>Spend one reroll point and re-draw the offer (same generation as <see cref="GenerateOffer"/>).
-        /// Does NOT touch currency. Returns false and changes nothing when no reroll points remain.</summary>
-        public bool TryReroll()
-        {
-            if (_reroll == null || !_reroll.TrySpend()) return false;
-            GenerateOffer();
-            return true;
-        }
-
-        /// <summary>True if the item can be bought right now (stackable rule + affordability). The UI
-        /// uses this to enable/grey buttons; <see cref="TryPurchase"/> re-checks before spending.</summary>
-        public bool CanPurchase(ConsumableDefinitionSO item)
-        {
-            if (item == null) return false;
-            if (_purchasedThisOffer.Contains(item)) return false; // Task 17: at most once per offer
-            if (!item.Stackable && _inventory.Owns(item)) return false;
-            return _currency.CurrentCurrency >= item.Price;
-        }
-
-        /// <summary>True if this offered item was already bought this offer (UI shows it as Purchased).
-        /// Cleared on the next reroll or shop visit via <see cref="GenerateOffer"/> (Task 17).</summary>
-        public bool WasPurchasedThisOffer(ConsumableDefinitionSO item) =>
-            item != null && _purchasedThisOffer.Contains(item);
-
-        /// <summary>
-        /// Validate the stackable rule, then attempt to spend via <see cref="CurrencyManager.TrySpend"/>.
-        /// Currency is only deducted by TrySpend, which never lets the total go negative. On success the
-        /// purchase is recorded and the effect applied through the existing systems (per §2). Returns
-        /// false and changes nothing on a blocked/unaffordable purchase.
-        /// </summary>
-        public bool TryPurchase(ConsumableDefinitionSO item)
-        {
-            if (item == null) return false;
-
-            // Task 17: each offered item is buyable at most once per offer (blocks draining currency into
-            // one stacked effect). Reset when a new offer is rolled (reroll or next visit).
-            if (_purchasedThisOffer.Contains(item)) return false;
-
-            // Non-stackable items can only be owned once per run.
-            if (!item.Stackable && _inventory.Owns(item)) return false;
-
-            // TrySpend is the single source of truth for the spend; it validates funds first.
-            if (!_currency.TrySpend(item.Price)) return false;
-
-            _purchasedThisOffer.Add(item);
-            _inventory.RegisterPurchase(item);
-            ApplyEffect(item);
-            Debug.Log($"[ShopController] Purchased '{item.DisplayName}' for {item.Price}. Currency now {_currency.CurrentCurrency}.");
-            return true;
-        }
-
-        private void ApplyEffect(ConsumableDefinitionSO item)
-        {
-            switch (item.EffectType)
-            {
-                case ConsumableEffectType.FlatDamageBoost:
-                case ConsumableEffectType.CooldownReduction:
-                // Task 23: the new potion effects are all ongoing ability modifiers too — they take the
-                // SAME AddEffect path and are read by AbilityRuntime's existing pipeline (crit roll,
-                // frost/zone resolvers, role-aware damage). No new purchase or calculation path.
-                case ConsumableEffectType.CritChanceBoost:
-                case ConsumableEffectType.CritDamageBoost:
-                case ConsumableEffectType.FrostPotency:
-                case ConsumableEffectType.ElementalLightning:
-                case ConsumableEffectType.UltimateDurationBoost:
-                case ConsumableEffectType.BasicDamageBoost:
-                // Task 30: migrated generic AoE-radius upgrade — also an ongoing ability modifier on the
-                // SAME AddEffect path, read by AbilityRuntime's ComputeStats (range) pipeline.
-                case ConsumableEffectType.AoeRadiusBoost:
-                    // Ongoing ability modifier — read by AbilityRuntime's existing ComputeStats pipeline.
-                    _inventory.AddEffect(item.EffectType, item.EffectValue, item.Duration);
-                    break;
-
-                case ConsumableEffectType.HealWall:
-                    // Instant effect routed through the existing wall, not a parallel HP path.
-                    if (_wall != null) _wall.Heal(item.EffectValue);
-                    else Debug.LogWarning("[ShopController] HealWall purchased but no WallRuntime is wired.");
-                    break;
-
-                case ConsumableEffectType.GainRerollPoints:
-                    // Task 09: Reroll Potion — adds reroll points via the same purchase→effect flow as any
-                    // other consumable (no special-cased path). Value carries the per-tier amount (+1/2/3).
-                    if (_reroll != null) _reroll.Add(Mathf.RoundToInt(item.EffectValue));
-                    else Debug.LogWarning("[ShopController] GainRerollPoints purchased but no RerollManager is wired.");
-                    break;
-
-                case ConsumableEffectType.LuckBoost:
-                    // Task 24: Luck Potion — adds an in-run, non-persistent Luck bonus through the SAME
-                    // purchase→effect flow as any other consumable. LuckState clamps the total to 0–100 and
-                    // resets the potion portion at run end. Not an AbilityRuntime modifier (Luck is non-combat).
-                    if (_luck != null) _luck.AddPotionBonus(item.EffectValue);
-                    else Debug.LogWarning("[ShopController] LuckBoost purchased but no LuckState is wired.");
-                    break;
-            }
         }
     }
 }

@@ -44,10 +44,6 @@ namespace Wavekeep.Waves
 
         [Header("Lifecycle")]
         [SerializeField] private bool _autoStartOnPlay = true;
-        [Tooltip("Task 17: the between-wave shop intermission only opens every N wave-completions " +
-                 "(5 = after waves 5, 10, 15...). Other waves flow straight into the next with no pause. " +
-                 "0 disables the shop intermission entirely. Configurable — not a hardcoded inline check.")]
-        [SerializeField, Min(0)] private int _shopIntervalWaves = 5;
 
         [Header("Debug")]
         [Tooltip("When enabled, the kill key damages the most-recently-spawned active enemy to verify the death path.")]
@@ -60,6 +56,12 @@ namespace Wavekeep.Waves
         private ComboApexState _comboApex; // Task 50 (Frostburn): handed to each spawned EnemyRuntime
 
         private readonly List<EnemyRuntime> _activeEnemies = new List<EnemyRuntime>();
+
+        // Task 80: arena-control zones spawned by the utility shop (Tar Field / Glacial Choke / Flash Freeze).
+        // Owned + ticked here because the WaveSpawner is the arena authority (it holds the live enemy list and the
+        // wall/spawn geometry). Reuses the SAME GroundZone/GroundZoneManager as hero abilities — not a parallel path.
+        private readonly GroundZoneManager _arenaZones = new GroundZoneManager();
+
         private int _spawnMarkerCursor;
         private bool _runStarted;
         private bool _runEnded;
@@ -75,6 +77,14 @@ namespace Wavekeep.Waves
         /// acquisition reads this). Do not cache across frames — entries are added/removed as enemies
         /// spawn and resolve.</summary>
         public IReadOnlyList<EnemyRuntime> ActiveEnemies => _activeEnemies;
+
+        /// <summary>Task 80: arena-control zones spawned by the utility shop. The shop spawns into this manager;
+        /// the WaveSpawner ticks it each active (unpaused) frame against <see cref="ActiveEnemies"/>.</summary>
+        public GroundZoneManager ArenaZones => _arenaZones;
+
+        /// <summary>Task 80: true when the given 1-based wave is a boss wave (the ONLY waves that open the utility
+        /// shop now). Thin pass-through to the tier so the shop-trigger rule reads in one place.</summary>
+        public bool IsBossWave(int waveNumber) => _difficultyTier != null && _difficultyTier.IsBossWave(waveNumber);
 
         /// <summary>Task 33: the defended line's Z (the wall's position along the approach axis). Frost Zone
         /// places its full-width band relative to this.</summary>
@@ -170,6 +180,10 @@ namespace Wavekeep.Waves
 
             if (paused) return;
 
+            // Task 80: advance any utility-shop arena zones against the live enemy set (no DoT → basicDamage 0).
+            // Only while unpaused, so a zone spawned during the boss intermission doesn't drain before the wave.
+            _arenaZones.Tick(Time.deltaTime, _activeEnemies, 0f);
+
             // Single centralised tick for all active enemies (CLAUDE.md §3.4). Iterate backwards:
             // an enemy dying mid-tick removes itself from the list via the callback. An enemy's
             // attack can also destroy the wall, which ends the run and clears the list — break out
@@ -211,12 +225,6 @@ namespace Wavekeep.Waves
             _awaitingContinue = false;
         }
 
-        /// <summary>Task 17: true when a 1-based <paramref name="waveNumber"/> should open the between-wave
-        /// shop intermission (every <see cref="_shopIntervalWaves"/> waves). Interval &lt;= 0 disables it.
-        /// Pure read-only check — the configurable interval, not a hardcoded inline modulo.</summary>
-        private bool IsShopIntermissionWave(int waveNumber) =>
-            _shopIntervalWaves > 0 && waveNumber % _shopIntervalWaves == 0;
-
         private IEnumerator RunRoutine()
         {
             var waves = _difficultyTier.Waves;
@@ -249,11 +257,11 @@ namespace Wavekeep.Waves
                 // general pause/resume gate; the spawner stays ignorant of the shop. The shop UI opens
                 // on IntermissionStartedEvent and releases the gate via ContinueAfterIntermission().
                 //
-                // Task 17: only open the intermission every _shopIntervalWaves completions (waves 5, 10,
-                // ...). Other waves flow straight into the next with no pause. This block sits AFTER the
-                // "all enemies resolved" wait + WaveCompletedEvent above, so on a boss wave (every 10th,
-                // a multiple of 5) the shop can only appear once the boss is actually dead — no race.
-                if (waveIndex < waves.Count - 1 && IsShopIntermissionWave(_currentWaveNumber))
+                // Task 80: the utility shop now opens ONLY after a boss wave is cleared (never after a regular
+                // wave). This block sits AFTER the "all enemies resolved" wait + WaveCompletedEvent above, so the
+                // shop can only appear once the boss is actually dead — no race. The boss cadence comes from the
+                // tier (GameTier: every 5th wave), so shop moments fall at waves 5, 10, … 60 (documented + tunable).
+                if (waveIndex < waves.Count - 1 && _difficultyTier.IsBossWave(_currentWaveNumber))
                 {
                     _awaitingContinue = true;
 
@@ -388,6 +396,7 @@ namespace Wavekeep.Waves
 
             StopAllCoroutines();
             ReleaseAllActiveEnemies();
+            _arenaZones.Clear(); // Task 80: drop any active utility arena zones on run end
 
             _events.Publish(new RunEndedEvent(new RunResult(outcome)));
             Debug.Log($"[WaveSpawner] Run ended: {outcome} — RunEndedEvent published.");

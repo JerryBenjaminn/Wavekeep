@@ -12,20 +12,14 @@ using Wavekeep.Waves;
 namespace Wavekeep.UI
 {
     /// <summary>
-    /// Between-wave shop screen (Task 06 §4, extended in Task 09). Opens on
-    /// <see cref="IntermissionStartedEvent"/>, renders a per-visit OFFER of items (a fixed-size random
-    /// subset of the pool, drawn by <see cref="ShopController"/>), shows the live currency total and the
-    /// run's reroll-point count, and offers Reroll + Continue actions.
+    /// Boss-reward utility shop screen (Task 80 redesign). Opens on <see cref="IntermissionStartedEvent"/> — which
+    /// the WaveSpawner now fires ONLY after a boss wave is cleared — renders an OFFER of 3–4 utility items, and lets
+    /// the player pick exactly ONE for FREE (no Currency, no reroll, no skip). Picking closes the shop and releases
+    /// the wave gate via <see cref="WaveSpawner.ContinueAfterIntermission"/>.
     ///
-    /// It owns a plain-C# <see cref="ShopController"/> (built from <see cref="GameSession"/> services +
-    /// the scene wall) for all logic and only renders. Card slots are pre-built once (count =
-    /// <see cref="_offerSize"/>) and repopulated from <see cref="ShopController.CurrentOffer"/> on open
-    /// and after each reroll — mirroring <see cref="LevelUpCardPicker"/>.
-    ///
-    /// Resource independence (Task 09): rerolling spends reroll points only (never currency); a Reroll
-    /// Potion purchase goes through the normal <see cref="ShopController.TryPurchase"/> path and adds
-    /// reroll points via the effect. The UI refreshes off <see cref="CurrencyChangedEvent"/> and
-    /// <see cref="RerollPointsChangedEvent"/> so the two resources update independently.
+    /// Owns a plain-C# <see cref="ShopController"/> (built from the scene wall + wave spawner + session services)
+    /// for all logic and only renders. Currency infrastructure is untouched and may still be shown, but is never
+    /// spent here (Task 80: Currency has no shop sink).
     /// </summary>
     [AddComponentMenu("Wavekeep/UI/Shop Screen Controller")]
     public sealed class ShopScreenController : MonoBehaviour
@@ -33,29 +27,29 @@ namespace Wavekeep.UI
         [Header("Dependencies")]
         [SerializeField] private GameSessionBootstrap _bootstrap;
         [SerializeField] private WaveSpawner _waveSpawner;
-        [Tooltip("Defended wall — target of HealWall consumables (routed through WallRuntime.Heal).")]
+        [Tooltip("Defended wall — target of wall-utility rewards (Repair/Barricade/Aegis) via WallRuntime.")]
         [SerializeField] private WallRuntime _wall;
 
-        [Header("Inventory (the full pool the per-visit offer is drawn from)")]
+        [Header("Inventory (the full utility pool the boss-reward offer is drawn from)")]
         [SerializeField] private List<ConsumableDefinitionSO> _availableConsumables = new List<ConsumableDefinitionSO>();
-        [Tooltip("How many items the shop offers per visit (Task 06 count; reroll re-draws this many).")]
+        [Tooltip("How many utility items the boss reward offers (3–4). The player picks exactly one.")]
         [SerializeField, Min(1)] private int _offerSize = 4;
 
-        [Tooltip("Task 24: Luck/wave tier-weighting config for the offer draw. If unset, offers fall back to " +
-                 "uniform (Task 09 behaviour). Wire the same asset the GameSessionBootstrap uses.")]
+        [Tooltip("Task 24: Luck/wave tier-weighting for the offer draw. If unset, offers are uniform.")]
         [SerializeField] private TierWeightingConfigSO _tierWeightingConfig;
 
         [Header("UI")]
-        [Tooltip("Root object shown during the between-wave intermission, hidden otherwise.")]
+        [Tooltip("Root object shown during the boss-reward intermission, hidden otherwise.")]
         [SerializeField] private GameObject _shopPanel;
         [Tooltip("Parent (with a vertical layout) under which item rows are generated.")]
         [SerializeField] private RectTransform _itemContainer;
+        [Tooltip("Optional header/currency label. Currency is retained but not spent here (Task 80).")]
         [SerializeField] private TMP_Text _currencyText;
+        [Tooltip("Retained from the old shop but unused (no skip without a pick). Hidden on Start.")]
         [SerializeField] private Button _continueButton;
 
-        [Header("Reroll (Task 09)")]
+        [Header("Deprecated (Task 80 — reroll removed; hidden on Start)")]
         [SerializeField] private Button _rerollButton;
-        [Tooltip("Label on the reroll button; shows the current reroll-point count.")]
         [SerializeField] private TMP_Text _rerollCountLabel;
 
         private sealed class ItemRow
@@ -63,12 +57,11 @@ namespace Wavekeep.UI
             public GameObject Root;
             public ConsumableDefinitionSO Item;
             public TMP_Text InfoText;
-            public Button BuyButton;
-            public TMP_Text BuyLabel;
+            public Button PickButton;
+            public TMP_Text PickLabel;
         }
 
         private EventBus _events;
-        private CurrencyManager _currency;
         private ShopController _shop;
         private readonly List<ItemRow> _rows = new List<ItemRow>();
 
@@ -83,50 +76,42 @@ namespace Wavekeep.UI
 
             var session = _bootstrap.Session;
             _events = session.Events;
-            _currency = session.CurrencyManager;
             _shop = new ShopController(
-                _currency, session.ConsumableInventory, _wall, session.RerollManager,
+                _wall, _waveSpawner, _events,
                 _availableConsumables, _offerSize,
-                session.LuckState, _tierWeightingConfig); // Task 24: Luck-weighted offer tiers
+                session.LuckState, _tierWeightingConfig);
 
             BuildSlots();
 
-            if (_continueButton != null) _continueButton.onClick.AddListener(OnContinue);
-            if (_rerollButton != null) _rerollButton.onClick.AddListener(OnReroll);
+            // Task 80: no reroll, no skip-continue — picking one item is the only way out of the shop.
+            if (_rerollButton != null) _rerollButton.gameObject.SetActive(false);
+            if (_rerollCountLabel != null) _rerollCountLabel.gameObject.SetActive(false);
+            if (_continueButton != null) _continueButton.gameObject.SetActive(false);
 
             _events.Subscribe<IntermissionStartedEvent>(OnIntermissionStarted);
-            _events.Subscribe<CurrencyChangedEvent>(OnCurrencyChanged);
-            _events.Subscribe<RerollPointsChangedEvent>(OnRerollPointsChanged);
 
             SetPanelVisible(false);
         }
 
         private void OnDestroy()
         {
+            _shop?.Dispose();
             if (_events == null) return;
             _events.Unsubscribe<IntermissionStartedEvent>(OnIntermissionStarted);
-            _events.Unsubscribe<CurrencyChangedEvent>(OnCurrencyChanged);
-            _events.Unsubscribe<RerollPointsChangedEvent>(OnRerollPointsChanged);
         }
 
         private void BuildSlots()
         {
             if (_itemContainer == null) return;
-
-            // Pre-build offerSize empty slots; offers are smaller only if the pool is smaller.
             int slots = Mathf.Max(1, _offerSize);
-            for (int i = 0; i < slots; i++)
-            {
-                _rows.Add(CreateSlot());
-            }
+            for (int i = 0; i < slots; i++) _rows.Add(CreateSlot());
         }
 
         private ItemRow CreateSlot()
         {
-            // Row container with a horizontal layout: [ info label ][ buy button ].
             var rowGo = new GameObject("Row", typeof(RectTransform), typeof(HorizontalLayoutGroup));
             rowGo.transform.SetParent(_itemContainer, false);
-            ((RectTransform)rowGo.transform).sizeDelta = new Vector2(560f, 64f);
+            ((RectTransform)rowGo.transform).sizeDelta = new Vector2(600f, 72f);
             var hlg = rowGo.GetComponent<HorizontalLayoutGroup>();
             hlg.spacing = 12f;
             hlg.childAlignment = TextAnchor.MiddleLeft;
@@ -142,31 +127,30 @@ namespace Wavekeep.UI
             info.color = Color.white;
             info.alignment = TextAlignmentOptions.Left;
             if (TMP_Settings.defaultFontAsset != null) info.font = TMP_Settings.defaultFontAsset;
-            ((RectTransform)info.transform).sizeDelta = new Vector2(420f, 64f);
+            ((RectTransform)info.transform).sizeDelta = new Vector2(440f, 72f);
 
-            var buttonGo = new GameObject("Buy", typeof(RectTransform), typeof(Image), typeof(Button));
+            var buttonGo = new GameObject("Pick", typeof(RectTransform), typeof(Image), typeof(Button));
             buttonGo.transform.SetParent(rowGo.transform, false);
-            ((RectTransform)buttonGo.transform).sizeDelta = new Vector2(120f, 48f);
+            ((RectTransform)buttonGo.transform).sizeDelta = new Vector2(120f, 52f);
             var button = buttonGo.GetComponent<Button>();
 
-            var buyLabelGo = new GameObject("Label", typeof(RectTransform));
-            buyLabelGo.transform.SetParent(buttonGo.transform, false);
-            var buyLabel = buyLabelGo.AddComponent<TextMeshProUGUI>();
-            buyLabel.text = "Buy";
-            buyLabel.fontSize = 22f;
-            buyLabel.color = Color.black;
-            buyLabel.alignment = TextAlignmentOptions.Center;
-            if (TMP_Settings.defaultFontAsset != null) buyLabel.font = TMP_Settings.defaultFontAsset;
-            var blRt = buyLabel.rectTransform;
-            blRt.anchorMin = Vector2.zero;
-            blRt.anchorMax = Vector2.one;
-            blRt.offsetMin = Vector2.zero;
-            blRt.offsetMax = Vector2.zero;
+            var pickLabelGo = new GameObject("Label", typeof(RectTransform));
+            pickLabelGo.transform.SetParent(buttonGo.transform, false);
+            var pickLabel = pickLabelGo.AddComponent<TextMeshProUGUI>();
+            pickLabel.text = "Pick";
+            pickLabel.fontSize = 22f;
+            pickLabel.color = Color.black;
+            pickLabel.alignment = TextAlignmentOptions.Center;
+            if (TMP_Settings.defaultFontAsset != null) pickLabel.font = TMP_Settings.defaultFontAsset;
+            var plRt = pickLabel.rectTransform;
+            plRt.anchorMin = Vector2.zero;
+            plRt.anchorMax = Vector2.one;
+            plRt.offsetMin = Vector2.zero;
+            plRt.offsetMax = Vector2.zero;
 
-            return new ItemRow { Root = rowGo, InfoText = info, BuyButton = button, BuyLabel = buyLabel };
+            return new ItemRow { Root = rowGo, InfoText = info, PickButton = button, PickLabel = pickLabel };
         }
 
-        // Bind the current offer into the pre-built slots; hide any spare slots (pool < offerSize).
         private void ShowOffer()
         {
             var offer = _shop.CurrentOffer;
@@ -177,9 +161,9 @@ namespace Wavekeep.UI
                 {
                     row.Item = offer[i];
                     row.InfoText.text = BuildItemInfo(row.Item);
-                    row.BuyButton.onClick.RemoveAllListeners();
-                    var captured = row.Item; // capture per-slot so the handler stays data-driven
-                    row.BuyButton.onClick.AddListener(() => OnBuy(captured));
+                    row.PickButton.onClick.RemoveAllListeners();
+                    var captured = row.Item;
+                    row.PickButton.onClick.AddListener(() => OnPick(captured));
                     row.Root.SetActive(true);
                 }
                 else
@@ -192,95 +176,44 @@ namespace Wavekeep.UI
 
         private static string BuildItemInfo(ConsumableDefinitionSO item)
         {
-            string tier = TierLabel(item.Tier);
             string desc = string.IsNullOrEmpty(item.Description) ? "" : $"\n<size=70%>{item.Description}</size>";
-            return $"[{tier}] {item.DisplayName}  —  {item.Price}g{desc}";
+            return $"{item.DisplayName}{desc}";
         }
 
-        private static string TierLabel(ConsumableTier tier)
+        private void OnPick(ConsumableDefinitionSO item)
         {
-            switch (tier)
+            // Single free pick: apply the utility effect, then close the shop and let the run continue. Picking
+            // is the only exit — there is no skip and no second pick.
+            if (_shop.Pick(item))
             {
-                case ConsumableTier.Tier2: return "T2";
-                case ConsumableTier.Tier3: return "T3";
-                default: return "T1";
+                SetPanelVisible(false);
+                if (_waveSpawner != null) _waveSpawner.ContinueAfterIntermission();
             }
-        }
-
-        private void OnBuy(ConsumableDefinitionSO item)
-        {
-            // ShopController validates funds (via CurrencyManager.TrySpend) and stackable rules; we only
-            // refresh. A successful spend fires CurrencyChangedEvent; a Reroll Potion also fires
-            // RerollPointsChangedEvent — both routed through the normal TryPurchase effect path.
-            if (!_shop.TryPurchase(item))
-            {
-                Debug.Log($"[ShopScreenController] Purchase of '{item.DisplayName}' rejected (funds or stackable rule).");
-            }
-            RefreshRows();
-        }
-
-        private void OnReroll()
-        {
-            // Spends a reroll point only (never currency) and re-draws the offer. No-op at 0 points.
-            if (_shop.TryReroll())
-            {
-                ShowOffer();
-                RefreshRows();
-            }
-            RefreshReroll();
-        }
-
-        private void OnContinue()
-        {
-            SetPanelVisible(false);
-            if (_waveSpawner != null) _waveSpawner.ContinueAfterIntermission();
         }
 
         private void OnIntermissionStarted(IntermissionStartedEvent evt)
         {
-            // A fresh offer each visit is free — it does NOT touch the reroll pool (Task 09 core rule).
             _shop.GenerateOffer();
             ShowOffer();
+            RefreshRows();
+            RefreshCurrency();
             SetPanelVisible(true);
-            RefreshCurrency();
-            RefreshRows();
-            RefreshReroll();
         }
-
-        private void OnCurrencyChanged(CurrencyChangedEvent evt)
-        {
-            RefreshCurrency();
-            RefreshRows();
-        }
-
-        private void OnRerollPointsChanged(RerollPointsChangedEvent evt) => RefreshReroll();
 
         private void RefreshCurrency()
         {
-            if (_currencyText != null) _currencyText.text = $"Currency: {_currency.CurrentCurrency}";
-        }
-
-        private void RefreshReroll()
-        {
-            if (_rerollCountLabel != null) _rerollCountLabel.text = $"Reroll ({_shop.RerollPoints})";
-            if (_rerollButton != null) _rerollButton.interactable = _shop.CanReroll;
+            if (_currencyText != null && _bootstrap.Session.CurrencyManager != null)
+                _currencyText.text = $"Choose a reward  (Currency: {_bootstrap.Session.CurrencyManager.CurrentCurrency})";
         }
 
         private void RefreshRows()
         {
-            var inventory = _bootstrap.Session.ConsumableInventory;
             for (int i = 0; i < _rows.Count; i++)
             {
                 var row = _rows[i];
                 if (row.Item == null || !row.Root.activeSelf) continue;
-
-                row.BuyButton.interactable = _shop.CanPurchase(row.Item);
-
-                // Label priority: bought-this-offer (Task 17) → already-owned non-stackable → Buy. The
-                // disabled state itself reuses the SAME interactable=false path as insufficient-funds.
-                bool purchasedThisOffer = _shop.WasPurchasedThisOffer(row.Item);
-                bool ownedNonStackable = !row.Item.Stackable && inventory.Owns(row.Item);
-                row.BuyLabel.text = purchasedThisOffer ? "Purchased" : (ownedNonStackable ? "Owned" : "Buy");
+                row.PickButton.interactable = _shop.CanPick(row.Item);
+                row.PickLabel.text = "Pick";
             }
         }
 

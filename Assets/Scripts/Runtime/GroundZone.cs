@@ -68,6 +68,10 @@ namespace Wavekeep.Runtime
         private readonly float _entryBurnPerTick;
         private readonly float _entryBurnDuration;
 
+        // Task 80: which status the zone refreshes on enemies inside it. Defaults to Slow (Frost Zone / Frozen
+        // Ground / Tar Field); the utility shop's Glacial Choke / Flash Freeze set it to Freeze (movement → 0).
+        private readonly StatusEffectType _appliedStatus;
+
         // Task 45: optional persistent visual for this zone (Frost Zone band). The zone OWNS its handle so
         // the visual's pulse rhythm + teardown are driven by the SAME object that runs the gameplay — pulses
         // flash on the real damage ticks, and the band disappears exactly when the zone expires.
@@ -88,8 +92,10 @@ namespace Wavekeep.Runtime
             float burstInterval = 0f, float burstBasicFraction = 0f,
             float deathPatchDuration = 0f, float deathPatchTickDamage = 0f,
             System.Action<GroundZone> spawnSibling = null,
-            float entryBurnPerTick = 0f, float entryBurnDuration = 0f)
+            float entryBurnPerTick = 0f, float entryBurnDuration = 0f,
+            StatusEffectType appliedStatus = StatusEffectType.Slow)
         {
+            _appliedStatus = appliedStatus;
             _visual = visual;
             _shape = shape;
             _center = center;
@@ -158,6 +164,17 @@ namespace Wavekeep.Runtime
                 entryBurnPerTick, entryBurnDuration);
         }
 
+        /// <summary>Task 80 (utility shop): a full-width Z-band control zone applying a chosen STATUS (Slow or
+        /// Freeze) to enemies inside it — Tar Field (Slow) and Glacial Choke / Flash Freeze (Freeze). Pure CC, no
+        /// damage. Reuses the same Box shape + tick path as the Frost Zone; only the applied status differs.</summary>
+        public static GroundZone ControlBox(
+            float bandMinZ, float bandMaxZ, float duration, StatusEffectType status, float slowMagnitude, float slowRefresh)
+        {
+            return new GroundZone(Shape.Box, Vector3.zero, 0f, bandMinZ, bandMaxZ, duration, 0f,
+                slowMagnitude, slowRefresh, 0f, 0f, 0f, null,
+                0f, 0f, 0f, 0f, 0f, 0f, null, 0f, 0f, status);
+        }
+
         /// <summary>Task 48: a small circular FIRE patch (Wildfire-Spread leftover): sustained DoT only, no burst,
         /// no further patches. Spawned at a dead enemy's position; persists independently of the Firewall band.</summary>
         public static GroundZone FirePatch(Vector3 center, float radius, float duration,
@@ -192,11 +209,13 @@ namespace Wavekeep.Runtime
                 }
             }
 
-            // Slow everyone inside (refreshed; lapses shortly after they leave).
-            if (_slowMagnitude > 0f)
+            // Apply the zone's control status to everyone inside (refreshed each tick; lapses shortly after they
+            // leave). Slow needs a positive magnitude; Freeze (Task 80) is a hard stop that ignores magnitude, so
+            // it applies regardless.
+            if (_appliedStatus == StatusEffectType.Freeze || _slowMagnitude > 0f)
             {
                 for (int i = 0; i < _inside.Count; i++)
-                    _inside[i].ApplyStatusEffect(StatusEffectType.Slow, _slowMagnitude, _slowRefresh);
+                    _inside[i].ApplyStatusEffect(_appliedStatus, _slowMagnitude, _slowRefresh);
             }
 
             // Task 53 (Firewall on-entry Burn): an enemy that is inside NOW but was not last tick just crossed

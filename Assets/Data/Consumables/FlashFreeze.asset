@@ -10,15 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 19128c230c054b447bcd6cc4d803f744, type: 3}
-  m_Name: WallRepairKit
+  m_Name: FlashFreeze
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.ConsumableDefinitionSO
-  _displayName: Wall Repair Kit
+  _displayName: Flash Freeze
   _icon: {fileID: 0}
-  _description: Instantly restore 150 wall HP.
+  _description: Freezes every enemy for ~3.5s at the start of the next wave.
   _price: 0
   _stackable: 0
-  _tier: 0
-  _effectType: 2
-  _effectValue: 150
-  _duration: 0
+  _tier: 2
+  _effectType: 16
+  _effectValue: 0
+  _duration: 3.5
   _areaExtent: 0

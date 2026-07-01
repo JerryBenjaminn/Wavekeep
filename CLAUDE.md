@@ -11,8 +11,10 @@ This file is the single source of truth for architecture, conventions, and locke
 
 A wave-defence game where the player defends a position against incoming enemy waves. Killing enemies grants two separate resources:
 
-- **Currency** — spent between waves in a **Shop** on potions/elixirs that grant temporary or permanent run-bonuses.
+- **Currency** — earned from kills and retained in the run (counter + drop pipeline). It currently has **no shop sink** (Task 80 redesign — see below); reserved for potential future uses.
 - **XP** — spent on **upgrading the active hero's abilities**, Vampire-Survivors style (pick/level up skills as you gain levels).
+
+> **Shop (Task 80 — utility-only boss reward):** the shop is NOT a between-wave currency store. It opens **only when a boss wave is cleared**, offers **3–4 utility items**, and the player **picks exactly one for free** (no purchase, no reroll, no skip). Items are **wall utility** (repair, damage-reduction, absorb shield) and **arena control** (slow field, freeze zone, flash freeze) — they affect the battlefield/wall, **never hero stats**. Stat-boosting potions were removed (they broke progression once persistent gear existed — see `docs/balance/shop_balance_analysis_002.md`).
 
 The player selects a **Hero** before a run. Each hero has a unique set of abilities that can be upgraded independently. Levels/waves scale from easy to hard to keep progression interesting across a single run and across difficulty tiers.
 
@@ -21,7 +23,7 @@ The player selects a **Hero** before a run. Each hero has a unique set of abilit
 2. Enter Level (defend point against wave spawner)
 3. Kill enemies → gain Currency + XP
 4. XP level-up → choose/upgrade an ability (Vampire-Survivors style pick)
-5. Between waves → optional Shop visit (spend Currency on potions/elixirs)
+5. On **boss-wave clear** → the utility Shop opens: pick **one** free utility reward (wall/arena, not stat boosts)
 6. Survive escalating waves → Level complete / Endless mode push
 
 ---
@@ -33,7 +35,8 @@ These are decided and should NOT be re-litigated without explicit discussion:
 - **Not** a Vampire-Survivors-style "move avatar around an open arena." This is tower/wave-defence: player position(s) are fixed or constrained; enemies path toward a defended point.
 - **Single spawn direction:** enemies spawn from one side of the arena only (the far side, opposite the player) and advance toward the player. This is NOT a 360°/perimeter spawn — it's open *width-wise* across that one approach direction, not open in all directions. Player/hero sits at the near edge; enemies approach from the far edge.
 - **Defended wall:** a wall sits between the approaching enemies and the player/hero. Enemies walk to the wall and attack it (not the hero directly, not a separate abstract "defended point"). The wall has HP. Wall HP reaching 0 is the lose condition for the run.
-- Two separate progression currencies: **Currency** (shop, between-wave) and **XP** (in-run ability upgrades). They must remain mechanically distinct — do not let one system silently absorb the other.
+- Two separate progression resources: **Currency** and **XP** (in-run ability upgrades). They must remain mechanically distinct — do not let one system silently absorb the other. *(Task 80: Currency is retained but no longer has a shop sink — the shop is a free boss-clear utility pick. Currency infrastructure stays for future use.)*
+- **Shop = boss-clear utility reward (Task 80, locked):** opens only on boss-wave clear; offers 3–4 **utility** items; player picks exactly **one, free**. No between-wave currency shop, no purchases, no reroll. Allowed effect categories: **wall utility** (repair / damage-reduction / absorb shield) and **arena control** (slow / freeze via the existing `GroundZoneManager` + `StatusEffectType`). **No** hero stat boosts (Damage/Cooldown/Crit/Speed/AoE/Ultimate-duration), Luck, XP, or Reroll consumables.
 - Heroes are **data-defined**, not hardcoded. Adding a new hero must require zero new code in the common case — only new ScriptableObject assets + designer-authored values.
 - Abilities are **composable and independently upgradeable** — a hero is a bag of abilities, not a monolithic class with baked-in behavior.
 - Difficulty progression is **data-driven** (WaveConfig assets per level/difficulty), not scattered magic numbers in spawner code.
@@ -50,7 +53,7 @@ These are decided and should NOT be re-litigated without explicit discussion:
 | `HeroDefinitionSO` | Hero name, icon, base stats, unique `BasicAbilityDefinitionSO`, unique `UltimateAbilityDefinitionSO`, optional `TagInteractionRule` list (see §3.8) |
 | `AbilityDefinitionSO` | Ability identity + ordered list of `AbilityUpgradeLevel` (damage/cooldown/range/etc. modifiers per level) |
 | `UpgradeDefinitionSO` | Shared upgrade pool entry: tags (`UpgradeTag` list), base effect type/value, used by level-up card selection |
-| `ConsumableDefinitionSO` | Shop item: effect type, magnitude, duration, price |
+| `ConsumableDefinitionSO` | Shop **utility** item (Task 80): effect type, magnitude, duration, arena band depth. Wall/arena effects only; `price` retained but unused (free boss-clear pick) |
 | `EnemyDefinitionSO` | Base stats, movement type, visual/prefab ref, loot (currency/xp yield) |
 | `WaveConfigSO` | Per-wave enemy composition, spawn timing/rate, stat multipliers |
 | `DifficultyTierSO` | Wraps a sequence of `WaveConfigSO`, global multipliers for a difficulty tier |
