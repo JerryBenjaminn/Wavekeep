@@ -1,12 +1,10 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
-using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using Wavekeep.Core;
 using Wavekeep.Data;
-using Wavekeep.UI;
 
 namespace Wavekeep.EditorTools
 {
@@ -90,12 +88,17 @@ namespace Wavekeep.EditorTools
             SetObjectField(waves[19], "_bossLootTable", bossLateTable);   // wave 20
             AssetDatabase.SaveAssets();
 
-            // --- Drop notification HUD. ---
-            BuildLootHud(canvas, bootstrap);
+            // --- Drop notification. ---
+            // Task 69: the text-toast LootDropHud is GONE — visual arena drops + an end-of-run summary replace it
+            // (see Task69SceneSetup / LootDropVfxController / RunLootSummary). Clear any leftover toast objects so
+            // re-running this older setup can't resurrect them.
+            DestroyIfExists("LootDropText");
+            DestroyIfExists("LootDropHud");
 
             EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
             Debug.Log("[Task13SceneSetup] Loot tables wired. Play: kill grunts for ~10% drops; wave 10 boss → up to Rare, " +
-                      "wave 20 boss → up to Unique. Drops persist via GearManager. Save the scene (Ctrl+S).");
+                      "wave 20 boss → up to Unique. Drops persist via GearManager. For the visual drop layer run " +
+                      "'Wavekeep/Setup Task 69 (Visual Loot Drops)'. Save the scene (Ctrl+S).");
         }
 
         private static LootItemSO LoadItem(string fileName) =>
@@ -151,35 +154,6 @@ namespace Wavekeep.EditorTools
         {
             var so = new SerializedObject(target);
             so.FindProperty(propertyName).objectReferenceValue = value;
-            so.ApplyModifiedPropertiesWithoutUndo();
-        }
-
-        private static void BuildLootHud(Canvas canvas, GameSessionBootstrap bootstrap)
-        {
-            DestroyIfExists("LootDropText");
-            DestroyIfExists("LootDropHud");
-
-            var go = new GameObject("LootDropText", typeof(RectTransform));
-            go.transform.SetParent(canvas.transform, false);
-            var tmp = go.AddComponent<TextMeshProUGUI>();
-            tmp.text = "";
-            tmp.fontSize = 26f;
-            tmp.color = new Color(1f, 0.9f, 0.4f);
-            tmp.alignment = TextAlignmentOptions.Center;
-            if (TMP_Settings.defaultFontAsset != null) tmp.font = TMP_Settings.defaultFontAsset;
-            var rt = tmp.rectTransform;
-            rt.anchorMin = new Vector2(0.5f, 0f);
-            rt.anchorMax = new Vector2(0.5f, 0f);
-            rt.pivot = new Vector2(0.5f, 0f);
-            rt.anchoredPosition = new Vector2(0f, 120f);
-            rt.sizeDelta = new Vector2(700f, 44f);
-
-            var hudGo = new GameObject("LootDropHud", typeof(RectTransform));
-            hudGo.transform.SetParent(canvas.transform, false);
-            var hud = hudGo.AddComponent<LootDropHud>();
-            var so = new SerializedObject(hud);
-            so.FindProperty("_bootstrap").objectReferenceValue = bootstrap;
-            so.FindProperty("_text").objectReferenceValue = tmp;
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 

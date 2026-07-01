@@ -108,6 +108,14 @@ namespace Wavekeep.EditorTools
             // never silently drops it. No-ops if the Task 43 catalog asset doesn't exist yet.
             Task43CodexSetup.BuildAndWireForHubRebuild(canvas, bootstrap);
 
+            // Task 73: re-apply the gear-economy UI (Dust/Salvage/Forge/Overflow) + fix the Hub bootstrap's gear
+            // config wiring (Task 71 flag #3). Runs AFTER Task 25 so the detail panel exists for the Salvage button.
+            Task73HubEconomySetup.BuildAndWire(hub, canvas, bootstrap);
+
+            // Task 74: re-apply the mass-salvage bar (rarity quick-filters + selection summary + Mass Salvage/Clear)
+            // to the inventory column. Runs AFTER Task 73 so it reflows the same inventory scroll consistently.
+            Task74MassSalvageSetup.BuildAndWire(hub, canvas);
+
             // --- Save the scene + register build order (Hub first). ---
             EnsureFolder("Assets", "Scenes");
             EditorSceneManager.SaveScene(scene, HubScenePath);

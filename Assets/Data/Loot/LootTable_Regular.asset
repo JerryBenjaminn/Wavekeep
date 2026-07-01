@@ -13,6 +13,26 @@ MonoBehaviour:
   m_Name: LootTable_Regular
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.LootTableSO
   _dropChance: 0.038
+  _slotEntries:
+  - _base: {fileID: 11400000, guid: 321bdf2bbf37f8046bd819c1e5b51122, type: 2}
+    _weight: 20
+  - _base: {fileID: 11400000, guid: f458e21fc5c411e4babec5687b30340d, type: 2}
+    _weight: 20
+  - _base: {fileID: 11400000, guid: 55486395d48e0ae409a0266012612513, type: 2}
+    _weight: 20
+  - _base: {fileID: 11400000, guid: a28c562de18ad8e49be3a8224516cd30, type: 2}
+    _weight: 20
+  - _base: {fileID: 11400000, guid: 795bc61cc780f554c9c48d8dc9399760, type: 2}
+    _weight: 20
+  _rarityWeights:
+  - _rarity: 0
+    _weight: 60
+  - _rarity: 1
+    _weight: 25
+  - _rarity: 2
+    _weight: 10
+  - _rarity: 3
+    _weight: 5
   _entries:
   - _item: {fileID: 11400000, guid: c117d08b2e51e994bb5bfb211c6c6998, type: 2}
     _weight: 12

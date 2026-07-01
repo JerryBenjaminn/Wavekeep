@@ -13,6 +13,22 @@ MonoBehaviour:
   m_Name: LootTable_BossLate
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.LootTableSO
   _dropChance: 1
+  _slotEntries:
+  - _base: {fileID: 11400000, guid: 55486395d48e0ae409a0266012612513, type: 2}
+    _weight: 3
+  - _base: {fileID: 11400000, guid: a28c562de18ad8e49be3a8224516cd30, type: 2}
+    _weight: 3
+  - _base: {fileID: 11400000, guid: 795bc61cc780f554c9c48d8dc9399760, type: 2}
+    _weight: 2
+  _rarityWeights:
+  - _rarity: 2
+    _weight: 3
+  - _rarity: 3
+    _weight: 3
+  - _rarity: 4
+    _weight: 2
+  - _rarity: 5
+    _weight: 1
   _entries:
   - _item: {fileID: 11400000, guid: fbeb9ef5bdd861145b757d37a18047f6, type: 2}
     _weight: 3

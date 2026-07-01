@@ -49,6 +49,16 @@ namespace Wavekeep.Core
         [Tooltip("Master catalog of all gear/artifact items, used to resolve saved item ids on load.")]
         [SerializeField] private GearCatalogSO _gearCatalog;
 
+        [Tooltip("Task 68: affix-count-per-rarity config + shared affix pool, used by drop generation to roll an " +
+                 "instance's affixes. Optional — if unset, drops still generate (implicit only, no affixes). " +
+                 "Authored/wired by the Task 68 setup menu.")]
+        [SerializeField] private GearAffixCountConfigSO _gearAffixConfig;
+
+        [Tooltip("Task 71: gear economy tuning (inventory capacity, salvage Dust yields, Artifact Forge costs). " +
+                 "Optional — if unset, inventory is uncapped and salvage/forge are unavailable. Authored/wired by " +
+                 "the Task 71 setup menu.")]
+        [SerializeField] private GearEconomyConfigSO _gearEconomyConfig;
+
         [Header("Luck / Tier Weighting (Task 24)")]
         [Tooltip("Tunable inputs for Luck-driven shop + loot tier weighting. If unset, weighting is disabled " +
                  "(flat odds) and Luck still tracks/clamps correctly — so older scenes keep working.")]
@@ -103,7 +113,9 @@ namespace Wavekeep.Core
             // Task 12: gear is DISK-backed. The manager loads from disk on construction, so a scene
             // reload reconstructs identical persistent state while the per-run services above reset.
             var savePath = Path.Combine(Application.persistentDataPath, GearManager.DefaultSaveFileName);
-            var gearManager = new GearManager(_gearCatalog, savePath);
+            // Task 71: also takes the affix config (so the Artifact Forge rolls affixes per rarity) and the economy
+            // config (inventory cap, salvage yields, forge costs). Both optional — null degrades gracefully.
+            var gearManager = new GearManager(_gearCatalog, savePath, _gearAffixConfig, _gearEconomyConfig);
 
             // Task 24: per-run Luck total + run-progress tracker (fresh each scene load → potion bonus resets).
             // Built before LootService so loot rolls can reweight tiers against current Luck.
@@ -112,7 +124,9 @@ namespace Wavekeep.Core
             // Task 13: subscribes to EnemyKilledEvent (after Currency/XP) to roll drops into the gear
             // manager — an additional consumer of the kill event, not a change to the death path.
             // Task 24: also takes LuckState so drop-tier odds shift (weakly) with Luck.
-            var lootService = new LootService(eventBus, gearManager, luckState);
+            // Task 68: generates a fresh GearInstance per drop (slot + Luck-weighted rarity + affixes); the
+            // affix config supplies the per-rarity affix count + shared pool (null = implicit-only drops).
+            var lootService = new LootService(eventBus, gearManager, luckState, _gearAffixConfig);
 
             // Task 36: empty hero registry; the spawn flow registers each active hero into it at run start.
             var heroes = new HeroRegistry();

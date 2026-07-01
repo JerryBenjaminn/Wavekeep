@@ -1,4 +1,6 @@
+using UnityEngine;
 using Wavekeep.Data;
+using Wavekeep.Gear;
 
 namespace Wavekeep.Core.Events
 {
@@ -17,20 +19,35 @@ namespace Wavekeep.Core.Events
         public readonly EnemyDefinitionSO Definition;
         public readonly LootTableSO LootTable;
 
-        public EnemyKilledEvent(EnemyDefinitionSO definition, LootTableSO lootTable)
+        /// <summary>Task 69: world-space position of the enemy at the moment of death. Purely presentational
+        /// metadata (it does not affect currency/xp/loot logic) — it lets the visual loot-drop layer place a
+        /// marker where the enemy fell, and is forwarded into <see cref="GearDroppedEvent.DropPosition"/>.</summary>
+        public readonly Vector3 DeathPosition;
+
+        public EnemyKilledEvent(EnemyDefinitionSO definition, LootTableSO lootTable, Vector3 deathPosition)
         {
             Definition = definition;
             LootTable = lootTable;
+            DeathPosition = deathPosition;
         }
     }
 
-    /// <summary>Published when a kill rolls an actual gear/artifact drop (Task 13). Carries the dropped
-    /// <see cref="LootItemSO"/> for the minimal in-run pickup notification (the item is already in the
-    /// GearInventory by the time this fires).</summary>
+    /// <summary>Published when a kill rolls an actual gear/artifact drop (Task 13; Task 68 carries a generated
+    /// instance). Carries the freshly generated <see cref="GearInstance"/> for the minimal in-run pickup
+    /// notification (it is already in the GearInventory by the time this fires).</summary>
     public readonly struct GearDroppedEvent
     {
-        public readonly LootItemSO Item;
-        public GearDroppedEvent(LootItemSO item) => Item = item;
+        public readonly GearInstance Item;
+
+        /// <summary>Task 69: world-space position to show the visual drop marker at (the enemy's death position,
+        /// forwarded from <see cref="EnemyKilledEvent.DeathPosition"/>). Presentational only.</summary>
+        public readonly Vector3 DropPosition;
+
+        public GearDroppedEvent(GearInstance item, Vector3 dropPosition)
+        {
+            Item = item;
+            DropPosition = dropPosition;
+        }
     }
 
     // (Removed) EnemyReachedDefendedPointEvent — superseded by attack-the-wall behavior.

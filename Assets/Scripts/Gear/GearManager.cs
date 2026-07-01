@@ -26,19 +26,37 @@ namespace Wavekeep.Gear
         public const string DefaultSaveFileName = "gear_save.json";
 
         private readonly GearInventory _inventory = new GearInventory();
+        // Task 71: drops that arrive while the inventory is at capacity wait here (resolved at the Hub), instead of
+        // interrupting the run. Persisted, so it survives the run→Hub scene reload. Holds only unequipped instances.
+        private readonly List<GearInstance> _overflow = new List<GearInstance>();
         private readonly Dictionary<string, HeroLoadout> _loadouts = new Dictionary<string, HeroLoadout>();
         private readonly GearCatalogSO _catalog;
+        private readonly GearEconomyConfigSO _economy;
+        private readonly GearGenerator _generator; // Task 71: forge-only generation (chosen base+rarity)
         private readonly string _savePath;
 
         public GearInventory Inventory => _inventory;
 
-        /// <summary>Persistent salvage material total (Task 67 wires the field; the salvage feature lands later).</summary>
+        /// <summary>Task 71: drops held because the inventory was full when they arrived (resolve at the Hub).</summary>
+        public IReadOnlyList<GearInstance> Overflow => _overflow;
+
+        /// <summary>Task 71: hard drop-capacity. From the economy config; unlimited when none is wired (older scenes).
+        /// Note: this gates DROPS only — deliberate actions (forge, unequip-return) may exceed it.</summary>
+        public int Capacity => _economy != null ? _economy.InventoryCapacity : int.MaxValue;
+
+        public bool InventoryFull => _inventory.Count >= Capacity;
+
+        /// <summary>Persistent salvage material total (Task 67 field; spent/earned by Task 71 salvage + forge).</summary>
         public int SalvageDust { get; private set; }
 
-        public GearManager(GearCatalogSO catalog, string savePath)
+        public GearManager(GearCatalogSO catalog, string savePath,
+            GearAffixCountConfigSO affixConfig = null, GearEconomyConfigSO economy = null)
         {
             _catalog = catalog;
             _savePath = savePath;
+            _economy = economy;
+            // Task 71: the forge picks base+rarity deterministically, so Luck is irrelevant here (null).
+            _generator = new GearGenerator(affixConfig, null);
             Load();
         }
 
@@ -59,11 +77,22 @@ namespace Wavekeep.Gear
 
         // --- Mutations (each persists) ----------------------------------------------------------
 
-        /// <summary>Add an owned instance to inventory (debug spawn / future drop generation) and save.</summary>
+        /// <summary>Add an owned instance to inventory (drop generation / debug spawn) and save. Task 71: when the
+        /// inventory is already at capacity, the drop is held in the overflow buffer (resolved at the Hub) rather
+        /// than interrupting the run or being lost.</summary>
         public void Grant(GearInstance instance)
         {
             if (instance == null) return;
-            _inventory.Add(instance);
+            if (InventoryFull)
+            {
+                _overflow.Add(instance);
+                Debug.Log($"[GearManager] Inventory full ({_inventory.Count}/{Capacity}); '{instance.ItemName}' " +
+                          "held in overflow — resolve it at the Hub.");
+            }
+            else
+            {
+                _inventory.Add(instance);
+            }
             Save();
         }
 
@@ -121,6 +150,89 @@ namespace Wavekeep.Gear
             return removed;
         }
 
+        // --- Task 71: salvage + overflow resolution + Artifact Forge ----------------------------
+
+        /// <summary>Salvage an owned, UNEQUIPPED instance (from inventory or the overflow buffer) into Salvage Dust
+        /// scaled to its rarity. Equipped instances live in loadouts, NOT here, so they can never be found/salvaged
+        /// — that structurally enforces the "unequip first" rule. Returns the Dust awarded (0 if not found). Only
+        /// the one salvaged instance is removed; no other item's affixes are touched. Persists.</summary>
+        public int Salvage(string instanceId)
+        {
+            if (string.IsNullOrEmpty(instanceId)) return 0;
+
+            var instance = _inventory.FindById(instanceId);
+            bool fromInventory = instance != null;
+            if (instance == null) instance = FindOverflow(instanceId);
+            if (instance == null) return 0;
+
+            if (fromInventory) _inventory.Remove(instance);
+            else _overflow.Remove(instance);
+
+            int yield = _economy != null ? _economy.SalvageYield(instance.Rarity) : 0;
+            SalvageDust += yield;
+            Save();
+            Debug.Log($"[GearManager] Salvaged [{instance.Rarity}] {instance.ItemName} → +{yield} Dust (total {SalvageDust}).");
+            return yield;
+        }
+
+        /// <summary>Move an overflow-buffered instance into the main inventory when there's room. Returns false if
+        /// it isn't in overflow or the inventory is full. Persists on success.</summary>
+        public bool ClaimOverflow(string instanceId)
+        {
+            var instance = FindOverflow(instanceId);
+            if (instance == null || InventoryFull) return false;
+            _overflow.Remove(instance);
+            _inventory.Add(instance);
+            Save();
+            return true;
+        }
+
+        private GearInstance FindOverflow(string instanceId)
+        {
+            for (int i = 0; i < _overflow.Count; i++)
+                if (_overflow[i] != null && _overflow[i].ItemId == instanceId) return _overflow[i];
+            return null;
+        }
+
+        /// <summary>Artifact Forge (Task 71): deterministically craft an Artifact of the CHOSEN rarity, spending the
+        /// scaled Dust cost (Dust only — no persistent currency exists per CLAUDE.md §2). Affixes roll exactly like a
+        /// drop of that rarity (Unique → the base's fixed/hand-authored set) — there is NO RNG on the result's
+        /// rarity. The craft goes straight to inventory (a deliberate action bypasses the drop cap rather than being
+        /// trapped in overflow). Returns the new instance, or null if unaffordable / misconfigured. Creating it never
+        /// touches any other instance's affixes. Persists.</summary>
+        public GearInstance ForgeArtifact(Rarity rarity)
+        {
+            int cost = _economy != null ? _economy.ForgeCost(rarity) : 0;
+            if (cost <= 0)
+            {
+                Debug.LogWarning("[GearManager] No GearEconomyConfig wired (or zero forge cost); forge unavailable.");
+                return null;
+            }
+            if (SalvageDust < cost)
+            {
+                Debug.Log($"[GearManager] Forge {rarity} needs {cost} Dust; have {SalvageDust}.");
+                return null;
+            }
+            if (_catalog == null) { Debug.LogError("[GearManager] No catalog; cannot forge."); return null; }
+
+            var artifactBase = _catalog.FindBaseForSlot(GearSlot.Artifact);
+            if (artifactBase == null)
+            {
+                Debug.LogError("[GearManager] No Artifact GearBase registered in the catalog; cannot forge.");
+                return null;
+            }
+
+            var instance = _generator.GenerateForBase(artifactBase, rarity);
+            if (instance == null) return null;
+
+            SalvageDust -= cost;
+            _inventory.Add(instance); // deliberate craft → straight to inventory (may exceed the drop cap)
+            Save();
+            Debug.Log($"[GearManager] Forged [{rarity}] {instance.ItemName} for {cost} Dust " +
+                      $"({instance.Affixes.Count} affix(es)). Dust left {SalvageDust}.");
+            return instance;
+        }
+
         private static string HeroKey(HeroDefinitionSO hero) => hero != null ? hero.HeroName : "";
 
         // --- Persistence ------------------------------------------------------------------------
@@ -142,6 +254,7 @@ namespace Wavekeep.Gear
         private void Load()
         {
             _inventory.Clear();
+            _overflow.Clear();
             _loadouts.Clear();
             SalvageDust = 0;
 
@@ -182,6 +295,7 @@ namespace Wavekeep.Gear
             {
                 Debug.LogError($"[GearManager] Failed to load gear from '{_savePath}': {e.Message}. Starting empty.");
                 _inventory.Clear();
+                _overflow.Clear();
                 _loadouts.Clear();
                 SalvageDust = 0;
             }
@@ -191,9 +305,18 @@ namespace Wavekeep.Gear
         {
             var data = new GearSaveData { saveVersion = CurrentSaveVersion, salvageDust = SalvageDust };
 
-            // Every instance — inventory + equipped — is serialized in full (instances are unique, not shared).
+            // Every instance — inventory + equipped + overflow — is serialized in full (instances are unique).
             foreach (var item in _inventory.Items)
                 if (item != null) data.instances.Add(ToInstanceData(item));
+
+            // Task 71: overflow-buffered instances are serialized too, tagged by id so load restores them to the
+            // buffer (not the inventory).
+            foreach (var item in _overflow)
+                if (item != null)
+                {
+                    data.instances.Add(ToInstanceData(item));
+                    data.overflowInstanceIds.Add(item.ItemId);
+                }
 
             foreach (var pair in _loadouts)
             {
@@ -244,9 +367,16 @@ namespace Wavekeep.Gear
                 }
             }
 
-            // 3) Everything not equipped is owned-and-unequipped → inventory.
+            // 3) Route the rest: overflow ids → overflow buffer (Task 71); everything else owned-unequipped → inventory.
+            var overflowIds = data.overflowInstanceIds != null
+                ? new HashSet<string>(data.overflowInstanceIds)
+                : new HashSet<string>();
             foreach (var pair in byId)
-                if (!equipped.Contains(pair.Key)) _inventory.Add(pair.Value);
+            {
+                if (equipped.Contains(pair.Key)) continue;
+                if (overflowIds.Contains(pair.Key)) _overflow.Add(pair.Value);
+                else _inventory.Add(pair.Value);
+            }
         }
 
         private static GearInstanceData ToInstanceData(GearInstance instance)

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Wavekeep.Data
@@ -25,11 +26,20 @@ namespace Wavekeep.Data
                  "this is the multiplier (1.2 = +20%); for flat/Luck it is the added amount.")]
         [SerializeField] private float[] _implicitValueByRarity = new float[6];
 
+        [Header("Unique (Task 68 — hand-authored fixed affixes; Unique rolls NEVER randomise)")]
+        [Tooltip("The fixed affix set a generated UNIQUE of this slot receives verbatim (no random rolls). Empty " +
+                 "= a Unique of this slot carries only the implicit. Ignored for every other rarity.")]
+        [SerializeField] private List<FixedAffix> _uniqueAffixes = new List<FixedAffix>();
+
         public string BaseId => _baseId;
         public string DisplayName => _displayName;
         public Sprite Icon => _icon;
         public GearSlot Slot => _slot;
         public GearStatType ImplicitStat => _implicitStat;
+
+        /// <summary>Task 68: the hand-authored fixed affixes a generated Unique of this slot receives (no random
+        /// rolls). Empty = implicit only. Read-only.</summary>
+        public IReadOnlyList<FixedAffix> UniqueAffixes => _uniqueAffixes;
 
         /// <summary>Implicit magnitude for a given rarity (clamped to the authored array; 0 if unauthored).</summary>
         public float ImplicitValue(Rarity rarity)

@@ -18,6 +18,8 @@ namespace Wavekeep.Runtime
     /// a MINIMAL debug spawn, NOT the real weighted drop generation, which is a later task); J = equip the first
     /// owned instance on the active hero; L = unequip everything; K = log inventory + loadout + the basic
     /// ability's gear-inclusive effective damage (proving stats flow through the unchanged AbilityRuntime pipeline).
+    /// Task 71 adds: S = salvage the first owned instance (→ Dust); F = forge an Artifact, cycling the target rarity
+    /// each press (spends Dust); O = resolve the first overflow item (claim into inventory, or salvage if full).
     /// </summary>
     [AddComponentMenu("Wavekeep/Debug/Gear Debug Controller")]
     public sealed class GearDebugController : MonoBehaviour
@@ -39,6 +41,7 @@ namespace Wavekeep.Runtime
         private EventBus _events;
         private GearManager _gear;
         private HeroDefinitionSO _activeHero;
+        private int _forgeRarityCursor; // Task 71: cycles the forge target rarity per F press
 
         private void Start()
         {
@@ -71,6 +74,45 @@ namespace Wavekeep.Runtime
             if (keyboard[Key.J].wasPressedThisFrame) EquipFirstOwned();
             if (keyboard[Key.L].wasPressedThisFrame) UnequipAll();
             if (keyboard[Key.K].wasPressedThisFrame) LogState();
+            if (keyboard[Key.S].wasPressedThisFrame) SalvageFirstOwned();   // Task 71
+            if (keyboard[Key.F].wasPressedThisFrame) ForgeNextRarity();     // Task 71
+            if (keyboard[Key.O].wasPressedThisFrame) ResolveOverflow();     // Task 71
+        }
+
+        // --- Task 71 debug hooks (placeholder for the eventual Hub salvage/forge UI) -----------------
+
+        private void SalvageFirstOwned()
+        {
+            var first = _gear.Inventory.Count > 0 ? _gear.Inventory.Items[0] : null;
+            if (first == null) { Debug.LogWarning("[GearDebugController] Inventory empty — nothing to salvage."); return; }
+            int dust = _gear.Salvage(first.ItemId);
+            Debug.Log($"[GearDebugController] Salvaged '{first.ItemName}' → +{dust} Dust. Total: {_gear.SalvageDust}.");
+        }
+
+        private void ForgeNextRarity()
+        {
+            int count = System.Enum.GetValues(typeof(Rarity)).Length;
+            var rarity = (Rarity)(_forgeRarityCursor % count);
+            _forgeRarityCursor++;
+            var instance = _gear.ForgeArtifact(rarity);
+            if (instance != null)
+                Debug.Log($"[GearDebugController] Forged '{instance.ItemName}'. Dust left: {_gear.SalvageDust}.");
+            else
+                Debug.Log($"[GearDebugController] Forge {rarity} failed (need more Dust than {_gear.SalvageDust}, or no config).");
+        }
+
+        private void ResolveOverflow()
+        {
+            var overflow = _gear.Overflow;
+            if (overflow.Count == 0) { Debug.Log("[GearDebugController] No overflow pending."); return; }
+            var first = overflow[0];
+            if (_gear.ClaimOverflow(first.ItemId))
+                Debug.Log($"[GearDebugController] Claimed overflow '{first.ItemName}' into inventory ({overflow.Count - 1} left).");
+            else
+            {
+                int dust = _gear.Salvage(first.ItemId); // inventory full → salvage it instead
+                Debug.Log($"[GearDebugController] Inventory full — salvaged overflow '{first.ItemName}' → +{dust} Dust.");
+            }
         }
 
         private void GrantRandom()
@@ -154,7 +196,8 @@ namespace Wavekeep.Runtime
 
         private void LogState()
         {
-            Debug.Log($"[GearDebugController] Inventory: {_gear.Inventory.Count} owned instance(s). Dust: {_gear.SalvageDust}.");
+            Debug.Log($"[GearDebugController] Inventory: {_gear.Inventory.Count}/{_gear.Capacity} owned. " +
+                      $"Overflow: {_gear.Overflow.Count}. Dust: {_gear.SalvageDust}.");
 
             if (_activeHero == null) return;
 

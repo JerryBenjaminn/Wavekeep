@@ -24,3 +24,8 @@ MonoBehaviour:
   - 1.28
   - 1.42
   - 1.6
+  _uniqueAffixes:
+  - _affix: {fileID: 11400000, guid: 27376fd4f0d17f744b780b810d582099, type: 2}
+    _value: 1.3
+  - _affix: {fileID: 11400000, guid: a08f200f8851e8c4882fc71ec5adf921, type: 2}
+    _value: 15

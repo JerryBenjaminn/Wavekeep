@@ -927,7 +927,8 @@ namespace Wavekeep.Runtime
             // Loot rolling/granting happens in LootService listening to this same event — this death
             // path is unchanged otherwise (no new currency/xp/pool-release logic). The kill event is
             // published immediately at death; only the pool-RELEASE is deferred for the death animation.
-            _events?.Publish(new EnemyKilledEvent(Definition, _lootTable));
+            Vector3 deathPos = Transform != null ? Transform.position : Vector3.zero;
+            _events?.Publish(new EnemyKilledEvent(Definition, _lootTable, deathPos));
 
             // Task 54 (§2.7): for animated enemies, play the Death clip and defer Resolve (pool-release +
             // active-list removal) until the clip finishes, so a corpse never pops out mid-animation. The enemy
