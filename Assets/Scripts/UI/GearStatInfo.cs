@@ -49,6 +49,28 @@ namespace Wavekeep.UI
 
         public static string LuckLabel(float value) => $"+{value:0.##} Luck";
 
+        /// <summary>Task 75: label for one AFFIX's current rolled value, keyed by its <see cref="GearStatType"/>
+        /// (routes Luck to its own label, everything else through <see cref="Label"/>).</summary>
+        public static string AffixLabel(GearStatType stat, float value) =>
+            stat == GearStatType.Luck ? LuckLabel(value) : Label(ToAbilityModifierType(stat), value);
+
+        /// <summary>Task 76: simple "Range: X–Y" hover text for an affix's roll range at the item's current rarity,
+        /// formatted in the same units as the affix's value label.</summary>
+        public static string RangeTooltip(GearStatType stat, float min, float max) =>
+            $"Range: {AffixLabel(stat, min)} – {AffixLabel(stat, max)}";
+
+        private static AbilityModifierType ToAbilityModifierType(GearStatType stat)
+        {
+            switch (stat)
+            {
+                case GearStatType.DamageMultiplier: return AbilityModifierType.DamageMultiplier;
+                case GearStatType.DamageFlatBonus: return AbilityModifierType.DamageFlatBonus;
+                case GearStatType.CooldownMultiplier: return AbilityModifierType.CooldownMultiplier;
+                case GearStatType.RangeMultiplier: return AbilityModifierType.RangeMultiplier;
+                default: return AbilityModifierType.DamageFlatBonus; // Luck handled before this; safe fallback
+            }
+        }
+
         /// <summary>Task 26: signed delta for a stat-vs-equipped comparison. <paramref name="delta"/> is the
         /// raw difference of the two items' stored values (inspected − equipped). Multiplier stats render
         /// the difference as percentage points (e.g. 1.25 vs 1.20 → "+5%"); flat stats render as-is.</summary>

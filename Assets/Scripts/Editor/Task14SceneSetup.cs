@@ -116,6 +116,10 @@ namespace Wavekeep.EditorTools
             // to the inventory column. Runs AFTER Task 73 so it reflows the same inventory scroll consistently.
             Task74MassSalvageSetup.BuildAndWire(hub, canvas);
 
+            // Task 75: re-apply the reroll/upgrade sinks — authors the new economy costs, adds the detail-panel
+            // Modify button + the Modify modal. Runs AFTER Task 73/25 so the detail panel + economy config exist.
+            Task75GearMutationSetup.BuildAndWire(hub, canvas, bootstrap);
+
             // --- Save the scene + register build order (Hub first). ---
             EnsureFolder("Assets", "Scenes");
             EditorSceneManager.SaveScene(scene, HubScenePath);

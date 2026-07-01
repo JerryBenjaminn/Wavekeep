@@ -102,6 +102,19 @@ namespace Wavekeep.UI
         [SerializeField] private Button _massSalvageButton;
         [SerializeField] private Button _clearSelectionButton;
 
+        [Header("Reroll + Upgrade Rarity (Task 75)")]
+        [Tooltip("Detail-panel button that opens the Modify modal (per-affix reroll + upgrade-rarity) for the " +
+                 "selected owned item. Enabled only when an owned item is inspected.")]
+        [SerializeField] private Button _detailModifyButton;
+        [SerializeField] private GameObject _modifyPanel;
+        [SerializeField] private TMP_Text _modifyTitle;
+        [SerializeField] private TMP_Text _modifyDustLabel;
+        [Tooltip("Single per-item upgrade-rarity action; shows cost + resulting rarity, disabled at Legendary/Unique.")]
+        [SerializeField] private Button _modifyUpgradeButton;
+        [Tooltip("Vertical container filled with one reroll row per affix (label + value + Reroll button).")]
+        [SerializeField] private RectTransform _modifyAffixContainer;
+        [SerializeField] private Button _modifyCloseButton;
+
         private GearManager _gear;
         private HeroDefinitionSO _activeHero;
         private System.Action _pendingConfirm; // Task 73: action run when the confirm modal is accepted
@@ -183,6 +196,14 @@ namespace Wavekeep.UI
             // something is selected.
             if (_massSalvageButton != null) _massSalvageButton.onClick.AddListener(OnMassSalvage);
             if (_clearSelectionButton != null) _clearSelectionButton.onClick.AddListener(ClearSelection);
+
+            // Task 75: reroll-affix + upgrade-rarity. The Modify button on the detail panel opens a modal listing a
+            // per-affix reroll control + the single upgrade-rarity action; both route through the shared confirm
+            // modal. Panel closed by default.
+            if (_detailModifyButton != null) _detailModifyButton.onClick.AddListener(OpenModify);
+            if (_modifyUpgradeButton != null) _modifyUpgradeButton.onClick.AddListener(OnUpgradeRarity);
+            if (_modifyCloseButton != null) _modifyCloseButton.onClick.AddListener(CloseModify);
+            CloseModify();
 
             // Default to the first hero so the loadout view is populated on launch.
             for (int i = 0; i < _heroRoster.Count; i++)
@@ -517,7 +538,42 @@ namespace Wavekeep.UI
         {
             if (_selectedItem == null) return;
             BuildStatRows();
+            BuildAffixRangeRows(); // Task 76: per-affix roll rows with "Range: X–Y" hover tooltips
             RefreshDetailButtons();
+        }
+
+        // Task 76: append one hoverable row per rolled affix below the aggregated STATS, each showing its current
+        // value with a "Range: X–Y" tooltip (the roll range for the item's CURRENT rarity). Uses the same shared
+        // TooltipPresenter as the stat rows. Unique affixes are hand-authored (not rolled) → no range tooltip;
+        // zero-affix items add nothing (nothing to hover), satisfying both exclusions in the task.
+        private void BuildAffixRangeRows()
+        {
+            if (_detailStatContainer == null || _selectedItem == null) return;
+            var affixes = _selectedItem.Affixes;
+            if (affixes.Count == 0) return;
+
+            bool isUnique = _selectedItem.Rarity == Rarity.Unique;
+
+            var header = CreateText(_detailStatContainer, "<color=#8890A0>— Affix rolls —</color>", 16f,
+                TextAlignmentOptions.Left);
+            ((RectTransform)header.transform).sizeDelta = new Vector2(420f, 24f);
+
+            for (int i = 0; i < affixes.Count; i++)
+            {
+                var a = affixes[i];
+                var def = a?.Definition;
+                if (def == null) continue;
+
+                var stat = def.Effect.Stat;
+                string name = !string.IsNullOrEmpty(def.DisplayName) ? def.DisplayName : "Affix";
+                string label = $"{name}: {GearStatInfo.AffixLabel(stat, a.Value)}";
+                // Unique → empty tooltip (TooltipTrigger shows nothing for empty text); others → per-rarity range.
+                string tooltip = isUnique
+                    ? string.Empty
+                    : GearStatInfo.RangeTooltip(stat, def.MinValueFor(_selectedItem.Rarity),
+                                                      def.MaxValueFor(_selectedItem.Rarity));
+                CreateStatRow(label, tooltip);
+            }
         }
 
         private void CloseDetail()
@@ -663,6 +719,10 @@ namespace Wavekeep.UI
                     ? _economyConfig.SalvageYield(_selectedItem.Rarity) : 0;
                 SetButtonLabel(_detailSalvageButton, ownsUnequipped ? $"Salvage +{yield}" : "Salvage");
             }
+
+            // Task 75: Modify (reroll/upgrade) is available for any OWNED item — unequipped in inventory OR equipped
+            // on this hero (mutations don't remove the item, so equipped is fine; the instance updates in place).
+            if (_detailModifyButton != null) _detailModifyButton.interactable = ownsUnequipped || equippedOnHero;
         }
 
         private TooltipPresenter CreateTooltipPresenter()
@@ -724,6 +784,7 @@ namespace Wavekeep.UI
             string text = $"Dust: {_gear.SalvageDust}";
             if (_dustLabel != null) _dustLabel.text = text;
             if (_forgeDustLabel != null) _forgeDustLabel.text = text;
+            if (_modifyDustLabel != null) _modifyDustLabel.text = text; // Task 75: keep the Modify modal in sync
         }
 
         // --- Task 73: Salvage (from the detail panel) ---------------------------------------------
@@ -880,6 +941,145 @@ namespace Wavekeep.UI
                     new Vector2(120f, 40f), () => OnRarityFilter(captured));
                 btn.interactable = total > 0;
             }
+        }
+
+        // --- Task 75: Reroll-affix + Upgrade-rarity (Modify modal) --------------------------------
+
+        // Flagged design choice: both actions are surfaced from the item-detail view via a "Modify" button that
+        // opens a dedicated modal (consistent with the Forge/Overflow modals), rather than crammed inline into the
+        // fixed-size detail panel. The modal lists a per-affix Reroll control + the single Upgrade-Rarity action,
+        // each showing its Dust cost, and both route through the SAME shared confirm modal as salvage/forge. It
+        // always operates on the currently-inspected _selectedItem (which is always an owned instance).
+
+        private void OpenModify()
+        {
+            if (_selectedItem == null || _modifyPanel == null) return;
+            RefreshModify();
+            _modifyPanel.transform.SetAsLastSibling(); // above the detail panel; the confirm modal still tops this
+            _modifyPanel.SetActive(true);
+        }
+
+        // Rebuild the modal from the (possibly just-mutated) selected item — title, Dust, reroll rows, upgrade button.
+        private void RefreshModify()
+        {
+            if (_selectedItem == null) return;
+            if (_modifyTitle != null)
+                _modifyTitle.text = $"<color=#{RarityHex(_selectedItem.Rarity)}>[{_selectedItem.Rarity}]</color> " +
+                                    $"{_selectedItem.ItemName}";
+            RefreshDust();
+            BuildRerollRows();
+            RefreshUpgradeButton();
+        }
+
+        // One row per affix: "Name: value" + a Reroll button showing the Dust cost. Disabled when the item is Unique
+        // (hand-authored affixes, not rerollable) or the player can't afford it.
+        private void BuildRerollRows()
+        {
+            if (_modifyAffixContainer == null || _selectedItem == null) return;
+            ClearChildren(_modifyAffixContainer);
+
+            var affixes = _selectedItem.Affixes;
+            if (affixes.Count == 0)
+            {
+                CreateText(_modifyAffixContainer, "<color=#888888>(No affixes to reroll)</color>", 18f,
+                    TextAlignmentOptions.Left);
+                return;
+            }
+
+            bool isUnique = _selectedItem.Rarity == Rarity.Unique;
+            int cost = _economyConfig != null ? _economyConfig.RerollAffixCost(_selectedItem.Rarity) : 0;
+
+            for (int i = 0; i < affixes.Count; i++)
+            {
+                var a = affixes[i];
+                int index = i;
+                var row = CreateRow(_modifyAffixContainer, new Vector2(600f, 40f));
+
+                string affixName = a?.Definition != null && !string.IsNullOrEmpty(a.Definition.DisplayName)
+                    ? a.Definition.DisplayName : "Affix";
+                string statLabel = a?.Definition != null
+                    ? GearStatInfo.AffixLabel(a.Definition.Effect.Stat, a.Value) : "—";
+                var lbl = CreateText(row.transform, $"{affixName}: <color=#9FE0A0>{statLabel}</color>", 18f,
+                    TextAlignmentOptions.Left);
+                ((RectTransform)lbl.transform).sizeDelta = new Vector2(410f, 36f);
+
+                bool canReroll = !isUnique && cost > 0 && _gear.SalvageDust >= cost;
+                var btn = CreateButton(row.transform, isUnique ? "—" : $"Reroll ({cost})",
+                    canReroll ? new Color(0.3f, 0.45f, 0.6f) : new Color(0.3f, 0.3f, 0.34f),
+                    Color.white, new Vector2(150f, 36f), () => OnRerollAffix(index));
+                btn.interactable = canReroll;
+            }
+        }
+
+        private void OnRerollAffix(int index)
+        {
+            if (_selectedItem == null) return;
+            var item = _selectedItem;
+            var affixes = item.Affixes;
+            if (index < 0 || index >= affixes.Count) return;
+
+            int cost = _economyConfig != null ? _economyConfig.RerollAffixCost(item.Rarity) : 0;
+            string affixName = affixes[index]?.Definition != null && !string.IsNullOrEmpty(affixes[index].Definition.DisplayName)
+                ? affixes[index].Definition.DisplayName : "affix";
+
+            AskConfirm($"Reroll <color=#E0C060>{affixName}</color> for <color=#E0C060>{cost} Dust</color>? " +
+                       "<size=80%>(new value in the same range; type unchanged)</size>",
+                () =>
+                {
+                    if (!_gear.RerollAffix(item.ItemId, index)) return;
+                    RefreshDust();
+                    if (_selectedItem == item) RefreshDetail();          // stat rows on the detail panel behind
+                    if (_modifyPanel != null && _modifyPanel.activeSelf) RefreshModify();
+                });
+        }
+
+        // Single upgrade-rarity action: shows "Upgrade → [Next] (cost)". Disabled at Legendary (cap) / Unique
+        // (Forge-only) — the sink can never produce Unique.
+        private void RefreshUpgradeButton()
+        {
+            if (_modifyUpgradeButton == null || _selectedItem == null) return;
+
+            bool isUnique = _selectedItem.Rarity == Rarity.Unique;
+            bool atCap = _selectedItem.Rarity >= Rarity.Legendary;
+            if (isUnique || atCap)
+            {
+                _modifyUpgradeButton.interactable = false;
+                SetButtonLabel(_modifyUpgradeButton, isUnique ? "Unique — can't upgrade" : "Max rarity (Legendary)");
+                return;
+            }
+
+            Rarity next = _selectedItem.Rarity + 1;
+            int cost = _economyConfig != null ? _economyConfig.UpgradeRarityCost(_selectedItem.Rarity) : 0;
+            bool affordable = cost > 0 && _gear.SalvageDust >= cost;
+            _modifyUpgradeButton.interactable = affordable;
+            SetButtonLabel(_modifyUpgradeButton, $"Upgrade → [{next}] ({cost} Dust)");
+        }
+
+        private void OnUpgradeRarity()
+        {
+            if (_selectedItem == null) return;
+            var item = _selectedItem;
+            if (item.Rarity == Rarity.Unique || item.Rarity >= Rarity.Legendary) return;
+
+            Rarity next = item.Rarity + 1;
+            int cost = _economyConfig != null ? _economyConfig.UpgradeRarityCost(item.Rarity) : 0;
+
+            AskConfirm($"Upgrade {item.ItemName} to <color=#{RarityHex(next)}>[{next}]</color> for " +
+                       $"<color=#E0C060>{cost} Dust</color>? <size=80%>(keeps all affixes; adds new one(s))</size>",
+                () =>
+                {
+                    if (!_gear.UpgradeRarity(item.ItemId)) return;
+                    RefreshDust();
+                    RefreshInventory();
+                    RefreshSlots(); // rarity label changes if the item is equipped
+                    if (_selectedItem == item) ShowDetail(); // rarity/name/stats changed → refresh header + rows
+                    if (_modifyPanel != null && _modifyPanel.activeSelf) RefreshModify();
+                });
+        }
+
+        private void CloseModify()
+        {
+            if (_modifyPanel != null) _modifyPanel.SetActive(false);
         }
 
         // --- Task 73: Artifact Forge --------------------------------------------------------------

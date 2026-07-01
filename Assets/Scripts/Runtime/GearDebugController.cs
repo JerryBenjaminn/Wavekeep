@@ -162,7 +162,7 @@ namespace Wavekeep.Runtime
                     int idx = Random.Range(0, eligible.Count);
                     var def = eligible[idx];
                     eligible.RemoveAt(idx); // distinct affix types per item
-                    affixes.Add(new RolledAffix(def, def.MidValue));
+                    affixes.Add(new RolledAffix(def, def.MidValueFor(rarity))); // Task 76: per-rarity midpoint
                 }
             }
 

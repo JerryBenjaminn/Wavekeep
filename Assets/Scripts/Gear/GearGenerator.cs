@@ -66,6 +66,57 @@ namespace Wavekeep.Gear
             return GearInstance.Create(baseTemplate, rarity, RollAffixes(baseTemplate, rarity));
         }
 
+        /// <summary>Task 75 (upgrade-rarity): roll ONLY the extra affix slots a higher rarity adds, excluding affix
+        /// types already on the item (so upgraded items keep distinct affixes, matching fresh generation). Returns
+        /// the newly-rolled affixes to APPEND — the caller preserves the existing ones verbatim. Returns an empty
+        /// list if the new rarity adds no slots. Unique is never a target here (the upgrade sink caps at Legendary).</summary>
+        public List<RolledAffix> RollAdditionalAffixes(GearBaseSO baseTemplate, Rarity newRarity,
+            IReadOnlyList<RolledAffix> existing)
+        {
+            var result = new List<RolledAffix>();
+            if (baseTemplate == null || _affixConfig == null) return result;
+
+            int target = _affixConfig.AffixCountFor(newRarity);
+            int have = existing != null ? existing.Count : 0;
+            int toRoll = target - have;
+            if (toRoll <= 0) return result; // higher rarity adds no slot for this item → nothing to roll
+
+            // Eligible pool for this slot, minus affix definitions already on the item (keep types distinct).
+            _eligibleBuffer.Clear();
+            var pool = _affixConfig.AffixPool;
+            for (int i = 0; i < pool.Count; i++)
+            {
+                var def = pool[i];
+                if (def == null || !def.IsEligibleFor(baseTemplate.Slot)) continue;
+                if (ContainsDefinition(existing, def)) continue;
+                _eligibleBuffer.Add(def);
+            }
+
+            for (int n = 0; n < toRoll && _eligibleBuffer.Count > 0; n++)
+            {
+                var def = DrawWeighted(_eligibleBuffer);
+                if (def == null) break;
+                // Task 76: new slots roll within the per-rarity range for the UPGRADED rarity.
+                float value = Random.Range(def.MinValueFor(newRarity), def.MaxValueFor(newRarity));
+                result.Add(new RolledAffix(def, value));
+            }
+
+            if (result.Count < toRoll)
+            {
+                Debug.LogWarning($"[GearGenerator] Upgrade to {newRarity} on {baseTemplate.Slot} wanted {toRoll} new " +
+                                 $"affix(es) but the pool only had {result.Count} unused eligible type(s). Add more affixes.");
+            }
+            return result;
+        }
+
+        private static bool ContainsDefinition(IReadOnlyList<RolledAffix> affixes, AffixDefinitionSO def)
+        {
+            if (affixes == null) return false;
+            for (int i = 0; i < affixes.Count; i++)
+                if (affixes[i] != null && affixes[i].Definition == def) return true;
+            return false;
+        }
+
         // --- Slot pick (plain weighted; slot choice is rarity-neutral) -------------------------------
 
         private GearBaseSO PickBase(LootTableSO table)
@@ -173,7 +224,8 @@ namespace Wavekeep.Gear
             {
                 var def = DrawWeighted(_eligibleBuffer);
                 if (def == null) break;
-                float value = Random.Range(def.MinValue, def.MaxValue);
+                // Task 76: roll within the per-rarity range for THIS item's rarity (no cross-tier overlap).
+                float value = Random.Range(def.MinValueFor(rarity), def.MaxValueFor(rarity));
                 affixes.Add(new RolledAffix(def, value));
             }
 

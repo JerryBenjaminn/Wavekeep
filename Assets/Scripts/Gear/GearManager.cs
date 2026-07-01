@@ -233,6 +233,124 @@ namespace Wavekeep.Gear
             return instance;
         }
 
+        // --- Task 75: reroll-affix + upgrade-rarity (Dust sinks) --------------------------------
+
+        /// <summary>Task 75: reroll ONE affix's VALUE (by index) on an owned instance, within that affix type's
+        /// per-rarity range (Task 76) for the item's rarity from its <c>AffixDefinitionSO</c>. The affix TYPE never changes, and no other
+        /// affix (or the rarity) is touched. Spends the configured Dust cost and persists; returns false (no change)
+        /// if the item isn't owned, the index is invalid, the item is Unique (not rerollable), or the player can't
+        /// afford it. The instance id is unchanged.</summary>
+        public bool RerollAffix(string instanceId, int affixIndex)
+        {
+            var instance = FindOwnedInstance(instanceId);
+            if (instance == null) { Debug.LogWarning("[GearManager] RerollAffix: instance not owned; ignored."); return false; }
+
+            if (instance.Rarity == Rarity.Unique)
+            {
+                Debug.Log("[GearManager] RerollAffix: Unique affixes are hand-authored and not rerollable.");
+                return false;
+            }
+
+            var affixes = instance.Affixes;
+            if (affixIndex < 0 || affixIndex >= affixes.Count) return false;
+            var def = affixes[affixIndex]?.Definition;
+            if (def == null) return false;
+
+            int cost = _economy != null ? _economy.RerollAffixCost(instance.Rarity) : 0;
+            if (cost <= 0)
+            {
+                Debug.LogWarning("[GearManager] No GearEconomyConfig wired (or zero reroll cost); reroll unavailable.");
+                return false;
+            }
+            if (SalvageDust < cost)
+            {
+                Debug.Log($"[GearManager] Reroll needs {cost} Dust; have {SalvageDust}.");
+                return false;
+            }
+
+            float oldValue = affixes[affixIndex].Value;
+            // Task 76: reroll within the per-rarity range for the item's CURRENT rarity (same type, no overlap).
+            float newValue = UnityEngine.Random.Range(def.MinValueFor(instance.Rarity), def.MaxValueFor(instance.Rarity));
+            instance.ReplaceAffix(affixIndex, new RolledAffix(def, newValue));
+            SalvageDust -= cost;
+            Save();
+            Debug.Log($"[GearManager] Rerolled '{def.DisplayName}' on [{instance.Rarity}] {instance.ItemName}: " +
+                      $"{oldValue:0.##} → {newValue:0.##} for {cost} Dust. Dust left {SalvageDust}.");
+            return true;
+        }
+
+        /// <summary>Task 75: raise an owned instance's rarity by ONE tier (Common→Uncommon…Epic→Legendary). Rolls the
+        /// extra affix slot(s) the higher rarity adds (via the same generation logic as drops/forge) and APPENDS them
+        /// — every existing affix is preserved verbatim. Spends the configured Dust cost and persists. Hard-capped at
+        /// Legendary: returns false (no change) on a Legendary (already at cap) or a Unique (Forge-only, never
+        /// upgradeable via this sink), on an unowned instance, or when unaffordable. Can NEVER produce Unique.</summary>
+        public bool UpgradeRarity(string instanceId)
+        {
+            var instance = FindOwnedInstance(instanceId);
+            if (instance == null) { Debug.LogWarning("[GearManager] UpgradeRarity: instance not owned; ignored."); return false; }
+
+            if (instance.Rarity == Rarity.Unique)
+            {
+                Debug.Log("[GearManager] UpgradeRarity: Unique items are Forge-only and cannot be upgraded.");
+                return false;
+            }
+            if (instance.Rarity >= Rarity.Legendary)
+            {
+                Debug.Log("[GearManager] UpgradeRarity: item is already Legendary (upgrade cap).");
+                return false;
+            }
+
+            Rarity next = instance.Rarity + 1;
+            if (next > Rarity.Legendary) return false; // belt-and-suspenders: this sink never reaches Unique
+
+            int cost = _economy != null ? _economy.UpgradeRarityCost(instance.Rarity) : 0;
+            if (cost <= 0)
+            {
+                Debug.LogWarning("[GearManager] No GearEconomyConfig wired (or zero upgrade cost); upgrade unavailable.");
+                return false;
+            }
+            if (SalvageDust < cost)
+            {
+                Debug.Log($"[GearManager] Upgrade to {next} needs {cost} Dust; have {SalvageDust}.");
+                return false;
+            }
+
+            // Roll the new slots BEFORE changing rarity (uses the current affixes to keep types distinct), then
+            // append. Existing affixes are never removed/replaced (reviewer-blocking rule).
+            var additions = _generator.RollAdditionalAffixes(instance.Base, next, instance.Affixes);
+            instance.SetRarity(next);
+            instance.AppendAffixes(additions);
+            SalvageDust -= cost;
+            Save();
+            Debug.Log($"[GearManager] Upgraded {instance.ItemName} to [{next}] for {cost} Dust " +
+                      $"(+{additions.Count} new affix(es), {instance.Affixes.Count} total). Dust left {SalvageDust}.");
+            return true;
+        }
+
+        /// <summary>Find an owned instance anywhere it can live: inventory, the overflow buffer, or equipped in any
+        /// hero's loadout. Reroll/upgrade mutate the instance in place (it's the same reference the loadout holds),
+        /// so an equipped item's stats update live and persist. Returns null if not owned.</summary>
+        private GearInstance FindOwnedInstance(string instanceId)
+        {
+            if (string.IsNullOrEmpty(instanceId)) return null;
+
+            var inst = _inventory.FindById(instanceId);
+            if (inst != null) return inst;
+
+            inst = FindOverflow(instanceId);
+            if (inst != null) return inst;
+
+            foreach (var pair in _loadouts)
+            {
+                foreach (GearSlot slot in Enum.GetValues(typeof(GearSlot)))
+                {
+                    var equipped = pair.Value.GetEquipped(slot);
+                    if (equipped != null && equipped.ItemId == instanceId) return equipped;
+                }
+            }
+            return null;
+        }
+
         private static string HeroKey(HeroDefinitionSO hero) => hero != null ? hero.HeroName : "";
 
         // --- Persistence ------------------------------------------------------------------------

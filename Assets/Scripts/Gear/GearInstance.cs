@@ -70,8 +70,39 @@ namespace Wavekeep.Gear
         /// the old per-item LuckBonus the loadout sums. Cached.</summary>
         public float LuckBonus { get { EnsureCache(); return _luckCache; } }
 
-        /// <summary>Invalidate the derived stat/luck cache after a (future) mutation so it rebuilds on next read.</summary>
+        /// <summary>Invalidate the derived stat/luck cache after a mutation so it rebuilds on next read.</summary>
         internal void InvalidateCache() => _cacheBuilt = false;
+
+        // --- Mutators (Task 75 — ADD-or-REPLACE only; never drop/risk an existing affix) --------------
+
+        /// <summary>Task 75 (reroll-affix): replace the affix at <paramref name="index"/> with a re-rolled one of the
+        /// SAME affix type (the caller rolls a new value in the same definition's range). No other affix is touched;
+        /// rarity is unchanged. No-op on an out-of-range index or null replacement.</summary>
+        internal void ReplaceAffix(int index, RolledAffix replacement)
+        {
+            if (replacement == null || index < 0 || index >= _affixes.Count) return;
+            _affixes[index] = replacement;
+            InvalidateCache();
+        }
+
+        /// <summary>Task 75 (upgrade-rarity): append freshly-rolled affix slots gained by a higher rarity. Existing
+        /// affixes are preserved verbatim — this only adds.</summary>
+        internal void AppendAffixes(IReadOnlyList<RolledAffix> additions)
+        {
+            if (additions == null || additions.Count == 0) return;
+            for (int i = 0; i < additions.Count; i++)
+                if (additions[i] != null) _affixes.Add(additions[i]);
+            InvalidateCache();
+        }
+
+        /// <summary>Task 75 (upgrade-rarity): raise the rarity tier. The implicit scales with rarity, so the derived
+        /// cache is invalidated. Affixes are untouched (the caller appends any new slots separately).</summary>
+        internal void SetRarity(Rarity rarity)
+        {
+            if (rarity == Rarity) return;
+            Rarity = rarity;
+            InvalidateCache();
+        }
 
         // --- modifier resolution ----------------------------------------------------------------------
 

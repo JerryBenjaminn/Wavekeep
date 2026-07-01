@@ -21,7 +21,16 @@ namespace Wavekeep.Data
         [Header("Effect (extensible; stat-modifier kind only for now)")]
         [SerializeField]
         private GearEffect _effect = new GearEffect(GearEffectKind.StatModifier, GearStatType.DamageFlatBonus);
-        [Tooltip("Inclusive value range a roll draws from (generation is a later task).")]
+
+        [Header("Per-rarity roll ranges (Task 76) — index 0=Common .. 4=Legendary")]
+        [Tooltip("Inclusive value range a roll draws from, PER rarity tier. Adjacent tiers must NOT overlap so a " +
+                 "higher rarity is always strictly better (validated by the Task 76 setup). Unique is EXEMPT — its " +
+                 "affixes are hand-authored fixed values, never rolled from these ranges. Designer-tunable.")]
+        [SerializeField] private AffixRarityRange[] _rarityRanges = new AffixRarityRange[5];
+
+        [Header("Legacy flat range (Task 67 — kept only as a fallback if per-rarity ranges are unauthored)")]
+        [Tooltip("Superseded by _rarityRanges in Task 76. Used only when a rarity's range is missing/zero, to avoid " +
+                 "a hard break; author the per-rarity ranges via 'Setup Task 76'.")]
         [SerializeField] private float _minValue;
         [SerializeField] private float _maxValue;
 
@@ -39,8 +48,6 @@ namespace Wavekeep.Data
         public string AffixId => _affixId;
         public string DisplayName => _displayName;
         public GearEffect Effect => _effect;
-        public float MinValue => _minValue;
-        public float MaxValue => _maxValue;
         public IReadOnlyList<GearSlot> EligibleSlots => _eligibleSlots;
         public int DrawWeight => _drawWeight;
         public bool HasTag => _hasTag;
@@ -50,7 +57,32 @@ namespace Wavekeep.Data
         public bool IsEligibleFor(GearSlot slot) =>
             _eligibleSlots == null || _eligibleSlots.Count == 0 || _eligibleSlots.Contains(slot);
 
-        /// <summary>Midpoint of the roll range — used ONLY by the Task 67 debug spawn (real rolling is a later task).</summary>
-        public float MidValue => (_minValue + _maxValue) * 0.5f;
+        // --- Task 76: per-rarity roll ranges --------------------------------------------------------
+
+        /// <summary>Inclusive minimum this affix can roll at <paramref name="rarity"/> (falls back to the legacy flat
+        /// range if the per-rarity range is unauthored). Unique never rolls from ranges (hand-authored).</summary>
+        public float MinValueFor(Rarity rarity) => RangeFor(rarity, out float min, out _) ? min : _minValue;
+
+        /// <summary>Inclusive maximum this affix can roll at <paramref name="rarity"/> (legacy-flat fallback).</summary>
+        public float MaxValueFor(Rarity rarity) => RangeFor(rarity, out _, out float max) ? max : _maxValue;
+
+        /// <summary>Midpoint of the rarity's range — used ONLY by the Task 67 debug spawn.</summary>
+        public float MidValueFor(Rarity rarity) => (MinValueFor(rarity) + MaxValueFor(rarity)) * 0.5f;
+
+        /// <summary>True if a designer-authored (non-zero) per-rarity range exists for <paramref name="rarity"/>.</summary>
+        public bool HasRangeFor(Rarity rarity) => RangeFor(rarity, out _, out _);
+
+        // Look up the authored range for a rarity. Returns false (so callers fall back) when no range array exists
+        // or the entry is an unauthored (0,0) sentinel. Unique clamps to the last entry but callers never roll it.
+        private bool RangeFor(Rarity rarity, out float min, out float max)
+        {
+            min = 0f; max = 0f;
+            if (_rarityRanges == null || _rarityRanges.Length == 0) return false;
+            int i = Mathf.Clamp((int)rarity, 0, _rarityRanges.Length - 1);
+            var r = _rarityRanges[i];
+            if (r.max == 0f && r.min == 0f) return false; // treat empty entry as "not set"
+            min = r.min; max = r.max;
+            return true;
+        }
     }
 }

@@ -27,6 +27,16 @@ namespace Wavekeep.Data
                  "the premium sink. Deterministic — the player picks the rarity, no RNG.")]
         [SerializeField] private int[] _forgeCostByRarity = { 10, 25, 60, 140, 320, 700 };
 
+        [Header("Reroll-affix cost (Dust, indexed by the ITEM's Rarity: Common..Unique) — Task 75")]
+        [Tooltip("Dust to reroll ONE affix's value on an item of each rarity. Cheaper than a full rarity upgrade. " +
+                 "Unique = 0 → not rerollable (Unique affixes are hand-authored).")]
+        [SerializeField] private int[] _rerollAffixCostByRarity = { 3, 6, 15, 35, 80, 0 };
+
+        [Header("Upgrade-rarity cost (Dust, indexed by the item's CURRENT Rarity: Common..Unique) — Task 75")]
+        [Tooltip("Dust to raise an item ONE tier (Common→Uncommon … Epic→Legendary). Cheaper than forging fresh at " +
+                 "the resulting tier. Legendary = 0 (cap) and Unique = 0 (Forge-only) → no upgrade available.")]
+        [SerializeField] private int[] _upgradeRarityCostByRarity = { 15, 40, 90, 200, 0, 0 };
+
         public int InventoryCapacity => Mathf.Max(1, _inventoryCapacity);
 
         /// <summary>Dust awarded for salvaging the given rarity (clamped to the authored array; 0 if unauthored).</summary>
@@ -34,6 +44,14 @@ namespace Wavekeep.Data
 
         /// <summary>Dust cost to forge an Artifact of the given rarity (clamped; 0 if unauthored).</summary>
         public int ForgeCost(Rarity rarity) => Lookup(_forgeCostByRarity, rarity);
+
+        /// <summary>Task 75: Dust cost to reroll one affix's value on an item of the given rarity (0 = not
+        /// rerollable, i.e. Unique).</summary>
+        public int RerollAffixCost(Rarity rarity) => Lookup(_rerollAffixCostByRarity, rarity);
+
+        /// <summary>Task 75: Dust cost to raise an item ONE tier from its current rarity (0 = no upgrade available,
+        /// i.e. Legendary cap or Unique).</summary>
+        public int UpgradeRarityCost(Rarity rarity) => Lookup(_upgradeRarityCostByRarity, rarity);
 
         private static int Lookup(int[] arr, Rarity rarity)
         {

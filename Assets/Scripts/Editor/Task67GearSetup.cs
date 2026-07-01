@@ -43,6 +43,10 @@ namespace Wavekeep.EditorTools
             var config = BuildConfig(affixes);
             RegisterInCatalog(bases, affixes);
 
+            // Task 76: (re)apply the per-rarity roll ranges so re-authoring affixes here never reverts them to the
+            // legacy flat range. BuildAffixes() still writes the flat _minValue/_maxValue as a fallback only.
+            Task76AffixRangeSetup.AuthorRanges();
+
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
