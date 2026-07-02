@@ -14,11 +14,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.ConsumableDefinitionSO
   _displayName: Wall Repair Kit
   _icon: {fileID: 0}
-  _description: Instantly restore 150 wall HP.
+  _description: Instantly restore 300 wall HP.
   _price: 0
   _stackable: 0
   _tier: 0
   _effectType: 2
-  _effectValue: 150
+  _effectValue: 300
   _duration: 0
   _areaExtent: 0

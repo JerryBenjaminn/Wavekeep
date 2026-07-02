@@ -18,6 +18,12 @@ namespace Wavekeep.Data
         [Tooltip("Applied to all enemies in this tier, multiplied with each wave's StatMultiplier.")]
         [SerializeField, Min(0f)] private float _globalStatMultiplier = 1f;
 
+        [Tooltip("Task 81: how strongly enemy CONTACT damage follows the combined stat multiplier. " +
+                 "1 = contact damage scales exactly like HP (pre-Task-81 behavior); 0 = contact damage " +
+                 "never scales. Damped contact multiplier = 1 + (statMultiplier - 1) × this. Keeps the " +
+                 "wall an attrition gauge instead of a one-shot check while HP keeps its full curve.")]
+        [SerializeField, Range(0f, 1f)] private float _contactDamageScaling = 1f;
+
         [Header("Milestone Scaling (Task 10)")]
         [Tooltip("A milestone step is applied every N waves (5 = waves 5, 10, 15...). 0 disables milestones.")]
         [SerializeField, Min(0)] private int _milestoneWaveInterval = 5;
@@ -54,6 +60,17 @@ namespace Wavekeep.Data
             if (_milestoneWaveInterval <= 0) return 1f;
             int milestonesReached = waveNumber / _milestoneWaveInterval; // integer division = floor
             return 1f + milestonesReached * _milestoneStep;
+        }
+
+        /// <summary>
+        /// Task 81: the CONTACT-damage multiplier derived from the combined stat multiplier, damped by
+        /// <see cref="_contactDamageScaling"/>: <c>1 + (statMultiplier - 1) × scaling</c>. At scaling = 1
+        /// this returns <paramref name="statMultiplier"/> unchanged (pre-Task-81 behavior). Pure
+        /// read-only computation over this tier's serialized parameter — never mutates the SO.
+        /// </summary>
+        public float GetContactDamageMultiplier(float statMultiplier)
+        {
+            return 1f + (statMultiplier - 1f) * Mathf.Clamp01(_contactDamageScaling);
         }
 
         /// <summary>True when a 1-based <paramref name="waveNumber"/> is a boss wave (every

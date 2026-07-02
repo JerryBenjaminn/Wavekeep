@@ -207,7 +207,8 @@ namespace Wavekeep.Runtime
             Action<EnemyRuntime> onResolved,
             LootTableSO lootTable = null,
             ComboApexState comboApex = null,
-            PauseState pauseState = null)
+            PauseState pauseState = null,
+            float contactDamageMultiplier = -1f)
         {
             Definition = definition;
             GameObject = pooledInstance;
@@ -234,7 +235,11 @@ namespace Wavekeep.Runtime
 
             MaxHealth = definition.MaxHealth * statMultiplier;
             CurrentHealth = MaxHealth;
-            ContactDamage = definition.ContactDamage * statMultiplier;
+            // Task 81: contact damage follows its own (damped) multiplier so wall pressure can be tuned
+            // independently of the HP curve. Negative = not provided → fall back to the HP multiplier
+            // (pre-Task-81 behavior for any caller that doesn't pass one).
+            ContactDamage = definition.ContactDamage *
+                            (contactDamageMultiplier >= 0f ? contactDamageMultiplier : statMultiplier);
             MoveSpeed = definition.MoveSpeed;
             Armor = definition.Armor;             // Task 64 follow-up: base value, NOT wave-scaled (see Armor docs)
             MagicResist = definition.MagicResist; // → constant mitigation %, no double-dip vs growing player damage

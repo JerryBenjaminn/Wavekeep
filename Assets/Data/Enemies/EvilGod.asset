@@ -17,7 +17,7 @@ MonoBehaviour:
   _spawnGroundOffset: 0
   _maxHealth: 200
   _moveSpeed: 1.6
-  _contactDamage: 15
+  _contactDamage: 30
   _armor: 50
   _magicResist: 50
   _currencyReward: 25

@@ -16,8 +16,10 @@ namespace Wavekeep.Runtime
     [AddComponentMenu("Wavekeep/Runtime/Wall Runtime")]
     public sealed class WallRuntime : MonoBehaviour
     {
-        [Tooltip("Placeholder max HP for Task 02. Tune freely; can move to a per-level SO later.")]
-        [SerializeField, Min(1f)] private float _maxHP = 300f;
+        [Tooltip("Max wall HP. Task 81 raised 300 → 1200 (with contact-damage damping) so the wall is an " +
+                 "attrition gauge across the 60-wave curve; can move to a per-level SO later. NOTE: the " +
+                 "scene's serialized value wins over this default — re-run 'Wavekeep/Setup Task 81'.")]
+        [SerializeField, Min(1f)] private float _maxHP = 1200f;
 
         public float MaxHP { get; private set; }
         public float CurrentHP { get; private set; }

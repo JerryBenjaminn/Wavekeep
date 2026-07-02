@@ -20,5 +20,5 @@ MonoBehaviour:
   _tier: 1
   _effectType: 12
   _effectValue: 0.4
-  _duration: 30
+  _duration: 40
   _areaExtent: 0

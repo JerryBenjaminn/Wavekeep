@@ -75,6 +75,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 588228fc352ac354e837a6854facd40b, type: 2}
   - {fileID: 11400000, guid: 58ec7937e24e6b94dbfce4171f7f42a9, type: 2}
   _globalStatMultiplier: 1
+  _contactDamageScaling: 0.12
   _milestoneWaveInterval: 5
   _milestoneStep: 0.5
   _bossWaveInterval: 5

@@ -14,11 +14,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.ConsumableDefinitionSO
   _displayName: Reinforced Repair
   _icon: {fileID: 0}
-  _description: Instantly restore a large amount of wall HP (400).
+  _description: Instantly restore a large amount of wall HP (800).
   _price: 0
   _stackable: 0
   _tier: 1
   _effectType: 2
-  _effectValue: 400
+  _effectValue: 800
   _duration: 0
   _areaExtent: 0

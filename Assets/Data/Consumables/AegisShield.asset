@@ -14,12 +14,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Wavekeep.Data.ConsumableDefinitionSO
   _displayName: Aegis Shield
   _icon: {fileID: 0}
-  _description: The wall gains a 250 HP shield that absorbs damage during the next
+  _description: The wall gains a 500 HP shield that absorbs damage during the next
     wave.
   _price: 0
   _stackable: 0
   _tier: 2
   _effectType: 13
-  _effectValue: 250
-  _duration: 30
+  _effectValue: 500
+  _duration: 40
   _areaExtent: 0

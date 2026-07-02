@@ -293,16 +293,22 @@ namespace Wavekeep.Waves
             float multiplier = _difficultyTier.GlobalStatMultiplier * wave.StatMultiplier * milestone;
             bool bossWave = _difficultyTier.IsBossWave(waveNumber);
 
+            // Task 81: contact damage follows a damped curve (tier's _contactDamageScaling) instead of
+            // the full HP multiplier, so late waves stay a kill-throughput check rather than a
+            // wall-one-shot check. At scaling = 1 this equals `multiplier` (pre-Task-81 behavior).
+            float contactMultiplier = _difficultyTier.GetContactDamageMultiplier(multiplier);
+
             Debug.Log($"[WaveSpawner] Wave {waveNumber} scaling: perWave={wave.StatMultiplier:0.00} × " +
                       $"tier={_difficultyTier.GlobalStatMultiplier:0.00} × milestone={milestone:0.00} " +
-                      $"→ final={multiplier:0.00}{(bossWave ? "  [BOSS WAVE]" : "")}");
+                      $"→ final={multiplier:0.00} (contact={contactMultiplier:0.00})" +
+                      $"{(bossWave ? "  [BOSS WAVE]" : "")}");
 
             // Boss spawns ALONGSIDE (not instead of) the normal composition, at the same scaled
             // multiplier, through the SAME pool/SpawnEnemy path — it's just a tougher EnemyDefinitionSO,
             // so it lands in _activeEnemies and the existing "all enemies resolved" wait covers it.
             if (bossWave)
             {
-                yield return StartCoroutine(SpawnBosses(multiplier, wave));
+                yield return StartCoroutine(SpawnBosses(multiplier, contactMultiplier, wave));
             }
 
             foreach (var entry in wave.SpawnEntries)
@@ -320,7 +326,7 @@ namespace Wavekeep.Waves
                     while (_pause != null && _pause.IsPaused) yield return null;
 
                     // Task 13: regular enemies roll their own EnemyDefinitionSO loot table (or none).
-                    SpawnEnemy(entry.EnemyType, multiplier, entry.EnemyType.LootTable);
+                    SpawnEnemy(entry.EnemyType, multiplier, contactMultiplier, entry.EnemyType.LootTable);
                     if (entry.SpawnInterval > 0f)
                     {
                         yield return new WaitForSeconds(entry.SpawnInterval);
@@ -329,7 +335,7 @@ namespace Wavekeep.Waves
             }
         }
 
-        private IEnumerator SpawnBosses(float multiplier, WaveConfigSO wave)
+        private IEnumerator SpawnBosses(float multiplier, float contactMultiplier, WaveConfigSO wave)
         {
             var bossDef = _difficultyTier.BossDefinition;
             if (bossDef == null || bossDef.Prefab == null)
@@ -346,13 +352,14 @@ namespace Wavekeep.Waves
             for (int b = 0; b < bossCount; b++)
             {
                 while (_pause != null && _pause.IsPaused) yield return null;
-                SpawnEnemy(bossDef, multiplier, bossLootTable);
+                SpawnEnemy(bossDef, multiplier, contactMultiplier, bossLootTable);
                 Debug.Log($"[WaveSpawner] BOSS spawned: '{bossDef.EnemyName}' at mult={multiplier:0.00} " +
                           $"(loot: {(bossLootTable != null ? bossLootTable.name : "none")}).");
             }
         }
 
-        private void SpawnEnemy(EnemyDefinitionSO definition, float multiplier, LootTableSO lootTable)
+        private void SpawnEnemy(EnemyDefinitionSO definition, float multiplier, float contactMultiplier,
+            LootTableSO lootTable)
         {
             var marker = _spawnMarkers[_spawnMarkerCursor];
             _spawnMarkerCursor = (_spawnMarkerCursor + 1) % _spawnMarkers.Length;
@@ -368,7 +375,8 @@ namespace Wavekeep.Waves
 
             var enemy = new EnemyRuntime();
             enemy.Initialize(definition, instance, multiplier, _wall, _events, _arrivalThreshold, _attackInterval,
-                OnEnemyResolved, lootTable, _comboApex, _pause); // Task 65: gate animated wall attacks on the shared pause
+                OnEnemyResolved, lootTable, _comboApex, _pause, // Task 65: gate animated wall attacks on the shared pause
+                contactMultiplier); // Task 81: contact damage scales on the tier's damped curve, not the HP curve
             _activeEnemies.Add(enemy);
 
             Debug.Log($"[WaveSpawner] Spawned '{definition.EnemyName}' mult={multiplier:0.00} maxHP={enemy.MaxHealth:0.0}");
